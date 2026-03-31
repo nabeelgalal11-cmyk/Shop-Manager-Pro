@@ -1,18 +1,27 @@
+import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { 
-  useGetCustomer, getGetCustomerQueryKey, 
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useGetCustomer, getGetCustomerQueryKey,
   useGetCustomerVehicles, getGetCustomerVehiclesQueryKey,
   useGetCustomerStatement, getGetCustomerStatementQueryKey,
-  useDeleteCustomer
+  useDeleteCustomer, useUpdateCustomer,
 } from "@workspace/api-client-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Edit, Trash2, Phone, Mail, MapPin, Car, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function CustomerDetail() {
@@ -20,39 +29,66 @@ export default function CustomerDetail() {
   const id = match ? parseInt(params.id) : 0;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const { data: customer, isLoading } = useGetCustomer(id, { 
-    query: { enabled: !!id, queryKey: getGetCustomerQueryKey(id) } 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
+
+  const { data: customer, isLoading } = useGetCustomer(id, {
+    query: { enabled: !!id, queryKey: getGetCustomerQueryKey(id) },
   });
-  
+
   const { data: vehicles } = useGetCustomerVehicles(id, {
-    query: { enabled: !!id, queryKey: getGetCustomerVehiclesQueryKey(id) }
+    query: { enabled: !!id, queryKey: getGetCustomerVehiclesQueryKey(id) },
   });
 
   const { data: statement } = useGetCustomerStatement(id, {
-    query: { enabled: !!id, queryKey: getGetCustomerStatementQueryKey(id) }
+    query: { enabled: !!id, queryKey: getGetCustomerStatementQueryKey(id) },
   });
 
   const deleteCustomer = useDeleteCustomer();
+  const updateCustomer = useUpdateCustomer();
 
   const handleDelete = () => {
     deleteCustomer.mutate({ id }, {
       onSuccess: () => {
         toast({ title: "Customer deleted" });
         setLocation("/customers");
-      }
+      },
     });
   };
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+  const openEdit = () => {
+    setEditForm({
+      firstName: customer?.firstName ?? "",
+      lastName: customer?.lastName ?? "",
+      email: customer?.email ?? "",
+      phone: customer?.phone ?? "",
+      address: customer?.address ?? "",
+      city: customer?.city ?? "",
+      state: customer?.state ?? "",
+      zip: customer?.zip ?? "",
+      notes: customer?.notes ?? "",
+    });
+    setEditOpen(true);
+  };
 
-  if (isLoading) {
-    return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
-  }
+  const handleSave = () => {
+    updateCustomer.mutate({ id, data: editForm }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(id) });
+        toast({ title: "Customer updated" });
+        setEditOpen(false);
+      },
+      onError: () => toast({ title: "Failed to update", variant: "destructive" }),
+    });
+  };
 
-  if (!customer) {
-    return <div className="p-8 text-center">Customer not found</div>;
-  }
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
+
+  if (isLoading) return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
+  if (!customer) return <div className="p-8 text-center">Customer not found</div>;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -67,7 +103,9 @@ export default function CustomerDetail() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline"><Edit className="h-4 w-4 mr-2" /> Edit</Button>
+          <Button variant="outline" onClick={openEdit}>
+            <Edit className="h-4 w-4 mr-2" /> Edit
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive"><Trash2 className="h-4 w-4 mr-2" /> Delete</Button>
@@ -79,7 +117,9 @@ export default function CustomerDetail() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                  Delete
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -88,9 +128,7 @@ export default function CustomerDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="shadow-sm border-border md:col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg">Contact Info</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-lg">Contact Info</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start gap-3">
               <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
@@ -111,7 +149,7 @@ export default function CustomerDetail() {
               <div>
                 <p className="font-medium">{customer.address || "No address"}</p>
                 <p className="text-xs text-muted-foreground">
-                  {customer.city ? `${customer.city}, ` : ''}{customer.state} {customer.zip}
+                  {customer.city ? `${customer.city}, ` : ""}{customer.state} {customer.zip}
                 </p>
               </div>
             </div>
@@ -125,9 +163,7 @@ export default function CustomerDetail() {
         </Card>
 
         <Card className="shadow-sm border-border md:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-lg">Financial Overview</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-lg">Financial Overview</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4">
               <div className="p-4 bg-muted/20 rounded-lg border">
@@ -162,7 +198,9 @@ export default function CustomerDetail() {
           <Card className="shadow-sm border-border">
             <div className="p-4 border-b flex justify-between items-center bg-muted/20">
               <h3 className="font-semibold">Customer Vehicles</h3>
-              <Button size="sm" onClick={() => setLocation("/vehicles/new")}><Car className="h-4 w-4 mr-2" /> Add Vehicle</Button>
+              <Button size="sm" onClick={() => setLocation("/vehicles/new")}>
+                <Car className="h-4 w-4 mr-2" /> Add Vehicle
+              </Button>
             </div>
             <Table>
               <TableHeader>
@@ -180,7 +218,7 @@ export default function CustomerDetail() {
                       {v.licensePlate && <Badge variant="outline" className="mr-2">{v.licensePlate}</Badge>}
                       <span className="text-xs text-muted-foreground">{v.vin}</span>
                     </TableCell>
-                    <TableCell>{v.color || '-'}</TableCell>
+                    <TableCell>{v.color || "-"}</TableCell>
                   </TableRow>
                 )) : (
                   <TableRow><TableCell colSpan={3} className="text-center py-8 text-muted-foreground">No vehicles found.</TableCell></TableRow>
@@ -216,6 +254,64 @@ export default function CustomerDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="space-y-1.5">
+              <Label>First Name</Label>
+              <Input value={editForm.firstName || ""} onChange={e => setEditForm((f: any) => ({ ...f, firstName: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Last Name</Label>
+              <Input value={editForm.lastName || ""} onChange={e => setEditForm((f: any) => ({ ...f, lastName: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input type="email" value={editForm.email || ""} onChange={e => setEditForm((f: any) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input value={editForm.phone || ""} onChange={e => setEditForm((f: any) => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>Street Address</Label>
+              <Input value={editForm.address || ""} onChange={e => setEditForm((f: any) => ({ ...f, address: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>City</Label>
+              <Input value={editForm.city || ""} onChange={e => setEditForm((f: any) => ({ ...f, city: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>State</Label>
+                <Input maxLength={2} value={editForm.state || ""} onChange={e => setEditForm((f: any) => ({ ...f, state: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>ZIP</Label>
+                <Input value={editForm.zip || ""} onChange={e => setEditForm((f: any) => ({ ...f, zip: e.target.value }))} />
+              </div>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>Notes</Label>
+              <Textarea
+                rows={3}
+                value={editForm.notes || ""}
+                onChange={e => setEditForm((f: any) => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={updateCustomer.isPending}>
+              {updateCustomer.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
