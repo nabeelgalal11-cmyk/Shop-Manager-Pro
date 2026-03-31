@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
@@ -16,6 +16,7 @@ export const repairOrdersTable = pgTable("repair_orders", {
   complaint: text("complaint"),
   diagnosis: text("diagnosis"),
   notes: text("notes"),
+  parts: jsonb("parts").$type<Array<{ name: string; partNumber?: string; quantity: number; unitPrice: number }>>().default([]),
   estimatedHours: numeric("estimated_hours", { precision: 10, scale: 2 }),
   actualHours: numeric("actual_hours", { precision: 10, scale: 2 }),
   mileageIn: integer("mileage_in"),

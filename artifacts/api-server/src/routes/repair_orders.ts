@@ -53,9 +53,11 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { assignedToId, status, priority, complaint, diagnosis, notes, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt } = req.body;
+  const { assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt } = req.body;
   const [order] = await db.update(repairOrdersTable).set({
-    assignedToId, status, priority, complaint, diagnosis, notes, estimatedHours, actualHours,
+    assignedToId, status, priority, complaint, diagnosis, notes,
+    parts: parts !== undefined ? parts : undefined,
+    estimatedHours, actualHours,
     mileageIn, mileageOut,
     promisedDate: promisedDate ? new Date(promisedDate) : undefined,
     completedAt: completedAt ? new Date(completedAt) : undefined,
