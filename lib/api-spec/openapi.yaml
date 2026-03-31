@@ -1,22 +1,49 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ShopOS Auto Repair Management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: customers
+    description: Customer management
+  - name: vehicles
+    description: Vehicle management
+  - name: estimates
+    description: Estimate management
+  - name: invoices
+    description: Invoice management
+  - name: repair-orders
+    description: Repair orders and job cards
+  - name: inventory
+    description: Parts and inventory
+  - name: inspections
+    description: Vehicle inspections
+  - name: appointments
+    description: Scheduling and appointments
+  - name: payments
+    description: Payment tracking
+  - name: employees
+    description: Employee management
+  - name: time-entries
+    description: Time tracking
+  - name: expenses
+    description: Expense tracking
+  - name: dashboard
+    description: Dashboard analytics
+  - name: reminders
+    description: Service reminders
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +51,1477 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ---- CUSTOMERS ----
+  /customers:
+    get:
+      operationId: getCustomers
+      tags: [customers]
+      summary: List customers
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerListResponse"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerInput"
+      responses:
+        "201":
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get customer by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    put:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerInput"
+      responses:
+        "200":
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /customers/{id}/vehicles:
+    get:
+      operationId: getCustomerVehicles
+      tags: [customers]
+      summary: Get vehicles for a customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vehicle"
+
+  /customers/{id}/statement:
+    get:
+      operationId: getCustomerStatement
+      tags: [customers]
+      summary: Get billing statement for customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Customer billing statement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerStatement"
+
+  # ---- VEHICLES ----
+  /vehicles:
+    get:
+      operationId: getVehicles
+      tags: [vehicles]
+      summary: List vehicles
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: customerId
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of vehicles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleListResponse"
+    post:
+      operationId: createVehicle
+      tags: [vehicles]
+      summary: Create a vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleInput"
+      responses:
+        "201":
+          description: Vehicle created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+
+  /vehicles/{id}:
+    get:
+      operationId: getVehicle
+      tags: [vehicles]
+      summary: Get vehicle by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vehicle details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+    put:
+      operationId: updateVehicle
+      tags: [vehicles]
+      summary: Update vehicle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleInput"
+      responses:
+        "200":
+          description: Vehicle updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+    delete:
+      operationId: deleteVehicle
+      tags: [vehicles]
+      summary: Delete vehicle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /vehicles/{id}/service-history:
+    get:
+      operationId: getVehicleServiceHistory
+      tags: [vehicles]
+      summary: Get vehicle service history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Service history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceHistoryEntry"
+
+  # ---- ESTIMATES ----
+  /estimates:
+    get:
+      operationId: getEstimates
+      tags: [estimates]
+      summary: List estimates
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, sent, approved, denied, converted]
+        - name: customerId
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of estimates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstimateListResponse"
+    post:
+      operationId: createEstimate
+      tags: [estimates]
+      summary: Create an estimate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEstimateInput"
+      responses:
+        "201":
+          description: Estimate created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estimate"
+
+  /estimates/{id}:
+    get:
+      operationId: getEstimate
+      tags: [estimates]
+      summary: Get estimate by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Estimate details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estimate"
+    put:
+      operationId: updateEstimate
+      tags: [estimates]
+      summary: Update estimate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEstimateInput"
+      responses:
+        "200":
+          description: Estimate updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estimate"
+    delete:
+      operationId: deleteEstimate
+      tags: [estimates]
+      summary: Delete estimate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /estimates/{id}/convert:
+    post:
+      operationId: convertEstimateToInvoice
+      tags: [estimates]
+      summary: Convert estimate to invoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Invoice created from estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  # ---- INVOICES ----
+  /invoices:
+    get:
+      operationId: getInvoices
+      tags: [invoices]
+      summary: List invoices
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, sent, paid, overdue, void]
+        - name: customerId
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceListResponse"
+    post:
+      operationId: createInvoice
+      tags: [invoices]
+      summary: Create an invoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvoiceInput"
+      responses:
+        "201":
+          description: Invoice created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+
+  /invoices/{id}:
+    get:
+      operationId: getInvoice
+      tags: [invoices]
+      summary: Get invoice by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+    put:
+      operationId: updateInvoice
+      tags: [invoices]
+      summary: Update invoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvoiceInput"
+      responses:
+        "200":
+          description: Invoice updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invoice"
+    delete:
+      operationId: deleteInvoice
+      tags: [invoices]
+      summary: Delete invoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ---- REPAIR ORDERS ----
+  /repair-orders:
+    get:
+      operationId: getRepairOrders
+      tags: [repair-orders]
+      summary: List repair orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
+        - name: assignedTo
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of repair orders
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairOrderListResponse"
+    post:
+      operationId: createRepairOrder
+      tags: [repair-orders]
+      summary: Create a repair order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRepairOrderInput"
+      responses:
+        "201":
+          description: Repair order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairOrder"
+
+  /repair-orders/{id}:
+    get:
+      operationId: getRepairOrder
+      tags: [repair-orders]
+      summary: Get repair order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Repair order details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairOrder"
+    put:
+      operationId: updateRepairOrder
+      tags: [repair-orders]
+      summary: Update repair order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRepairOrderInput"
+      responses:
+        "200":
+          description: Repair order updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairOrder"
+    delete:
+      operationId: deleteRepairOrder
+      tags: [repair-orders]
+      summary: Delete repair order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ---- INVENTORY ----
+  /inventory:
+    get:
+      operationId: getInventory
+      tags: [inventory]
+      summary: List inventory items
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: lowStock
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of inventory items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryListResponse"
+    post:
+      operationId: createInventoryItem
+      tags: [inventory]
+      summary: Create inventory item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInventoryItemInput"
+      responses:
+        "201":
+          description: Inventory item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+
+  /inventory/{id}:
+    get:
+      operationId: getInventoryItem
+      tags: [inventory]
+      summary: Get inventory item by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Inventory item details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+    put:
+      operationId: updateInventoryItem
+      tags: [inventory]
+      summary: Update inventory item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInventoryItemInput"
+      responses:
+        "200":
+          description: Inventory item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+    delete:
+      operationId: deleteInventoryItem
+      tags: [inventory]
+      summary: Delete inventory item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ---- INSPECTIONS ----
+  /inspections:
+    get:
+      operationId: getInspections
+      tags: [inspections]
+      summary: List inspections
+      parameters:
+        - name: vehicleId
+          in: query
+          schema:
+            type: integer
+        - name: repairOrderId
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of inspections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InspectionListResponse"
+    post:
+      operationId: createInspection
+      tags: [inspections]
+      summary: Create an inspection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInspectionInput"
+      responses:
+        "201":
+          description: Inspection created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inspection"
+
+  /inspections/{id}:
+    get:
+      operationId: getInspection
+      tags: [inspections]
+      summary: Get inspection by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Inspection details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inspection"
+    put:
+      operationId: updateInspection
+      tags: [inspections]
+      summary: Update inspection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInspectionInput"
+      responses:
+        "200":
+          description: Inspection updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inspection"
+
+  # ---- APPOINTMENTS ----
+  /appointments:
+    get:
+      operationId: getAppointments
+      tags: [appointments]
+      summary: List appointments
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [scheduled, confirmed, in_progress, completed, cancelled, no_show]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of appointments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentListResponse"
+    post:
+      operationId: createAppointment
+      tags: [appointments]
+      summary: Create an appointment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAppointmentInput"
+      responses:
+        "201":
+          description: Appointment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+
+  /appointments/{id}:
+    get:
+      operationId: getAppointment
+      tags: [appointments]
+      summary: Get appointment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Appointment details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+    put:
+      operationId: updateAppointment
+      tags: [appointments]
+      summary: Update appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAppointmentInput"
+      responses:
+        "200":
+          description: Appointment updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+    delete:
+      operationId: deleteAppointment
+      tags: [appointments]
+      summary: Delete appointment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ---- PAYMENTS ----
+  /payments:
+    get:
+      operationId: getPayments
+      tags: [payments]
+      summary: List payments
+      parameters:
+        - name: invoiceId
+          in: query
+          schema:
+            type: integer
+        - name: method
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentListResponse"
+    post:
+      operationId: createPayment
+      tags: [payments]
+      summary: Record a payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentInput"
+      responses:
+        "201":
+          description: Payment recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /payments/{id}:
+    get:
+      operationId: getPayment
+      tags: [payments]
+      summary: Get payment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+    delete:
+      operationId: deletePayment
+      tags: [payments]
+      summary: Delete payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ---- EMPLOYEES ----
+  /employees:
+    get:
+      operationId: getEmployees
+      tags: [employees]
+      summary: List employees
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of employees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Employee"
+    post:
+      operationId: createEmployee
+      tags: [employees]
+      summary: Create employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeInput"
+      responses:
+        "201":
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+
+  /employees/{id}:
+    get:
+      operationId: getEmployee
+      tags: [employees]
+      summary: Get employee by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    put:
+      operationId: updateEmployee
+      tags: [employees]
+      summary: Update employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmployeeInput"
+      responses:
+        "200":
+          description: Employee updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+    delete:
+      operationId: deleteEmployee
+      tags: [employees]
+      summary: Delete employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /employees/{id}/clock-in:
+    post:
+      operationId: clockIn
+      tags: [time-entries]
+      summary: Clock in employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Clocked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+
+  /employees/{id}/clock-out:
+    post:
+      operationId: clockOut
+      tags: [time-entries]
+      summary: Clock out employee
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Clocked out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+
+  # ---- TIME ENTRIES ----
+  /time-entries:
+    get:
+      operationId: getTimeEntries
+      tags: [time-entries]
+      summary: List time entries
+      parameters:
+        - name: employeeId
+          in: query
+          schema:
+            type: integer
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: List of time entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntryListResponse"
+
+  # ---- EXPENSES ----
+  /expenses:
+    get:
+      operationId: getExpenses
+      tags: [expenses]
+      summary: List expenses
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseListResponse"
+    post:
+      operationId: createExpense
+      tags: [expenses]
+      summary: Create expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseInput"
+      responses:
+        "201":
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+
+  /expenses/{id}:
+    get:
+      operationId: getExpense
+      tags: [expenses]
+      summary: Get expense by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Expense details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+    put:
+      operationId: updateExpense
+      tags: [expenses]
+      summary: Update expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseInput"
+      responses:
+        "200":
+          description: Expense updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expense"
+    delete:
+      operationId: deleteExpense
+      tags: [expenses]
+      summary: Delete expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ---- REMINDERS ----
+  /reminders:
+    get:
+      operationId: getReminders
+      tags: [reminders]
+      summary: List service reminders
+      parameters:
+        - name: sent
+          in: query
+          schema:
+            type: boolean
+        - name: overdue
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of reminders
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReminderListResponse"
+    post:
+      operationId: createReminder
+      tags: [reminders]
+      summary: Create service reminder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReminderInput"
+      responses:
+        "201":
+          description: Reminder created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+
+  /reminders/{id}:
+    get:
+      operationId: getReminder
+      tags: [reminders]
+      summary: Get reminder by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reminder details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+    put:
+      operationId: updateReminder
+      tags: [reminders]
+      summary: Update reminder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReminderInput"
+      responses:
+        "200":
+          description: Reminder updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reminder"
+    delete:
+      operationId: deleteReminder
+      tags: [reminders]
+      summary: Delete reminder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ---- DASHBOARD ----
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent shop activity
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /dashboard/revenue-chart:
+    get:
+      operationId: getRevenueChart
+      tags: [dashboard]
+      summary: Get revenue chart data (last 12 months)
+      responses:
+        "200":
+          description: Revenue chart data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RevenueChartPoint"
+
+  /dashboard/job-status-breakdown:
+    get:
+      operationId: getJobStatusBreakdown
+      tags: [dashboard]
+      summary: Get repair order status breakdown
+      responses:
+        "200":
+          description: Job status breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StatusCount"
+
+  /dashboard/top-services:
+    get:
+      operationId: getTopServices
+      tags: [dashboard]
+      summary: Get top performed services
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+      responses:
+        "200":
+          description: Top services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceCount"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +1532,1389 @@ components:
       required:
         - status
 
+    Customer:
+      type: object
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zip:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        vehicleCount:
+          type: integer
+        totalBilled:
+          type: number
+        totalPaid:
+          type: number
+      required:
+        - id
+        - firstName
+        - lastName
+        - createdAt
+        - updatedAt
+
+    CreateCustomerInput:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zip:
+          type: string
+        notes:
+          type: string
+      required:
+        - firstName
+        - lastName
+
+    CustomerListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Customer"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    CustomerStatement:
+      type: object
+      properties:
+        customer:
+          $ref: "#/components/schemas/Customer"
+        invoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        totalBilled:
+          type: number
+        totalPaid:
+          type: number
+        balance:
+          type: number
+      required:
+        - customer
+        - invoices
+        - totalBilled
+        - totalPaid
+        - balance
+
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        vin:
+          type: string
+        licensePlate:
+          type: string
+        year:
+          type: integer
+        make:
+          type: string
+        model:
+          type: string
+        trim:
+          type: string
+        color:
+          type: string
+        mileage:
+          type: integer
+        engineType:
+          type: string
+        transmissionType:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        customer:
+          $ref: "#/components/schemas/Customer"
+      required:
+        - id
+        - customerId
+        - year
+        - make
+        - model
+        - createdAt
+        - updatedAt
+
+    CreateVehicleInput:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        vin:
+          type: string
+        licensePlate:
+          type: string
+        year:
+          type: integer
+        make:
+          type: string
+        model:
+          type: string
+        trim:
+          type: string
+        color:
+          type: string
+        mileage:
+          type: integer
+        engineType:
+          type: string
+        transmissionType:
+          type: string
+        notes:
+          type: string
+      required:
+        - customerId
+        - year
+        - make
+        - model
+
+    VehicleListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Vehicle"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    ServiceHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        vehicleId:
+          type: integer
+        date:
+          type: string
+          format: date
+        mileage:
+          type: integer
+        serviceType:
+          type: string
+        description:
+          type: string
+        cost:
+          type: number
+        repairOrderId:
+          type: integer
+      required:
+        - id
+        - vehicleId
+        - date
+        - serviceType
+
+    LineItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [labor, part, fee, discount]
+        description:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        total:
+          type: number
+        partNumber:
+          type: string
+        inventoryItemId:
+          type: integer
+      required:
+        - type
+        - description
+        - quantity
+        - unitPrice
+        - total
+
+    CreateLineItemInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [labor, part, fee, discount]
+        description:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        partNumber:
+          type: string
+        inventoryItemId:
+          type: integer
+      required:
+        - type
+        - description
+        - quantity
+        - unitPrice
+
+    Estimate:
+      type: object
+      properties:
+        id:
+          type: integer
+        estimateNumber:
+          type: string
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        status:
+          type: string
+          enum: [draft, sent, approved, denied, converted]
+        notes:
+          type: string
+        subtotal:
+          type: number
+        taxRate:
+          type: number
+        taxAmount:
+          type: number
+        discountAmount:
+          type: number
+        total:
+          type: number
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineItem"
+        customer:
+          $ref: "#/components/schemas/Customer"
+        vehicle:
+          $ref: "#/components/schemas/Vehicle"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - estimateNumber
+        - customerId
+        - status
+        - subtotal
+        - taxRate
+        - taxAmount
+        - discountAmount
+        - total
+        - createdAt
+        - updatedAt
+
+    CreateEstimateInput:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        status:
+          type: string
+          enum: [draft, sent, approved, denied, converted]
+        notes:
+          type: string
+        taxRate:
+          type: number
+        discountAmount:
+          type: number
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateLineItemInput"
+      required:
+        - customerId
+        - lineItems
+
+    EstimateListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Estimate"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoiceNumber:
+          type: string
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        repairOrderId:
+          type: integer
+        estimateId:
+          type: integer
+        status:
+          type: string
+          enum: [draft, sent, paid, overdue, void]
+        notes:
+          type: string
+        subtotal:
+          type: number
+        taxRate:
+          type: number
+        taxAmount:
+          type: number
+        discountAmount:
+          type: number
+        total:
+          type: number
+        amountPaid:
+          type: number
+        balance:
+          type: number
+        dueDate:
+          type: string
+          format: date
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineItem"
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+        customer:
+          $ref: "#/components/schemas/Customer"
+        vehicle:
+          $ref: "#/components/schemas/Vehicle"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - invoiceNumber
+        - customerId
+        - status
+        - subtotal
+        - taxRate
+        - taxAmount
+        - discountAmount
+        - total
+        - amountPaid
+        - balance
+        - createdAt
+        - updatedAt
+
+    CreateInvoiceInput:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        repairOrderId:
+          type: integer
+        estimateId:
+          type: integer
+        status:
+          type: string
+          enum: [draft, sent, paid, overdue, void]
+        notes:
+          type: string
+        taxRate:
+          type: number
+        discountAmount:
+          type: number
+        dueDate:
+          type: string
+          format: date
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateLineItemInput"
+      required:
+        - customerId
+        - lineItems
+
+    InvoiceListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    RepairOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+        orderNumber:
+          type: string
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        assignedToId:
+          type: integer
+        status:
+          type: string
+          enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+        complaint:
+          type: string
+        diagnosis:
+          type: string
+        notes:
+          type: string
+        estimatedHours:
+          type: number
+        actualHours:
+          type: number
+        mileageIn:
+          type: integer
+        mileageOut:
+          type: integer
+        promisedDate:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        customer:
+          $ref: "#/components/schemas/Customer"
+        vehicle:
+          $ref: "#/components/schemas/Vehicle"
+        assignedTo:
+          $ref: "#/components/schemas/Employee"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - orderNumber
+        - customerId
+        - vehicleId
+        - status
+        - priority
+        - createdAt
+        - updatedAt
+
+    CreateRepairOrderInput:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        assignedToId:
+          type: integer
+        status:
+          type: string
+          enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+        complaint:
+          type: string
+        diagnosis:
+          type: string
+        notes:
+          type: string
+        estimatedHours:
+          type: number
+        mileageIn:
+          type: integer
+        promisedDate:
+          type: string
+          format: date-time
+      required:
+        - customerId
+        - vehicleId
+
+    UpdateRepairOrderInput:
+      type: object
+      properties:
+        assignedToId:
+          type: integer
+        status:
+          type: string
+          enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
+        priority:
+          type: string
+          enum: [low, normal, high, urgent]
+        complaint:
+          type: string
+        diagnosis:
+          type: string
+        notes:
+          type: string
+        estimatedHours:
+          type: number
+        actualHours:
+          type: number
+        mileageIn:
+          type: integer
+        mileageOut:
+          type: integer
+        promisedDate:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+
+    RepairOrderListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/RepairOrder"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    InventoryItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        partNumber:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        vendor:
+          type: string
+        costPrice:
+          type: number
+        sellPrice:
+          type: number
+        quantity:
+          type: integer
+        minQuantity:
+          type: integer
+        location:
+          type: string
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - category
+        - costPrice
+        - sellPrice
+        - quantity
+        - minQuantity
+        - createdAt
+        - updatedAt
+
+    CreateInventoryItemInput:
+      type: object
+      properties:
+        partNumber:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        vendor:
+          type: string
+        costPrice:
+          type: number
+        sellPrice:
+          type: number
+        quantity:
+          type: integer
+        minQuantity:
+          type: integer
+        location:
+          type: string
+        notes:
+          type: string
+      required:
+        - name
+        - category
+        - costPrice
+        - sellPrice
+        - quantity
+        - minQuantity
+
+    InventoryListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InventoryItem"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    InspectionItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        label:
+          type: string
+        status:
+          type: string
+          enum: [ok, needs_attention, urgent, na]
+        notes:
+          type: string
+      required:
+        - label
+        - status
+
+    Inspection:
+      type: object
+      properties:
+        id:
+          type: integer
+        vehicleId:
+          type: integer
+        repairOrderId:
+          type: integer
+        inspectedById:
+          type: integer
+        type:
+          type: string
+        mileage:
+          type: integer
+        overallCondition:
+          type: string
+          enum: [good, fair, poor]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InspectionItem"
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        vehicle:
+          $ref: "#/components/schemas/Vehicle"
+        inspector:
+          $ref: "#/components/schemas/Employee"
+      required:
+        - id
+        - vehicleId
+        - type
+        - overallCondition
+        - createdAt
+        - updatedAt
+
+    CreateInspectionInput:
+      type: object
+      properties:
+        vehicleId:
+          type: integer
+        repairOrderId:
+          type: integer
+        inspectedById:
+          type: integer
+        type:
+          type: string
+        mileage:
+          type: integer
+        overallCondition:
+          type: string
+          enum: [good, fair, poor]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InspectionItem"
+        notes:
+          type: string
+      required:
+        - vehicleId
+        - type
+        - overallCondition
+
+    InspectionListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Inspection"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        assignedToId:
+          type: integer
+        status:
+          type: string
+          enum: [scheduled, confirmed, in_progress, completed, cancelled, no_show]
+        serviceType:
+          type: string
+        description:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        estimatedDuration:
+          type: integer
+        notes:
+          type: string
+        customer:
+          $ref: "#/components/schemas/Customer"
+        vehicle:
+          $ref: "#/components/schemas/Vehicle"
+        assignedTo:
+          $ref: "#/components/schemas/Employee"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - customerId
+        - status
+        - serviceType
+        - scheduledAt
+        - createdAt
+        - updatedAt
+
+    CreateAppointmentInput:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        assignedToId:
+          type: integer
+        status:
+          type: string
+          enum: [scheduled, confirmed, in_progress, completed, cancelled, no_show]
+        serviceType:
+          type: string
+        description:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        estimatedDuration:
+          type: integer
+        notes:
+          type: string
+      required:
+        - customerId
+        - serviceType
+        - scheduledAt
+
+    AppointmentListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Appointment"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        invoiceId:
+          type: integer
+        amount:
+          type: number
+        method:
+          type: string
+          enum: [cash, check, credit_card, debit_card, paypal, square, stripe, other]
+        referenceNumber:
+          type: string
+        notes:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - invoiceId
+        - amount
+        - method
+        - paidAt
+        - createdAt
+
+    CreatePaymentInput:
+      type: object
+      properties:
+        invoiceId:
+          type: integer
+        amount:
+          type: number
+        method:
+          type: string
+          enum: [cash, check, credit_card, debit_card, paypal, square, stripe, other]
+        referenceNumber:
+          type: string
+        notes:
+          type: string
+        paidAt:
+          type: string
+          format: date-time
+      required:
+        - invoiceId
+        - amount
+        - method
+
+    PaymentListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [technician, service_advisor, manager, admin, receptionist]
+        hourlyRate:
+          type: number
+        active:
+          type: boolean
+        hireDate:
+          type: string
+          format: date
+        notes:
+          type: string
+        clockedIn:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - firstName
+        - lastName
+        - role
+        - active
+        - createdAt
+        - updatedAt
+
+    CreateEmployeeInput:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        role:
+          type: string
+          enum: [technician, service_advisor, manager, admin, receptionist]
+        hourlyRate:
+          type: number
+        active:
+          type: boolean
+        hireDate:
+          type: string
+          format: date
+        notes:
+          type: string
+      required:
+        - firstName
+        - lastName
+        - role
+
+    TimeEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        employeeId:
+          type: integer
+        clockIn:
+          type: string
+          format: date-time
+        clockOut:
+          type: string
+          format: date-time
+        totalHours:
+          type: number
+        notes:
+          type: string
+        employee:
+          $ref: "#/components/schemas/Employee"
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - employeeId
+        - clockIn
+        - createdAt
+
+    TimeEntryListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeEntry"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        category:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+        vendor:
+          type: string
+        receiptNumber:
+          type: string
+        expenseDate:
+          type: string
+          format: date
+        notes:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - category
+        - description
+        - amount
+        - expenseDate
+        - createdAt
+        - updatedAt
+
+    CreateExpenseInput:
+      type: object
+      properties:
+        category:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+        vendor:
+          type: string
+        receiptNumber:
+          type: string
+        expenseDate:
+          type: string
+          format: date
+        notes:
+          type: string
+      required:
+        - category
+        - description
+        - amount
+        - expenseDate
+
+    ExpenseListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Expense"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    Reminder:
+      type: object
+      properties:
+        id:
+          type: integer
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        serviceType:
+          type: string
+        dueDate:
+          type: string
+          format: date
+        dueMileage:
+          type: integer
+        sent:
+          type: boolean
+        sentAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        customer:
+          $ref: "#/components/schemas/Customer"
+        vehicle:
+          $ref: "#/components/schemas/Vehicle"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - customerId
+        - serviceType
+        - dueDate
+        - sent
+        - createdAt
+        - updatedAt
+
+    CreateReminderInput:
+      type: object
+      properties:
+        customerId:
+          type: integer
+        vehicleId:
+          type: integer
+        serviceType:
+          type: string
+        dueDate:
+          type: string
+          format: date
+        dueMileage:
+          type: integer
+        notes:
+          type: string
+      required:
+        - customerId
+        - serviceType
+        - dueDate
+
+    ReminderListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reminder"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - data
+        - total
+        - page
+        - limit
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalCustomers:
+          type: integer
+        totalVehicles:
+          type: integer
+        openRepairOrders:
+          type: integer
+        completedThisMonth:
+          type: integer
+        revenueThisMonth:
+          type: number
+        revenueLastMonth:
+          type: number
+        unpaidInvoices:
+          type: integer
+        unpaidAmount:
+          type: number
+        upcomingAppointments:
+          type: integer
+        lowStockItems:
+          type: integer
+        pendingEstimates:
+          type: integer
+      required:
+        - totalCustomers
+        - totalVehicles
+        - openRepairOrders
+        - completedThisMonth
+        - revenueThisMonth
+        - revenueLastMonth
+        - unpaidInvoices
+        - unpaidAmount
+        - upcomingAppointments
+        - lowStockItems
+        - pendingEstimates
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        description:
+          type: string
+        entityId:
+          type: integer
+        entityType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - description
+        - createdAt
+
+    RevenueChartPoint:
+      type: object
+      properties:
+        month:
+          type: string
+        revenue:
+          type: number
+        expenses:
+          type: number
+        profit:
+          type: number
+      required:
+        - month
+        - revenue
+        - expenses
+        - profit
+
+    StatusCount:
+      type: object
+      properties:
+        status:
+          type: string
+        count:
+          type: integer
+        label:
+          type: string
+      required:
+        - status
+        - count
+        - label
+
+    ServiceCount:
+      type: object
+      properties:
+        service:
+          type: string
+        count:
+          type: integer
+        revenue:
+          type: number
+      required:
+        - service
+        - count
+        - revenue
