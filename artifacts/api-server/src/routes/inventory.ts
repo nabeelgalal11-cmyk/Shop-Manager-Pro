@@ -32,11 +32,11 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { partNumber, name, description, category, vendor, costPrice, sellPrice, quantity, minQuantity, location, notes } = req.body;
+  const { partNumber, name, description, category, vendor, costPrice, sellPrice, quantity, minQuantity, location, notes, compatibleVehicles } = req.body;
   const [item] = await db.insert(inventoryTable).values({
     partNumber, name, description, category, vendor,
     costPrice: costPrice.toString(), sellPrice: sellPrice.toString(),
-    quantity, minQuantity, location, notes,
+    quantity, minQuantity, location, notes, compatibleVehicles,
   }).returning();
   res.status(201).json(item);
 });
@@ -49,11 +49,11 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { partNumber, name, description, category, vendor, costPrice, sellPrice, quantity, minQuantity, location, notes } = req.body;
+  const { partNumber, name, description, category, vendor, costPrice, sellPrice, quantity, minQuantity, location, notes, compatibleVehicles } = req.body;
   const [item] = await db.update(inventoryTable).set({
     partNumber, name, description, category, vendor,
     costPrice: costPrice?.toString(), sellPrice: sellPrice?.toString(),
-    quantity, minQuantity, location, notes, updatedAt: new Date(),
+    quantity, minQuantity, location, notes, compatibleVehicles, updatedAt: new Date(),
   }).where(eq(inventoryTable.id, id)).returning();
   if (!item) return res.status(404).json({ error: "Item not found" });
   res.json(item);

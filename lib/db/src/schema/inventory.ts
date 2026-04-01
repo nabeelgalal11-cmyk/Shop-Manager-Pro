@@ -15,6 +15,7 @@ export const inventoryTable = pgTable("inventory", {
   minQuantity: integer("min_quantity").notNull().default(0),
   location: text("location"),
   notes: text("notes"),
+  compatibleVehicles: text("compatible_vehicles"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

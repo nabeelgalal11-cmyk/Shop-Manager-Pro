@@ -11,13 +11,37 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon } from "lucide-react";
+import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
 type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean };
+
+type CompatResult = "compatible" | "universal" | "incompatible";
+
+function getCompatibility(
+  compatibleVehicles: string | null | undefined,
+  vehicle: { make: string; model: string; year: number } | null
+): CompatResult {
+  if (!compatibleVehicles) return "universal";
+  if (!vehicle) return "universal";
+  const cv = compatibleVehicles.toLowerCase();
+  const make = vehicle.make.toLowerCase();
+  const model = vehicle.model.toLowerCase();
+  const year = vehicle.year.toString();
+  if (cv.includes(make) && cv.includes(model)) return "compatible";
+  if (cv.includes(make) && cv.includes(year)) return "compatible";
+  if (cv.includes(make)) return "compatible";
+  return "incompatible";
+}
+
+const COMPAT_BADGE: Record<CompatResult, { label: string; className: string }> = {
+  compatible: { label: "✓ Fits this car", className: "bg-green-100 text-green-700 border-green-300" },
+  universal: { label: "Universal", className: "bg-slate-100 text-slate-500 border-slate-200" },
+  incompatible: { label: "✗ Other vehicle", className: "bg-orange-100 text-orange-600 border-orange-300" },
+};
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-slate-100 text-slate-700",
@@ -52,6 +76,7 @@ export default function RepairOrderDetail() {
   const [newPart, setNewPart] = useState<Part>({ name: "", partNumber: "", quantity: 1, unitPrice: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const updateRO = useUpdateRepairOrder();
   const deleteRO = useDeleteRepairOrder();
@@ -59,14 +84,27 @@ export default function RepairOrderDetail() {
   const currentDiagnosis = diagnosis !== null ? diagnosis : (ro?.diagnosis ?? "");
   const currentParts: Part[] = parts !== null ? parts : ((ro?.parts as Part[]) ?? []);
 
-  // Filter inventory based on search query
-  const inventoryMatches = searchQuery.trim().length >= 1
-    ? allInventory.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.partNumber ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.category ?? "").toLowerCase().includes(searchQuery.toLowerCase())
-      ).slice(0, 8)
-    : [];
+  // Vehicle from the repair order (for compatibility matching)
+  const vehicle = ro
+    ? { make: ro.vehicle?.make ?? "", model: ro.vehicle?.model ?? "", year: ro.vehicle?.year ?? 0 }
+    : null;
+
+  // Filter & sort inventory: compatible first, then universal, then incompatible (hidden by default)
+  const inventoryMatches = (() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    const filtered = allInventory.filter(item =>
+      item.name.toLowerCase().includes(q) ||
+      (item.partNumber ?? "").toLowerCase().includes(q) ||
+      (item.category ?? "").toLowerCase().includes(q)
+    );
+    const scored = filtered.map(item => {
+      const compat = getCompatibility((item as any).compatibleVehicles, vehicle);
+      return { item, compat, score: compat === "compatible" ? 0 : compat === "universal" ? 1 : 2 };
+    });
+    scored.sort((a, b) => a.score - b.score);
+    return showAll ? scored.slice(0, 10) : scored.filter(r => r.compat !== "incompatible").slice(0, 8);
+  })();
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -332,7 +370,15 @@ export default function RepairOrderDetail() {
 
                 {/* Inventory Search */}
                 <div className="space-y-1.5" ref={dropdownRef}>
-                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Search Inventory</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Search Inventory</p>
+                    {vehicle?.make && (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 border rounded px-2 py-0.5">
+                        <Car className="h-3 w-3" />
+                        {vehicle.year} {vehicle.make} {vehicle.model}
+                      </span>
+                    )}
+                  </div>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                     <Input
@@ -349,36 +395,61 @@ export default function RepairOrderDetail() {
                     {/* Dropdown Results */}
                     {showDropdown && inventoryMatches.length > 0 && (
                       <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg overflow-hidden">
-                        {inventoryMatches.map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            className="w-full text-left px-3 py-2.5 hover:bg-muted/60 flex items-center justify-between gap-4 border-b last:border-0 transition-colors"
-                            onMouseDown={(e) => { e.preventDefault(); selectInventoryItem(item); }}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <BoxIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium truncate">{item.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {item.partNumber && <span className="font-mono mr-2">{item.partNumber}</span>}
-                                  <span>{item.category}</span>
+                        {inventoryMatches.map(({ item, compat }) => {
+                          const badge = COMPAT_BADGE[compat];
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className="w-full text-left px-3 py-2.5 hover:bg-muted/60 flex items-center justify-between gap-4 border-b last:border-0 transition-colors"
+                              onMouseDown={(e) => { e.preventDefault(); selectInventoryItem(item); }}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <BoxIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-sm font-medium truncate">{item.name}</p>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap ${badge.className}`}>
+                                      {badge.label}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.partNumber && <span className="font-mono mr-2">{item.partNumber}</span>}
+                                    <span>{item.category}</span>
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-sm font-semibold">${Number(item.sellPrice).toFixed(2)}</p>
+                                <p className={`text-xs ${item.quantity <= item.minQuantity ? "text-destructive" : "text-muted-foreground"}`}>
+                                  {item.quantity <= item.minQuantity ? `⚠ ${item.quantity} left` : `${item.quantity} in stock`}
                                 </p>
                               </div>
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <p className="text-sm font-semibold">${Number(item.sellPrice).toFixed(2)}</p>
-                              <p className={`text-xs ${item.quantity <= item.minQuantity ? "text-destructive" : "text-muted-foreground"}`}>
-                                {item.quantity <= item.minQuantity ? `⚠ ${item.quantity} left` : `${item.quantity} in stock`}
-                              </p>
-                            </div>
-                          </button>
-                        ))}
+                            </button>
+                          );
+                        })}
+                        {/* Show-all toggle row */}
+                        <button
+                          type="button"
+                          className="w-full text-xs text-center px-3 py-2 text-muted-foreground hover:bg-muted/40 border-t transition-colors"
+                          onMouseDown={(e) => { e.preventDefault(); setShowAll(v => !v); }}
+                        >
+                          {showAll ? "Hide parts for other vehicles" : "Also show parts for other vehicles ↓"}
+                        </button>
                       </div>
                     )}
                     {showDropdown && searchQuery.trim().length >= 1 && inventoryMatches.length === 0 && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg px-3 py-3 text-sm text-muted-foreground">
-                        No inventory match — you can still add this part manually below.
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg overflow-hidden">
+                        <div className="px-3 py-3 text-sm text-muted-foreground">
+                          No matching parts for this vehicle — you can still add manually below.
+                        </div>
+                        <button
+                          type="button"
+                          className="w-full text-xs text-center px-3 py-2 text-primary hover:bg-muted/40 border-t transition-colors"
+                          onMouseDown={(e) => { e.preventDefault(); setShowAll(true); }}
+                        >
+                          Show all inventory regardless of vehicle ↓
+                        </button>
                       </div>
                     )}
                   </div>

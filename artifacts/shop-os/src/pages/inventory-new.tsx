@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Car } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 const formSchema = z.object({
@@ -24,6 +25,8 @@ const formSchema = z.object({
   minQuantity: z.coerce.number().min(0, "Must be 0 or more"),
   vendor: z.string().optional(),
   location: z.string().optional(),
+  notes: z.string().optional(),
+  compatibleVehicles: z.string().optional(),
 });
 
 const CUSTOM_KEY = "__custom__";
@@ -53,6 +56,8 @@ export default function InventoryNew() {
       minQuantity: 5,
       vendor: "",
       location: "",
+      notes: "",
+      compatibleVehicles: "",
     },
   });
 
@@ -65,7 +70,7 @@ export default function InventoryNew() {
       return;
     }
     createItem.mutate(
-      { data: { ...values, category: finalCategory } },
+      { data: { ...values, category: finalCategory } as any },
       {
         onSuccess: () => {
           toast({ title: "Item added to inventory" });
@@ -216,6 +221,32 @@ export default function InventoryNew() {
 
               <Separator />
 
+              {/* Vehicle Compatibility */}
+              <FormField
+                control={form.control}
+                name="compatibleVehicles"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1.5">
+                      <Car className="h-4 w-4" /> Compatible Vehicles
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={`e.g. Honda Accord 2015-2022, Toyota Camry 2016-2021, Ford F-150 2018+\n\nLeave blank if fits all vehicles (universal part).`}
+                        className="resize-none min-h-[80px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Used to surface this part when working on matching vehicles. Separate makes/models with commas.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Separator />
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <FormField
                   control={form.control}
@@ -271,19 +302,34 @@ export default function InventoryNew() {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Storage Location</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Shelf A2, Bin 14" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Storage Location</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Shelf A2, Bin 14" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Any additional notes..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setLocation("/inventory")}>
