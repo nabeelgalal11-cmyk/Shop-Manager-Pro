@@ -1,90 +1,297 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
-import { useCreateInventoryItem } from "@workspace/api-client-react";
+import { useCreateInventoryItem, useGetInventory, getGetInventoryQueryKey } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 const formSchema = z.object({
   partNumber: z.string().optional(),
-  name: z.string().min(1, "Name required"),
-  category: z.string().min(1, "Category required"),
-  costPrice: z.coerce.number().min(0),
-  sellPrice: z.coerce.number().min(0),
-  quantity: z.coerce.number().min(0),
-  minQuantity: z.coerce.number().min(0),
+  name: z.string().min(1, "Name is required"),
+  category: z.string().min(1, "Category is required"),
+  costPrice: z.coerce.number().min(0, "Must be 0 or more"),
+  sellPrice: z.coerce.number().min(0, "Must be 0 or more"),
+  quantity: z.coerce.number().min(0, "Must be 0 or more"),
+  minQuantity: z.coerce.number().min(0, "Must be 0 or more"),
+  vendor: z.string().optional(),
+  location: z.string().optional(),
 });
+
+const CUSTOM_KEY = "__custom__";
 
 export default function InventoryNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
+  const [categoryMode, setCategoryMode] = useState<"select" | "custom">("select");
+  const [customCategory, setCustomCategory] = useState("");
+
+  const { data: inventoryData } = useGetInventory(
+    { limit: 200 },
+    { query: { queryKey: getGetInventoryQueryKey({ limit: 200 }) } }
+  );
+  const allItems = Array.isArray(inventoryData) ? inventoryData : inventoryData?.data ?? [];
+  const existingCategories = Array.from(new Set(allItems.map((i) => i.category).filter(Boolean))).sort();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
+      partNumber: "",
       category: "",
       costPrice: 0,
       sellPrice: 0,
       quantity: 0,
       minQuantity: 5,
+      vendor: "",
+      location: "",
     },
   });
 
   const createItem = useCreateInventoryItem();
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    const finalCategory = categoryMode === "custom" ? customCategory.trim() : values.category;
+    if (!finalCategory) {
+      toast({ title: "Category is required", variant: "destructive" });
+      return;
+    }
     createItem.mutate(
-      { data: values },
+      { data: { ...values, category: finalCategory } },
       {
-        onSuccess: (data) => {
-          toast({ title: "Item created" });
-          setLocation(`/inventory/${data.id}`);
-        }
+        onSuccess: () => {
+          toast({ title: "Item added to inventory" });
+          setLocation("/inventory");
+        },
+        onError: () => {
+          toast({ title: "Failed to add item", variant: "destructive" });
+        },
       }
     );
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto space-y-6">
+    <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/inventory")}><ArrowLeft className="h-5 w-5" /></Button>
-        <h1 className="text-3xl font-bold">New Inventory Item</h1>
+        <Button variant="ghost" size="icon" onClick={() => setLocation("/inventory")}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Add Inventory Item</h1>
+          <p className="text-sm text-muted-foreground">Add a new part or supply to stock.</p>
+        </div>
       </div>
-      <Card className="shadow-sm border-border">
-        <CardContent className="pt-6">
+
+      <Card className="shadow-sm">
+        <CardHeader className="bg-muted/20 border-b pb-3">
+          <CardTitle className="text-base">Item Details</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-5">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="name" render={({ field }) => (
-                  <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="partNumber" render={({ field }) => (
-                  <FormItem><FormLabel>Part Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="category" render={({ field }) => (
-                  <FormItem><FormLabel>Category</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="costPrice" render={({ field }) => (
-                  <FormItem><FormLabel>Cost Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="sellPrice" render={({ field }) => (
-                  <FormItem><FormLabel>Sell Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="quantity" render={({ field }) => (
-                  <FormItem><FormLabel>Current Stock</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
-                <FormField control={form.control} name="minQuantity" render={({ field }) => (
-                  <FormItem><FormLabel>Low Stock Threshold</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-                )} />
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Part Name <span className="text-destructive">*</span></FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Premium Front Brake Pads" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="partNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Part Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. BRK-PAD-FRT" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="vendor"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Vendor / Supplier</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. AutoZone" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={createItem.isPending}>Save Item</Button>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">
+                  Category <span className="text-destructive">*</span>
+                </Label>
+                {categoryMode === "select" ? (
+                  <div className="flex gap-2">
+                    <FormField
+                      control={form.control}
+                      name="category"
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <Select
+                            value={field.value}
+                            onValueChange={(val) => {
+                              if (val === CUSTOM_KEY) {
+                                setCategoryMode("custom");
+                                field.onChange("");
+                              } else {
+                                field.onChange(val);
+                              }
+                            }}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a category..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {existingCategories.map((cat) => (
+                                <SelectItem key={cat} value={cat}>
+                                  {cat}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value={CUSTOM_KEY}>
+                                <span className="flex items-center gap-1.5 text-primary">
+                                  <Plus className="h-3.5 w-3.5" /> Add new category...
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      autoFocus
+                      placeholder="Type new category name..."
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setCategoryMode("select");
+                        setCustomCategory("");
+                        form.setValue("category", "");
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                )}
+                {categoryMode === "custom" && !customCategory.trim() && (
+                  <p className="text-xs text-destructive">Category name is required</p>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <FormField
+                  control={form.control}
+                  name="costPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cost Price ($)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" min="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="sellPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sell Price ($)</FormLabel>
+                      <FormControl>
+                        <Input type="number" step="0.01" min="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Current Stock</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="minQuantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Low Stock Alert</FormLabel>
+                      <FormControl>
+                        <Input type="number" min="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Storage Location</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Shelf A2, Bin 14" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setLocation("/inventory")}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createItem.isPending}>
+                  {createItem.isPending ? "Saving..." : "Add to Inventory"}
+                </Button>
               </div>
             </form>
           </Form>
