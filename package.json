@@ -17,4 +17,7 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
   "devDependencies": {
-    "typescript": "~5.9.
+    "typescript": "~5.9.2",
+    "prettier": "^3.8.1"
+  }
+}
