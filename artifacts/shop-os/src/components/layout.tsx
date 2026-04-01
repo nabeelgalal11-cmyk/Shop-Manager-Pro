@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import React, { useState } from "react";
 import {
   LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
   Wrench, Package, ClipboardCheck, Calendar, CreditCard,
@@ -12,15 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 
 const navGroups = [
-  {
-    label: "Overview",
-    items: [
-      { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    ]
-  },
-  {
-    label: "Service",
-    items: [
+  { label: "Overview", items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }] },
+  { label: "Service", items: [
       { name: "Repair Orders", href: "/repair-orders", icon: Wrench },
       { name: "Estimates", href: "/estimates", icon: FileText },
       { name: "Invoices", href: "/invoices", icon: FileSpreadsheet },
@@ -28,18 +22,14 @@ const navGroups = [
       { name: "Inspections", href: "/inspections", icon: ClipboardCheck },
     ]
   },
-  {
-    label: "Management",
-    items: [
+  { label: "Management", items: [
       { name: "Customers", href: "/customers", icon: Users },
       { name: "Vehicles", href: "/vehicles", icon: Car },
       { name: "Inventory", href: "/inventory", icon: Package },
       { name: "Payments", href: "/payments", icon: CreditCard },
     ]
   },
-  {
-    label: "Admin",
-    items: [
+  { label: "Admin", items: [
       { name: "Employees", href: "/employees", icon: UserCircle },
       { name: "Time Entries", href: "/time-entries", icon: Clock },
       { name: "Expenses", href: "/expenses", icon: Receipt },
@@ -48,8 +38,8 @@ const navGroups = [
   }
 ];
 
-// MenuLink handles SPA navigation without calling sidebar.close()
-function MenuLink({ href, icon: Icon, name, isActive }: any) {
+// Controlled MenuLink
+function MenuLink({ href, icon: Icon, name, isActive, closeSidebar }: any) {
   const [, navigate] = useLocation();
 
   return (
@@ -59,7 +49,7 @@ function MenuLink({ href, icon: Icon, name, isActive }: any) {
       tooltip={name}
       onClick={() => {
         navigate(href); // SPA navigation
-        // No sidebar.close() call; it will auto-close on mobile automatically
+        closeSidebar(); // manually close the sidebar
       }}
     >
       <button className="flex items-center gap-3">
@@ -72,11 +62,14 @@ function MenuLink({ href, icon: Icon, name, isActive }: any) {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(true); // control sidebar open state
+
+  const closeSidebar = () => setSidebarOpen(false);
 
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-background overflow-hidden">
-        <Sidebar className="border-r border-sidebar-border shadow-sm">
+        <Sidebar className="border-r border-sidebar-border shadow-sm" open={sidebarOpen}>
           <SidebarHeader className="py-4 px-6 border-b border-sidebar-border">
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 bg-primary text-primary-foreground rounded-md flex items-center justify-center font-bold">
@@ -105,6 +98,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             icon={item.icon}
                             name={item.name}
                             isActive={isActive}
+                            closeSidebar={closeSidebar} // pass close function
                           />
                         </SidebarMenuItem>
                       );
@@ -119,7 +113,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <header className="h-16 flex items-center justify-between px-6 border-b bg-card text-card-foreground">
             <div className="flex items-center gap-4">
-              <SidebarTrigger />
+              <SidebarTrigger onClick={() => setSidebarOpen(!sidebarOpen)} />
               <div className="relative w-64 hidden md:block">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
