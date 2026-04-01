@@ -1,22 +1,23 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetRepairOrder, getGetRepairOrderQueryKey,
   useUpdateRepairOrder, useDeleteRepairOrder,
+  useGetInventory, getGetInventoryQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package } from "lucide-react";
+import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
-type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number };
+type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean };
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "bg-slate-100 text-slate-700",
@@ -34,20 +35,61 @@ export default function RepairOrderDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { data: ro, isLoading } = useGetRepairOrder(id, {
     query: { enabled: !!id, queryKey: getGetRepairOrderQueryKey(id) },
   });
 
+  const { data: inventoryData } = useGetInventory(
+    { limit: 200 },
+    { query: { queryKey: getGetInventoryQueryKey({ limit: 200 }) } }
+  );
+  const allInventory = Array.isArray(inventoryData) ? inventoryData : inventoryData?.data ?? [];
+
   const [diagnosis, setDiagnosis] = useState<string | null>(null);
   const [parts, setParts] = useState<Part[] | null>(null);
   const [newPart, setNewPart] = useState<Part>({ name: "", partNumber: "", quantity: 1, unitPrice: 0 });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const updateRO = useUpdateRepairOrder();
   const deleteRO = useDeleteRepairOrder();
 
   const currentDiagnosis = diagnosis !== null ? diagnosis : (ro?.diagnosis ?? "");
   const currentParts: Part[] = parts !== null ? parts : ((ro?.parts as Part[]) ?? []);
+
+  // Filter inventory based on search query
+  const inventoryMatches = searchQuery.trim().length >= 1
+    ? allInventory.filter(item =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.partNumber ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.category ?? "").toLowerCase().includes(searchQuery.toLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectInventoryItem = (item: typeof allInventory[0]) => {
+    setNewPart({
+      name: item.name,
+      partNumber: item.partNumber ?? "",
+      quantity: 1,
+      unitPrice: Number(item.sellPrice),
+      fromInventory: true,
+    });
+    setSearchQuery(item.name);
+    setShowDropdown(false);
+  };
 
   const saveDiagnosis = () => {
     updateRO.mutate({ id, data: { diagnosis: currentDiagnosis } as any }, {
@@ -78,6 +120,7 @@ export default function RepairOrderDetail() {
     setParts(updated);
     saveParts(updated);
     setNewPart({ name: "", partNumber: "", quantity: 1, unitPrice: 0 });
+    setSearchQuery("");
   };
 
   const removePart = (index: number) => {
@@ -149,6 +192,7 @@ export default function RepairOrderDetail() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setLocation("/repair-orders")}>
@@ -188,6 +232,7 @@ export default function RepairOrderDetail() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
 
+          {/* Complaint & Diagnosis */}
           <Card>
             <CardHeader className="bg-muted/20 border-b pb-3">
               <CardTitle className="text-base">Complaint &amp; Diagnosis</CardTitle>
@@ -217,6 +262,7 @@ export default function RepairOrderDetail() {
             </CardContent>
           </Card>
 
+          {/* Parts Needed */}
           <Card>
             <CardHeader className="bg-muted/20 border-b pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -224,6 +270,8 @@ export default function RepairOrderDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-5 space-y-4">
+
+              {/* Parts Table */}
               {currentParts.length > 0 && (
                 <div className="overflow-x-auto rounded-md border">
                   <table className="w-full text-sm">
@@ -240,8 +288,15 @@ export default function RepairOrderDetail() {
                     <tbody>
                       {currentParts.map((part, i) => (
                         <tr key={i} className="border-t hover:bg-muted/20">
-                          <td className="px-3 py-2 font-medium">{part.name}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{part.partNumber || "—"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex items-center gap-1.5">
+                              {part.fromInventory && (
+                                <BoxIcon className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" title="From inventory" />
+                              )}
+                              <span className="font-medium">{part.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground font-mono text-xs">{part.partNumber || "—"}</td>
                           <td className="px-3 py-2 text-right">{part.quantity}</td>
                           <td className="px-3 py-2 text-right">${Number(part.unitPrice).toFixed(2)}</td>
                           <td className="px-3 py-2 text-right font-medium">
@@ -271,13 +326,72 @@ export default function RepairOrderDetail() {
                 </div>
               )}
 
-              <div className="rounded-md border bg-muted/10 p-4">
-                <p className="text-sm font-semibold mb-3">Add Part</p>
+              {/* Add Part Form */}
+              <div className="rounded-md border bg-muted/10 p-4 space-y-3">
+                <p className="text-sm font-semibold">Add Part</p>
+
+                {/* Inventory Search */}
+                <div className="space-y-1.5" ref={dropdownRef}>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Search Inventory</p>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      placeholder="Search by part name, number or category..."
+                      className="pl-9"
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setNewPart(p => ({ ...p, name: e.target.value, partNumber: "", unitPrice: 0, fromInventory: false }));
+                        setShowDropdown(true);
+                      }}
+                      onFocus={() => searchQuery.trim() && setShowDropdown(true)}
+                    />
+                    {/* Dropdown Results */}
+                    {showDropdown && inventoryMatches.length > 0 && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg overflow-hidden">
+                        {inventoryMatches.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2.5 hover:bg-muted/60 flex items-center justify-between gap-4 border-b last:border-0 transition-colors"
+                            onMouseDown={(e) => { e.preventDefault(); selectInventoryItem(item); }}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <BoxIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {item.partNumber && <span className="font-mono mr-2">{item.partNumber}</span>}
+                                  <span>{item.category}</span>
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-sm font-semibold">${Number(item.sellPrice).toFixed(2)}</p>
+                              <p className={`text-xs ${item.quantity <= item.minQuantity ? "text-destructive" : "text-muted-foreground"}`}>
+                                {item.quantity <= item.minQuantity ? `⚠ ${item.quantity} left` : `${item.quantity} in stock`}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {showDropdown && searchQuery.trim().length >= 1 && inventoryMatches.length === 0 && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg px-3 py-3 text-sm text-muted-foreground">
+                        No inventory match — you can still add this part manually below.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Manual / Auto-filled Part Fields */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <Input
                     placeholder="Part name *"
                     value={newPart.name}
-                    onChange={(e) => setNewPart(p => ({ ...p, name: e.target.value }))}
+                    onChange={(e) => { setNewPart(p => ({ ...p, name: e.target.value })); setSearchQuery(e.target.value); }}
                     className="sm:col-span-2"
                   />
                   <Input
@@ -285,26 +399,32 @@ export default function RepairOrderDetail() {
                     value={newPart.partNumber}
                     onChange={(e) => setNewPart(p => ({ ...p, partNumber: e.target.value }))}
                   />
-                  <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Price $"
+                    min={0}
+                    step={0.01}
+                    value={newPart.unitPrice || ""}
+                    onChange={(e) => setNewPart(p => ({ ...p, unitPrice: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Qty:</span>
                     <Input
                       type="number"
-                      placeholder="Qty"
                       min={1}
                       value={newPart.quantity}
                       onChange={(e) => setNewPart(p => ({ ...p, quantity: Math.max(1, Number(e.target.value)) }))}
                       className="w-20"
                     />
-                    <Input
-                      type="number"
-                      placeholder="Price"
-                      min={0}
-                      step={0.01}
-                      value={newPart.unitPrice}
-                      onChange={(e) => setNewPart(p => ({ ...p, unitPrice: Number(e.target.value) }))}
-                    />
                   </div>
-                </div>
-                <div className="flex justify-end mt-3">
+                  {newPart.fromInventory && (
+                    <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50 gap-1">
+                      <BoxIcon className="h-3 w-3" /> From Inventory
+                    </Badge>
+                  )}
+                  <div className="flex-1" />
                   <Button size="sm" onClick={addPart} disabled={updateRO.isPending}>
                     <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Part
                   </Button>
@@ -314,6 +434,7 @@ export default function RepairOrderDetail() {
           </Card>
         </div>
 
+        {/* Sidebar */}
         <div className="space-y-6">
           <Card>
             <CardHeader className="bg-muted/20 border-b pb-3">
@@ -362,7 +483,7 @@ export default function RepairOrderDetail() {
                 <>
                   <Separator />
                   <div>
-                    <p className="text-muted-foreground mb-1">Parts Count</p>
+                    <p className="text-muted-foreground mb-1">Parts</p>
                     <p className="font-medium">{currentParts.length} part{currentParts.length !== 1 ? "s" : ""}</p>
                   </div>
                   <div>
@@ -376,6 +497,7 @@ export default function RepairOrderDetail() {
         </div>
       </div>
 
+      {/* Print Template (hidden) */}
       <div ref={printRef} style={{ display: "none" }}>
         <h1>Repair Order: {ro.orderNumber}</h1>
         <p className="meta">
@@ -384,24 +506,10 @@ export default function RepairOrderDetail() {
           Status: {ro.status?.replace("_", " ")} &bull; Priority: {ro.priority}
         </p>
         <div className="grid">
-          <div>
-            <div className="label">Assigned Technician</div>
-            <div className="value">
-              {ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned"}
-            </div>
-          </div>
-          <div>
-            <div className="label">Mileage In</div>
-            <div className="value">{ro.mileageIn ? ro.mileageIn.toLocaleString() + " mi" : "—"}</div>
-          </div>
-          <div>
-            <div className="label">Created</div>
-            <div className="value">{new Date(ro.createdAt).toLocaleDateString()}</div>
-          </div>
-          <div>
-            <div className="label">Promised Date</div>
-            <div className="value">{ro.promisedDate ? new Date(ro.promisedDate).toLocaleDateString() : "—"}</div>
-          </div>
+          <div><div className="label">Technician</div><div className="value">{ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned"}</div></div>
+          <div><div className="label">Mileage In</div><div className="value">{ro.mileageIn ? ro.mileageIn.toLocaleString() + " mi" : "—"}</div></div>
+          <div><div className="label">Created</div><div className="value">{new Date(ro.createdAt).toLocaleDateString()}</div></div>
+          <div><div className="label">Promised Date</div><div className="value">{ro.promisedDate ? new Date(ro.promisedDate).toLocaleDateString() : "—"}</div></div>
         </div>
         <h2>Customer Complaint</h2>
         <div className="box">{ro.complaint || "No complaint recorded."}</div>
@@ -412,13 +520,7 @@ export default function RepairOrderDetail() {
             <h2>Parts Needed</h2>
             <table>
               <thead>
-                <tr>
-                  <th>Part Name</th>
-                  <th>Part #</th>
-                  <th>Qty</th>
-                  <th>Unit Price</th>
-                  <th>Total</th>
-                </tr>
+                <tr><th>Part Name</th><th>Part #</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr>
               </thead>
               <tbody>
                 {currentParts.map((part, i) => (
