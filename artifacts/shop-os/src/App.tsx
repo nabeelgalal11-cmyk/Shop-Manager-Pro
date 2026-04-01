@@ -22,6 +22,7 @@ import RepairOrders from "@/pages/repair-orders";
 import RepairOrdersNew from "@/pages/repair-orders-new";
 import RepairOrderDetail from "@/pages/repair-order-detail";
 import Inventory from "@/pages/inventory";
+import InventoryDetail from "@/pages/inventory-detail";
 import InventoryNew from "@/pages/inventory-new";
 import Inspections from "@/pages/inspections";
 import InspectionsNew from "@/pages/inspections-new";
@@ -66,7 +67,8 @@ function Router() {
 
         <Route path="/inventory" component={Inventory} />
         <Route path="/inventory/new" component={InventoryNew} />
-
+<Route path="/inventory/:id" component={InventoryDetail} />
+        
         <Route path="/inspections" component={Inspections} />
         <Route path="/inspections/new" component={InspectionsNew} />
 
