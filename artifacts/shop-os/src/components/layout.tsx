@@ -1,10 +1,14 @@
 import { Link, useLocation } from "wouter";
-import { 
-  LayoutDashboard, Users, Car, FileText, FileSpreadsheet, 
-  Wrench, Package, ClipboardCheck, Calendar, CreditCard, 
+import {
+  LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
+  Wrench, Package, ClipboardCheck, Calendar, CreditCard,
   UserCircle, Clock, Receipt, Bell, Menu, Search
 } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarProvider, SidebarTrigger, SidebarGroup, SidebarGroupLabel, SidebarGroupContent } from "@/components/ui/sidebar";
+import {
+  Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
+  SidebarMenuButton, SidebarProvider, SidebarTrigger, SidebarGroup,
+  SidebarGroupLabel, SidebarGroupContent, useSidebar
+} from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 
 const navGroups = [
@@ -46,6 +50,7 @@ const navGroups = [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const sidebar = useSidebar(); // hook to control sidebar
 
   return (
     <SidebarProvider>
@@ -71,7 +76,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
                       return (
                         <SidebarMenuItem key={item.name} className="px-3">
-                          <SidebarMenuButton asChild isActive={isActive} tooltip={item.name}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isActive}
+                            tooltip={item.name}
+                            onClick={() => sidebar.close()} // ✅ close sidebar when clicked
+                          >
                             <Link href={item.href} className="flex items-center gap-3">
                               <item.icon className="h-4 w-4" />
                               <span className="font-medium">{item.name}</span>
@@ -86,7 +96,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </SidebarContent>
         </Sidebar>
-        
+
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <header className="h-16 flex items-center justify-between px-6 border-b bg-card text-card-foreground">
             <div className="flex items-center gap-4">
