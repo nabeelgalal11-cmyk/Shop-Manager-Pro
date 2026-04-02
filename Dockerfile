@@ -1,30 +1,40 @@
-# Use official Node.js LTS image
-FROM node:22
+# syntax=docker/dockerfile:1
 
-# Set working directory inside the container
+# Base image
+ARG NODE_VERSION=22.21.1
+FROM node:${NODE_VERSION}-slim AS base
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Copy lockfile and package.json from root first
-COPY package.json pnpm-lock.yaml ./
+# Build stage
+FROM base AS build
+
+# Install build tools
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3 curl
 
 # Install pnpm globally
-RUN npm install -g pnpm
+RUN curl -fsSL https://get.pnpm.io/install.sh | sh -
+ENV PATH="/root/.local/share/pnpm:$PATH"
 
-# Install dependencies (including workspace)
-RUN pnpm install
+# Copy package files
+COPY artifacts/api-server/package.json artifacts/api-server/pnpm-lock.yaml ./
 
-# Copy the whole repo into container
-COPY . .
+# Install dependencies with pnpm
+RUN pnpm install --frozen-lockfile
 
-# Build the api-server
-RUN pnpm --filter @workspace/api-server build
+# Copy all source code
+COPY artifacts/api-server ./
 
-# Set environment variables
-ENV NODE_ENV=production
-ENV PORT=8080
+# Build the project
+RUN pnpm run build
 
-# Expose the port
-EXPOSE 8080
+# Final image
+FROM base
+WORKDIR /app
 
-# Start command
-CMD ["node", "artifacts/api-server/dist/index.mjs"]
+# Copy built artifacts
+COPY --from=build /app /app
+
+EXPOSE 3000
+CMD ["node", "--enable-source-maps", "./dist/index.mjs"]
