@@ -4,8 +4,8 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "build": "pnpm install",           // installs deps; no need to add anything here
-    "start": "tsx index.ts",           // runs your TS file directly
+    "build": "pnpm install",
+    "start": "tsx index.ts",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
