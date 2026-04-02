@@ -167,10 +167,10 @@ importers:
   artifacts/api-server:
     dependencies:
       '@workspace/api-zod':
-        specifier: workspace:*
+        specifier: 'workspace:'
         version: link:../../lib/api-zod
       '@workspace/db':
-        specifier: workspace:*
+        specifier: 'workspace:'
         version: link:../../lib/db
       cookie-parser:
         specifier: ^1.4.7
