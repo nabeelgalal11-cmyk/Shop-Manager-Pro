@@ -1,25 +1,25 @@
-// build.mjs
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { rm } from "node:fs/promises";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
+import { rm } from "node:fs/promises";
 
-// Allow plugins (like esbuild-plugin-pino) to use require
+// Allow plugins to use require
 globalThis.require = createRequire(import.meta.url);
 
-// Use the current working directory (Render's Root Directory)
-const artifactDir = process.cwd();
+// Current folder
+const artifactDir = path.dirname(fileURLToPath(import.meta.url));
+const srcFile = path.resolve(artifactDir, "src/index.ts");
+const distDir = path.resolve(artifactDir, "dist");
 
-async function buildAll() {
-  const distDir = path.resolve(artifactDir, "dist");
-
-  // Remove old dist folder
+async function build() {
+  // Clean previous build
   await rm(distDir, { recursive: true, force: true });
 
+  // Build with esbuild
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    entryPoints: [srcFile],
     bundle: true,
     platform: "node",
     format: "esm",
@@ -27,7 +27,6 @@ async function buildAll() {
     outExtension: { ".js": ".mjs" },
     sourcemap: "linked",
     logLevel: "info",
-    // Externalize problematic packages that cannot be bundled
     external: [
       "*.node",
       "sharp",
@@ -37,37 +36,24 @@ async function buildAll() {
       "bcrypt",
       "argon2",
       "fsevents",
-      "@prisma/client",
-      "@tensorflow/*",
-      "@aws-sdk/*",
-      "@google-cloud/*",
-      "aws-sdk",
-      "electron",
-      "playwright",
-      "puppeteer",
-      "puppeteer-core",
-      // Add more if you see runtime errors
     ],
     plugins: [
-      esbuildPluginPino({ transports: ["pino-pretty"] })
+      esbuildPluginPino({ transports: ["pino-pretty"] }),
     ],
     banner: {
-      js: `
-import { createRequire as __bannerCrReq } from 'node:module';
+      js: `import { createRequire as __bannerCrReq } from 'node:module';
 import __bannerPath from 'node:path';
 import __bannerUrl from 'node:url';
-
 globalThis.require = __bannerCrReq(import.meta.url);
 globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
-globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
-      `
-    }
+globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);`,
+    },
   });
 
-  console.log("Build completed. dist/index.mjs is ready!");
+  console.log("Build completed. dist/index.mjs is ready.");
 }
 
-buildAll().catch(err => {
-  console.error(err);
+build().catch(err => {
+  console.error("Build failed:", err);
   process.exit(1);
 });
