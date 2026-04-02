@@ -1,28 +1,33 @@
+// build.mjs
 import { createRequire } from "node:module";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { rm } from "node:fs/promises";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
-import { rm } from "node:fs/promises";
 
-// Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
+// Allow plugins (like esbuild-plugin-pino) to use require
 globalThis.require = createRequire(import.meta.url);
 
-async function buildAll() {
-  // Use process.cwd() so dist/ is created inside the Render root directory
-  const rootDir = process.cwd();
-  const distDir = path.resolve(rootDir, "dist");
+// Use the current working directory (Render's Root Directory)
+const artifactDir = process.cwd();
 
-  // Clean previous build
+async function buildAll() {
+  const distDir = path.resolve(artifactDir, "dist");
+
+  // Remove old dist folder
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(rootDir, "src/index.ts")],
-    platform: "node",
+    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     bundle: true,
+    platform: "node",
     format: "esm",
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
+    sourcemap: "linked",
     logLevel: "info",
+    // Externalize problematic packages that cannot be bundled
     external: [
       "*.node",
       "sharp",
@@ -32,87 +37,37 @@ async function buildAll() {
       "bcrypt",
       "argon2",
       "fsevents",
-      "re2",
-      "farmhash",
-      "xxhash-addon",
-      "bufferutil",
-      "utf-8-validate",
-      "ssh2",
-      "cpu-features",
-      "dtrace-provider",
-      "isolated-vm",
-      "lightningcss",
-      "pg-native",
-      "oracledb",
-      "mongodb-client-encryption",
-      "nodemailer",
-      "handlebars",
-      "knex",
-      "typeorm",
-      "protobufjs",
-      "onnxruntime-node",
-      "@tensorflow/*",
       "@prisma/client",
-      "@mikro-orm/*",
-      "@grpc/*",
-      "@swc/*",
+      "@tensorflow/*",
       "@aws-sdk/*",
-      "@azure/*",
-      "@opentelemetry/*",
       "@google-cloud/*",
-      "@google/*",
-      "googleapis",
-      "firebase-admin",
-      "@parcel/watcher",
-      "@sentry/profiling-node",
-      "@tree-sitter/*",
       "aws-sdk",
-      "classic-level",
-      "dd-trace",
-      "ffi-napi",
-      "grpc",
-      "hiredis",
-      "kerberos",
-      "leveldown",
-      "miniflare",
-      "mysql2",
-      "newrelic",
-      "odbc",
-      "piscina",
-      "realm",
-      "ref-napi",
-      "rocksdb",
-      "sass-embedded",
-      "sequelize",
-      "serialport",
-      "snappy",
-      "tinypool",
-      "usb",
-      "workerd",
-      "wrangler",
-      "zeromq",
-      "zeromq-prebuilt",
+      "electron",
       "playwright",
       "puppeteer",
       "puppeteer-core",
-      "electron",
+      // Add more if you see runtime errors
     ],
-    sourcemap: "linked",
-    plugins: [esbuildPluginPino({ transports: ["pino-pretty"] })],
+    plugins: [
+      esbuildPluginPino({ transports: ["pino-pretty"] })
+    ],
     banner: {
-      js: `import { createRequire as __bannerCrReq } from 'node:module';
+      js: `
+import { createRequire as __bannerCrReq } from 'node:module';
 import __bannerPath from 'node:path';
 import __bannerUrl from 'node:url';
+
 globalThis.require = __bannerCrReq(import.meta.url);
 globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
-globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);`,
-    },
+globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
+      `
+    }
   });
 
-  console.log("Build completed! dist/ folder created at:", distDir);
+  console.log("Build completed. dist/index.mjs is ready!");
 }
 
-buildAll().catch((err) => {
+buildAll().catch(err => {
   console.error(err);
   process.exit(1);
 });
