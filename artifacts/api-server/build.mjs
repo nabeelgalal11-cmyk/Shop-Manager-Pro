@@ -8,18 +8,16 @@ import { rm } from "node:fs/promises";
 // Allow plugins to use require
 globalThis.require = createRequire(import.meta.url);
 
-// Current folder
+// Current folder of build.mjs
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
-const srcFile = path.resolve(artifactDir, "src/index.ts");
-const distDir = path.resolve(artifactDir, "dist");
 
-async function build() {
-  // Clean previous build
+// Build function
+async function buildAll() {
+  const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
-  // Build with esbuild
   await esbuild({
-    entryPoints: [srcFile],
+    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     bundle: true,
     platform: "node",
     format: "esm",
@@ -36,24 +34,35 @@ async function build() {
       "bcrypt",
       "argon2",
       "fsevents",
+      "re2",
+      "farmhash",
+      "xxhash-addon",
+      "bufferutil",
+      "utf-8-validate",
+      "ssh2",
+      "pg-native",
+      "@prisma/client",
+      "aws-sdk",
     ],
     plugins: [
-      esbuildPluginPino({ transports: ["pino-pretty"] }),
+      esbuildPluginPino({ transports: ["pino-pretty"] })
     ],
     banner: {
-      js: `import { createRequire as __bannerCrReq } from 'node:module';
+      js: `
+import { createRequire as __bannerCrReq } from 'node:module';
 import __bannerPath from 'node:path';
 import __bannerUrl from 'node:url';
+
 globalThis.require = __bannerCrReq(import.meta.url);
 globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
-globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);`,
-    },
+globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
+      `
+    }
   });
-
-  console.log("Build completed. dist/index.mjs is ready.");
 }
 
-build().catch(err => {
-  console.error("Build failed:", err);
+// Run build
+buildAll().catch(err => {
+  console.error(err);
   process.exit(1);
 });
