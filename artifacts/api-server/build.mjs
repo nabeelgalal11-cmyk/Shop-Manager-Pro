@@ -1,5 +1,4 @@
 import { build as esbuild } from "esbuild";
-import esbuildPluginPino from "esbuild-plugin-pino";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { rm } from "node:fs/promises";
@@ -19,28 +18,6 @@ async function buildAll() {
     outExtension: { ".js": ".mjs" },
     sourcemap: "linked",
     logLevel: "info",
-    plugins: [esbuildPluginPino({ transports: ["pino-pretty"] })],
-    external: [
-      "*.node",
-      "sharp",
-      "better-sqlite3",
-      "sqlite3",
-      "canvas",
-      "bcrypt",
-      "argon2",
-      "fsevents",
-      "pg-native",
-      "oracledb",
-      "@prisma/client"
-    ],
-    banner: {
-      js: `import { createRequire as __require } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-globalThis.require = __require(import.meta.url);
-globalThis.__filename = fileURLToPath(import.meta.url);
-globalThis.__dirname = path.dirname(globalThis.__filename);`
-    }
   });
 }
 
