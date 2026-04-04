@@ -7,8 +7,8 @@ import path from "path";
 dotenv.config({ path: path.resolve(__dirname, "../../artifacts/api-server/.env") });
 
 // 2️⃣ Import your app and logger
-import app from "./app";
-import { logger } from "./lib/logger";
+import app from "./app.js";
+import { logger } from "./lib/logger.js";
 
 // 3️⃣ Get the PORT from environment variables (fallback to 3000)
 const rawPort = process.env.PORT || "3000";

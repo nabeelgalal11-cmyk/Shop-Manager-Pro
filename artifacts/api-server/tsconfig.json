@@ -8,6 +8,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+
+    // ✅ ADD THESE
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
   }
 }

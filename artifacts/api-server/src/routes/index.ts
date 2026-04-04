@@ -1,23 +1,25 @@
 import { Router, type IRouter } from "express";
-import healthRouter from "./health";
-import customersRouter from "./customers";
-import vehiclesRouter from "./vehicles";
-import employeesRouter from "./employees";
-import repairOrdersRouter from "./repair_orders";
-import estimatesRouter from "./estimates";
-import invoicesRouter from "./invoices";
-import paymentsRouter from "./payments";
-import inventoryRouter from "./inventory";
-import inspectionsRouter from "./inspections";
-import appointmentsRouter from "./appointments";
-import timeEntriesRouter from "./time_entries";
-import expensesRouter from "./expenses";
-import remindersRouter from "./reminders";
-import dashboardRouter from "./dashboard";
+
+import healthRouter from "./health.js";
+import customersRouter from "./customers.js";
+import vehiclesRouter from "./vehicles.js";
+import employeesRouter from "./employees.js";
+import repairOrdersRouter from "./repair_orders.js";
+import estimatesRouter from "./estimates.js";
+import invoicesRouter from "./invoices.js";
+import paymentsRouter from "./payments.js";
+import inventoryRouter from "./inventory.js";
+import inspectionsRouter from "./inspections.js";
+import appointmentsRouter from "./appointments.js";
+import timeEntriesRouter from "./time_entries.js";
+import expensesRouter from "./expenses.js";
+import remindersRouter from "./reminders.js";
+import dashboardRouter from "./dashboard.js";
 
 const router: IRouter = Router();
 
-router.use(healthRouter);
+// register routes
+router.use("/health", healthRouter);
 router.use("/customers", customersRouter);
 router.use("/vehicles", vehiclesRouter);
 router.use("/employees", employeesRouter);
