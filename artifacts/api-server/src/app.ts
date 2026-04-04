@@ -48,7 +48,7 @@ const frontendPath = path.join(__dirname, "../../shop-os/dist/public");
 app.use(express.static(frontendPath));
 
 // SPA fallback (for React routes like /repair-orders)
-app.get("/*", (req, res) => {
+app.get("/.*/", (req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
