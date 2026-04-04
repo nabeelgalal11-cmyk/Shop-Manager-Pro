@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "build": "pnpm install",
+    "build": "pnpm -r build",
     "start": "tsx index.ts",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
@@ -15,6 +15,11 @@
     "typescript": "~5.9.2"
   },
   "dependencies": {
-    "drizzle-orm": "0.45.1"
+    "drizzle-orm": "0.45.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "drizzle-orm": "0.45.2"
+    }
   }
 }
