@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 
-const router = Router();
+const router: Router = Router();
 
 async function enrichInvoice(invoice: any) {
   const [lineItems, payments, customer, vehicle] = await Promise.all([

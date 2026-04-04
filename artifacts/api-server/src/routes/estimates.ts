@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { estimatesTable, lineItemsTable, customersTable, vehiclesTable, invoicesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 
-const router = Router();
+const router: Router = Router();
 
 function calcTotals(items: any[], taxRate: number, discount: number) {
   const subtotal = items.reduce((sum, i) => sum + Number(i.quantity) * Number(i.unitPrice), 0);

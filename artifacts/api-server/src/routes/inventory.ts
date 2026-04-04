@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { inventoryTable } from "@workspace/db";
 import { eq, ilike, sql, desc, lte } from "drizzle-orm";
 
-const router = Router();
+const router: Router = Router();
 
 router.get("/", async (req, res) => {
   const page = Number(req.query.page) || 1;

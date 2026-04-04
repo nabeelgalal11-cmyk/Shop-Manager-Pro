@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { inspectionsTable, vehiclesTable, employeesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 
-const router = Router();
+const router: Router = Router();
 
 async function enrichInspection(inspection: any) {
   const [vehicle, inspector] = await Promise.all([

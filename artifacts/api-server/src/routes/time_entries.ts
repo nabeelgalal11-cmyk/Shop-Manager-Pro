@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { timeEntriesTable, employeesTable } from "@workspace/db";
 import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
 
-const router = Router();
+const router: Router = Router();
 
 router.get("/", async (req, res) => {
   const page = Number(req.query.page) || 1;

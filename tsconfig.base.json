@@ -1,13 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "node",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "composite": true,
-
     "baseUrl": ".",
     "paths": {
       "@workspace/db": ["lib/db/src"],

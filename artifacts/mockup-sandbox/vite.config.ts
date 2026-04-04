@@ -1,30 +1,27 @@
+// artifacts/mockup-sandbox/vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { mockupPreviewPlugin } from "./mockupPreviewPlugin";
+import dotenv from "dotenv";
+
+// 1️⃣ Load .env before using process.env
+dotenv.config({ path: path.resolve(__dirname, ".env") });
 
 const rawPort = process.env.PORT;
-
 if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  throw new Error("PORT environment variable is required but was not provided.");
 }
-
 const port = Number(rawPort);
-
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
 const basePath = process.env.BASE_PATH;
-
 if (!basePath) {
-  throw new Error(
-    "BASE_PATH environment variable is required but was not provided.",
-  );
+  throw new Error("BASE_PATH environment variable is required but was not provided.");
 }
 
 export default defineConfig({
@@ -39,7 +36,7 @@ export default defineConfig({
       ? [
           await import("@replit/vite-plugin-cartographer").then((m) =>
             m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
+              root: path.resolve(path.dirname(__dirname), ".."),
             }),
           ),
         ]
@@ -47,12 +44,12 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "src"),
+      "@": path.resolve(__dirname, "src"),
     },
   },
-  root: path.resolve(import.meta.dirname),
+  root: path.resolve(__dirname),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist"),
+    outDir: path.resolve(__dirname, "dist"),
     emptyOutDir: true,
   },
   server: {

@@ -6,7 +6,7 @@ import {
 } from "@workspace/db";
 import { eq, sql, desc, gte, and, lte } from "drizzle-orm";
 
-const router = Router();
+const router: Router = Router();
 
 router.get("/summary", async (req, res) => {
   const now = new Date();

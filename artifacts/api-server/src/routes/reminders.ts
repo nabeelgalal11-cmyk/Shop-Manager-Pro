@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { remindersTable, customersTable, vehiclesTable } from "@workspace/db";
 import { eq, sql, desc, and } from "drizzle-orm";
 
-const router = Router();
+const router: Router = Router();
 
 async function enrichReminder(reminder: any) {
   const [customer, vehicle] = await Promise.all([

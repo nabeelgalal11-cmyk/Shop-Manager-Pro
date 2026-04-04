@@ -3,8 +3,7 @@ import { db } from "@workspace/db";
 import { appointmentsTable, customersTable, vehiclesTable, employeesTable } from "@workspace/db";
 import { eq, sql, desc, gte, lte, and } from "drizzle-orm";
 
-const router = Router();
-
+const router: Router = Router();
 async function enrichAppointment(appointment: any) {
   const [customer, vehicle, assignedTo] = await Promise.all([
     db.select().from(customersTable).where(eq(customersTable.id, appointment.customerId)).then(r => r[0]),
