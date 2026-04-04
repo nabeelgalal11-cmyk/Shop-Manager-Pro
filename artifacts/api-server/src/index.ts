@@ -1,11 +1,14 @@
 // artifacts/api-server/src/index.ts
-
-import dotenv from "dotenv";
 import path from "path";
+import { fileURLToPath } from "url";
+
+// recreate __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+import dotenv from "dotenv";
 
 // 1️⃣ Load environment variables from .env in api-server
-dotenv.config({ path: path.resolve(__dirname, "../../artifacts/api-server/.env") });
-
+dotenv.config();
 // 2️⃣ Import your app and logger
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
