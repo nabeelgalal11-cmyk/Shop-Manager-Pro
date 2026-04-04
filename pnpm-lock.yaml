@@ -90,6 +90,12 @@ importers:
 
   artifacts/api-server:
     dependencies:
+      '@workspace/api-zod':
+        specifier: workspace:*
+        version: link:../../lib/api-zod
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../../lib/db
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -537,8 +543,15 @@ importers:
   lib/api-zod:
     dependencies:
       zod:
-        specifier: 'catalog:'
+        specifier: ^3.23.8
         version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^20.5.1
+        version: 20.19.37
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
 
   lib/db:
     dependencies:
@@ -552,18 +565,21 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
       zod:
-        specifier: 'catalog:'
+        specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
       '@types/node':
-        specifier: 'catalog:'
-        version: 25.5.0
+        specifier: ^20.5.1
+        version: 20.19.37
       '@types/pg':
         specifier: ^8.18.0
         version: 8.20.0
       drizzle-kit:
         specifier: ^0.31.9
         version: 0.31.10
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
 
   scripts:
     devDependencies:
@@ -5388,7 +5404,7 @@ snapshots:
 
   '@types/pg@8.20.0':
     dependencies:
-      '@types/node': 25.5.0
+      '@types/node': 20.19.37
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
