@@ -147,6 +147,13 @@ export default function EstimatesNew() {
                     <Plus className="h-4 w-4 mr-2" /> Add Item
                   </Button>
                 </div>
+                <div className="flex items-center gap-4 px-4 pb-1">
+                  <span className="w-[150px] text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
+                  <span className="flex-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</span>
+                  <span className="w-[100px] text-xs font-medium text-muted-foreground uppercase tracking-wide">Qty / Hrs</span>
+                  <span className="w-[120px] text-xs font-medium text-muted-foreground uppercase tracking-wide">Unit Price</span>
+                  <span className="w-[36px]" />
+                </div>
                 {fields.map((field, index) => (
                   <div key={field.id} className="flex items-start gap-4 p-4 border rounded-md bg-muted/20">
                     <FormField
@@ -171,7 +178,7 @@ export default function EstimatesNew() {
                       name={`lineItems.${index}.description`}
                       render={({ field }) => (
                         <FormItem className="flex-1">
-                          <FormControl><Input placeholder="Description" {...field} /></FormControl>
+                          <FormControl><Input placeholder="e.g. Oil change, brake pads…" {...field} /></FormControl>
                         </FormItem>
                       )}
                     />
@@ -180,7 +187,7 @@ export default function EstimatesNew() {
                       name={`lineItems.${index}.quantity`}
                       render={({ field }) => (
                         <FormItem className="w-[100px]">
-                          <FormControl><Input type="number" placeholder="Qty" {...field} /></FormControl>
+                          <FormControl><Input type="number" placeholder="1" {...field} /></FormControl>
                         </FormItem>
                       )}
                     />
@@ -189,7 +196,7 @@ export default function EstimatesNew() {
                       name={`lineItems.${index}.unitPrice`}
                       render={({ field }) => (
                         <FormItem className="w-[120px]">
-                          <FormControl><Input type="number" placeholder="Price" {...field} /></FormControl>
+                          <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
                         </FormItem>
                       )}
                     />
