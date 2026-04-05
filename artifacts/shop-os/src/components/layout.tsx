@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import {
   LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
   Wrench, Package, ClipboardCheck, Calendar, CreditCard,
-  UserCircle, Clock, Receipt, Bell, Search
+  UserCircle, Clock, Receipt, Bell, Search, BarChart2, Tags, CarFront
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -27,6 +27,11 @@ const navGroups = [
       { name: "Vehicles", href: "/vehicles", icon: Car },
       { name: "Inventory", href: "/inventory", icon: Package },
       { name: "Payments", href: "/payments", icon: CreditCard },
+      { name: "Used Cars", href: "/used-cars", icon: CarFront },
+    ]
+  },
+  { label: "Reports", items: [
+      { name: "Reports", href: "/reports", icon: BarChart2 },
     ]
   },
   { label: "Admin", items: [
@@ -34,6 +39,7 @@ const navGroups = [
       { name: "Time Entries", href: "/time-entries", icon: Clock },
       { name: "Expenses", href: "/expenses", icon: Receipt },
       { name: "Reminders", href: "/reminders", icon: Bell },
+      { name: "Customer Categories", href: "/customer-categories", icon: Tags },
     ]
   }
 ];

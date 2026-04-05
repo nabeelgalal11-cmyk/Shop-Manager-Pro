@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { useCreateCustomer } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Save } from "lucide-react";
 
@@ -27,6 +29,11 @@ const formSchema = z.object({
 export default function CustomersNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [categoryId, setCategoryId] = useState<string>("");
+  const { data: categories = [] } = useQuery<any[]>({
+    queryKey: ["/api/customer-categories"],
+    queryFn: () => fetch("/api/customer-categories").then(r => r.json()),
+  });
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -47,7 +54,7 @@ export default function CustomersNew() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     createCustomer.mutate(
-      { data: values },
+      { data: { ...values, categoryId: categoryId ? Number(categoryId) : null } as any },
       {
         onSuccess: (data) => {
           toast({
@@ -205,6 +212,26 @@ export default function CustomersNew() {
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground pt-4 border-t">Additional Information</h3>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Pricing Category</label>
+                  <Select
+                    value={categoryId || "none"}
+                    onValueChange={v => setCategoryId(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a category..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {categories.map((cat: any) => (
+                        <SelectItem key={cat.id} value={String(cat.id)}>
+                          {cat.name} — ${Number(cat.laborRate).toFixed(0)}/hr
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Applies custom labor rates and parts markup to estimates.</p>
+                </div>
                 <FormField
                   control={form.control}
                   name="notes"

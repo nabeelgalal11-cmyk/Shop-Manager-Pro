@@ -35,6 +35,10 @@ import TimeEntries from "@/pages/time-entries";
 import Expenses from "@/pages/expenses";
 import ExpensesNew from "@/pages/expenses-new";
 import Reminders from "@/pages/reminders";
+import CustomerCategories from "@/pages/customer-categories";
+import UsedCars from "@/pages/used-cars";
+import UsedCarsNew from "@/pages/used-cars-new";
+import Reports from "@/pages/reports";
 
 const queryClient = new QueryClient();
 
@@ -86,6 +90,11 @@ function Router() {
         <Route path="/expenses/new" component={ExpensesNew} />
 
         <Route path="/reminders" component={Reminders} />
+        <Route path="/customer-categories" component={CustomerCategories} />
+        <Route path="/used-cars" component={UsedCars} />
+        <Route path="/used-cars/new" component={UsedCarsNew} />
+        <Route path="/used-cars/:id" component={UsedCarsNew} />
+        <Route path="/reports" component={Reports} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

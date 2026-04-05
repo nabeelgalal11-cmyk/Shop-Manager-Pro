@@ -16,6 +16,9 @@ import expensesRouter from "./expenses.js";
 import remindersRouter from "./reminders.js";
 import dashboardRouter from "./dashboard.js";
 import aiEstimateRouter from "./ai-estimate.js";
+import customerCategoriesRouter from "./customer-categories.js";
+import usedCarsRouter from "./used-cars.js";
+import reportsRouter from "./reports.js";
 
 const router: IRouter = Router();
 
@@ -36,5 +39,8 @@ router.use("/expenses", expensesRouter);
 router.use("/reminders", remindersRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/ai-estimate", aiEstimateRouter);
+router.use("/customer-categories", customerCategoriesRouter);
+router.use("/used-cars", usedCarsRouter);
+router.use("/reports", reportsRouter);
 
 export default router;

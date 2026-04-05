@@ -51,11 +51,14 @@ artifacts-monorepo/
 11. **Employees** - Employee management with clock in/out
 12. **Time Entries** - Technician time tracking
 13. **Expenses** - Shop expense tracking
-14. **Reminders** - Service reminder management
+14. **Reminders** - Service reminder management with auto-generation on repair order completion
+15. **Customer Categories** - Pricing tiers (labor rate + parts markup) assigned to customers
+16. **Used Cars** - Used/resale vehicle inventory with purchase/selling prices and profit tracking
+17. **Reports** - Analytics dashboard: revenue KPIs, monthly trends, revenue-by-category charts, top customers, expense breakdown, used car sales summary
 
 ## Database Schema
 
-Tables: customers, vehicles, employees, repair_orders, estimates, invoices, line_items, payments, inventory, inspections, appointments, time_entries, expenses, reminders
+Tables: customer_categories, customers (with categoryId FK), vehicles, employees, repair_orders, estimates, invoices, line_items, payments, inventory, inspections, appointments, time_entries, expenses, reminders, used_cars
 
 ## API Routes
 
@@ -64,6 +67,9 @@ All routes under `/api/`:
 - `/repair-orders`, `/estimates`, `/invoices`, `/payments`
 - `/inventory`, `/inspections`, `/appointments`
 - `/time-entries`, `/expenses`, `/reminders`
+- `/customer-categories` — CRUD for pricing tier categories
+- `/used-cars` — CRUD for used/resale vehicle inventory
+- `/reports/overview`, `/reports/revenue-by-category`, `/reports/monthly-revenue`, `/reports/top-customers`, `/reports/expenses-by-category`, `/reports/used-cars`
 - `/dashboard/summary`, `/dashboard/recent-activity`, `/dashboard/revenue-chart`, `/dashboard/job-status-breakdown`, `/dashboard/top-services`
 
 ## TypeScript & Composite Projects

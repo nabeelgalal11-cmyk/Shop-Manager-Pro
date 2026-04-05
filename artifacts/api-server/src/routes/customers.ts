@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { customersTable, vehiclesTable, invoicesTable, paymentsTable } from "@workspace/db";
+import { customersTable, vehiclesTable, invoicesTable, customerCategoriesTable } from "@workspace/db";
 import { eq, ilike, or, sql, desc } from "drizzle-orm";
 
 const router: Router = Router();
@@ -37,8 +37,8 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { firstName, lastName, email, phone, address, city, state, zip, notes } = req.body;
-  const [customer] = await db.insert(customersTable).values({ firstName, lastName, email, phone, address, city, state, zip, notes }).returning();
+  const { firstName, lastName, email, phone, address, city, state, zip, notes, categoryId } = req.body;
+  const [customer] = await db.insert(customersTable).values({ firstName, lastName, email, phone, address, city, state, zip, notes, categoryId: categoryId || null }).returning();
   res.status(201).json({ ...customer, vehicleCount: 0, totalBilled: 0, totalPaid: 0 });
 });
 
@@ -55,8 +55,8 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { firstName, lastName, email, phone, address, city, state, zip, notes } = req.body;
-  const [customer] = await db.update(customersTable).set({ firstName, lastName, email, phone, address, city, state, zip, notes, updatedAt: new Date() }).where(eq(customersTable.id, id)).returning();
+  const { firstName, lastName, email, phone, address, city, state, zip, notes, categoryId } = req.body;
+  const [customer] = await db.update(customersTable).set({ firstName, lastName, email, phone, address, city, state, zip, notes, categoryId: categoryId || null, updatedAt: new Date() }).where(eq(customersTable.id, id)).returning();
   if (!customer) return res.status(404).json({ error: "Customer not found" });
   const [vehicleCount] = await db.select({ count: sql<number>`count(*)` }).from(vehiclesTable).where(eq(vehiclesTable.customerId, id));
   const invoices = await db.select({ total: invoicesTable.total, amountPaid: invoicesTable.amountPaid }).from(invoicesTable).where(eq(invoicesTable.customerId, id));
