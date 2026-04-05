@@ -7,7 +7,7 @@ const router: Router = Router();
 
 function calcTotals(items: any[], taxRate: number, discount: number) {
   const subtotal = items.reduce((sum, i) => sum + Number(i.quantity) * Number(i.unitPrice), 0);
-  const taxAmount = subtotal * taxRate;
+  const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount - discount;
   return { subtotal, taxAmount, total };
 }
