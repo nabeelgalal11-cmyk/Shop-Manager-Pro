@@ -15,6 +15,7 @@ import timeEntriesRouter from "./time_entries.js";
 import expensesRouter from "./expenses.js";
 import remindersRouter from "./reminders.js";
 import dashboardRouter from "./dashboard.js";
+import aiEstimateRouter from "./ai-estimate.js";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use("/time-entries", timeEntriesRouter);
 router.use("/expenses", expensesRouter);
 router.use("/reminders", remindersRouter);
 router.use("/dashboard", dashboardRouter);
+router.use("/ai-estimate", aiEstimateRouter);
 
 export default router;

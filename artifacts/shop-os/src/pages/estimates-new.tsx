@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useCreateEstimate, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey } from "@workspace/api-client-react";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -9,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, Bot } from "lucide-react";
+import { AIEstimateModal } from "@/components/ai-estimate-modal";
 
 const lineItemSchema = z.object({
   type: z.enum(["labor", "part", "fee", "discount"]),
@@ -31,6 +33,7 @@ const formSchema = z.object({
 export default function EstimatesNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [aiModalOpen, setAiModalOpen] = useState(false);
   
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
   const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
@@ -53,6 +56,17 @@ export default function EstimatesNew() {
 
   const createEstimate = useCreateEstimate();
 
+  function handleAIApply(items: { type: "labor" | "part" | "fee" | "discount"; description: string; quantity: number; unitPrice: number }[], notes: string) {
+    const existing = form.getValues("lineItems");
+    const nonEmpty = existing.filter(i => i.description.trim() !== "" || i.unitPrice > 0);
+    const merged = [...nonEmpty, ...items];
+    form.setValue("lineItems", merged.length > 0 ? merged : items);
+    if (notes) {
+      const currentNotes = form.getValues("notes") ?? "";
+      form.setValue("notes", currentNotes ? `${currentNotes}\n${notes}` : notes);
+    }
+  }
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     createEstimate.mutate(
       { data: values },
@@ -72,9 +86,12 @@ export default function EstimatesNew() {
     <div className="p-8 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => setLocation("/estimates")}><ArrowLeft className="h-5 w-5" /></Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">New Estimate</h1>
         </div>
+        <Button type="button" variant="outline" onClick={() => setAiModalOpen(true)}>
+          <Bot className="h-4 w-4 mr-2 text-blue-600" /> AI Assistant
+        </Button>
       </div>
       <Card className="shadow-sm border-border">
         <CardContent className="pt-6">
@@ -199,6 +216,14 @@ export default function EstimatesNew() {
           </Form>
         </CardContent>
       </Card>
+
+      <AIEstimateModal
+        open={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        vehicles={vehicles?.data ?? []}
+        selectedVehicleId={form.watch("vehicleId")}
+        onApply={handleAIApply}
+      />
     </div>
   );
 }
