@@ -67,8 +67,8 @@ function Router() {
 
         <Route path="/inventory" component={Inventory} />
         <Route path="/inventory/new" component={InventoryNew} />
-<Route path="/inventory/:id" component={InventoryDetail} />
-        
+        <Route path="/inventory/:id" component={InventoryDetail} />
+
         <Route path="/inspections" component={Inspections} />
         <Route path="/inspections/new" component={InspectionsNew} />
 
