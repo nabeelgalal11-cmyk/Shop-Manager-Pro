@@ -50,9 +50,12 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { customerId, vehicleId, serviceType, dueDate, dueMileage, notes } = req.body;
+  const { customerId, vehicleId, serviceType, dueDate, dueMileage, notes, sent } = req.body;
   const [reminder] = await db.update(remindersTable).set({
-    customerId, vehicleId, serviceType, dueDate, dueMileage, notes, updatedAt: new Date(),
+    customerId, vehicleId, serviceType, dueDate, dueMileage, notes,
+    sent: sent ?? false,
+    sentAt: sent ? new Date() : null,
+    updatedAt: new Date(),
   }).where(eq(remindersTable.id, id)).returning();
   if (!reminder) return res.status(404).json({ error: "Reminder not found" });
   res.json(await enrichReminder(reminder));

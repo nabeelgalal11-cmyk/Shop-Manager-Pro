@@ -1,9 +1,93 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { repairOrdersTable, customersTable, vehiclesTable, employeesTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remindersTable } from "@workspace/db";
+import { eq, sql, desc, and, gte } from "drizzle-orm";
 
 const router: Router = Router();
+
+// ── Service keyword → reminder interval ────────────────────────────────────
+interface ServiceInterval { serviceType: string; months: number; miles?: number }
+
+const SERVICE_INTERVALS: Array<{ keywords: string[]; serviceType: string; months: number; miles?: number }> = [
+  { keywords: ["oil change", "oil service", "lube"],      serviceType: "Oil Change",               months: 3,  miles: 3000  },
+  { keywords: ["tire rotation", "rotate tires"],          serviceType: "Tire Rotation",             months: 6,  miles: 5000  },
+  { keywords: ["brake"],                                   serviceType: "Brake Inspection",          months: 12                },
+  { keywords: ["air filter"],                              serviceType: "Air Filter Replacement",    months: 12, miles: 15000 },
+  { keywords: ["cabin filter"],                            serviceType: "Cabin Filter Replacement",  months: 12, miles: 15000 },
+  { keywords: ["transmission service", "trans service"],  serviceType: "Transmission Service",      months: 24, miles: 30000 },
+  { keywords: ["coolant", "antifreeze"],                  serviceType: "Coolant Flush",             months: 24               },
+  { keywords: ["battery"],                                 serviceType: "Battery Check",             months: 12               },
+  { keywords: ["spark plug"],                              serviceType: "Spark Plug Replacement",    months: 24, miles: 30000 },
+  { keywords: ["timing belt"],                             serviceType: "Timing Belt Service",       months: 48, miles: 60000 },
+  { keywords: ["alignment"],                               serviceType: "Alignment",                 months: 12               },
+  { keywords: ["multi-point", "multipoint", "inspection"], serviceType: "Multi-Point Inspection",   months: 12               },
+];
+
+function detectServices(text: string): ServiceInterval[] {
+  if (!text) return [];
+  const lower = text.toLowerCase();
+  const found: ServiceInterval[] = [];
+  for (const entry of SERVICE_INTERVALS) {
+    if (entry.keywords.some(k => lower.includes(k))) {
+      found.push({ serviceType: entry.serviceType, months: entry.months, miles: entry.miles });
+    }
+  }
+  return found;
+}
+
+function addMonths(date: Date, months: number): string {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().split("T")[0];
+}
+
+async function autoCreateReminders(order: any) {
+  const text = `${order.complaint ?? ""} ${order.diagnosis ?? ""} ${order.notes ?? ""}`;
+  const services = detectServices(text);
+  if (!services.length) return;
+
+  const today = new Date().toISOString().split("T")[0];
+
+  await Promise.allSettled(
+    services.map(async (svc) => {
+      // Skip if a future reminder already exists for this customer + vehicle + service
+      const existing = await db
+        .select({ id: remindersTable.id })
+        .from(remindersTable)
+        .where(
+          and(
+            eq(remindersTable.customerId, order.customerId),
+            order.vehicleId ? eq(remindersTable.vehicleId, order.vehicleId) : undefined,
+            eq(remindersTable.serviceType, svc.serviceType),
+            gte(remindersTable.dueDate, today),
+          )
+        )
+        .limit(1);
+
+      if (existing.length > 0) return;
+
+      const dueDate = addMonths(new Date(), svc.months);
+      const dueMileage =
+        svc.miles && order.mileageOut
+          ? Number(order.mileageOut) + svc.miles
+          : svc.miles && order.mileageIn
+          ? Number(order.mileageIn) + svc.miles
+          : undefined;
+
+      await db.insert(remindersTable).values({
+        customerId: order.customerId,
+        vehicleId: order.vehicleId ?? null,
+        serviceType: svc.serviceType,
+        dueDate,
+        dueMileage: dueMileage ?? null,
+        notes: `Auto-created from repair order ${order.orderNumber}`,
+        sent: false,
+      });
+    })
+  );
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 async function enrichOrder(order: any) {
   const [customer, vehicle, assignedTo] = await Promise.all([
@@ -13,6 +97,8 @@ async function enrichOrder(order: any) {
   ]);
   return { ...order, customer, vehicle, assignedTo };
 }
+
+// ── Routes ──────────────────────────────────────────────────────────────────
 
 router.get("/", async (req, res) => {
   const page = Number(req.query.page) || 1;
@@ -54,16 +140,27 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt } = req.body;
+
+  // Fetch previous status to detect completion transition
+  const [prev] = await db.select({ status: repairOrdersTable.status }).from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
+
   const [order] = await db.update(repairOrdersTable).set({
     assignedToId, status, priority, complaint, diagnosis, notes,
     parts: parts !== undefined ? parts : undefined,
     estimatedHours, actualHours,
     mileageIn, mileageOut,
     promisedDate: promisedDate ? new Date(promisedDate) : undefined,
-    completedAt: completedAt ? new Date(completedAt) : undefined,
+    completedAt: completedAt ? new Date(completedAt) : (status === "completed" && prev?.status !== "completed" ? new Date() : undefined),
     updatedAt: new Date(),
   }).where(eq(repairOrdersTable.id, id)).returning();
+
   if (!order) return res.status(404).json({ error: "Repair order not found" });
+
+  // Auto-create reminders when transitioning to completed
+  if (status === "completed" && prev?.status !== "completed") {
+    await autoCreateReminders(order).catch(() => {});
+  }
+
   res.json(await enrichOrder(order));
 });
 
