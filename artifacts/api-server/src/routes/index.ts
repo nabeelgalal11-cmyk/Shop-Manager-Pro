@@ -19,6 +19,8 @@ import aiEstimateRouter from "./ai-estimate.js";
 import customerCategoriesRouter from "./customer-categories.js";
 import usedCarsRouter from "./used-cars.js";
 import reportsRouter from "./reports.js";
+import storageRouter from "./storage.js";
+import purchasesRouter from "./purchases.js";
 
 const router: IRouter = Router();
 
@@ -42,5 +44,7 @@ router.use("/ai-estimate", aiEstimateRouter);
 router.use("/customer-categories", customerCategoriesRouter);
 router.use("/used-cars", usedCarsRouter);
 router.use("/reports", reportsRouter);
+router.use(storageRouter);
+router.use("/purchases", purchasesRouter);
 
 export default router;

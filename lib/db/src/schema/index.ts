@@ -1,6 +1,7 @@
 export * from "./customer_categories";
 export * from "./customers";
 export * from "./used_cars";
+export * from "./purchases";
 export * from "./vehicles";
 export * from "./employees";
 export * from "./repair_orders";
