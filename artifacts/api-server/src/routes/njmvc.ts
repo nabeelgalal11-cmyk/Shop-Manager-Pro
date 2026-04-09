@@ -232,10 +232,15 @@ router.get("/template", async (_req, res) => {
   res.json(result);
 });
 
-// GET /api/njmvc/categories
+// GET /api/njmvc/categories — returns categories with nested items (sorted)
 router.get("/categories", async (_req, res) => {
   const categories = await db.select().from(njmvcCategoriesTable).orderBy(asc(njmvcCategoriesTable.sortOrder));
-  res.json(categories);
+  const items = await db.select().from(njmvcItemsTable).orderBy(asc(njmvcItemsTable.sortOrder));
+  const result = categories.map(cat => ({
+    ...cat,
+    items: items.filter(item => item.categoryId === cat.id),
+  }));
+  res.json(result);
 });
 
 // POST /api/njmvc/categories
@@ -482,22 +487,18 @@ router.delete("/inspections/:id", async (req, res) => {
   res.status(204).send();
 });
 
-// Helper: query repair orders for a vehicle between two dates
+// Helper: query COMPLETED repair orders for a vehicle with completedAt in the window
 async function queryRelatedRepairs(vehicleId: number, sinceDate: Date | null, untilDate: Date | null) {
-  const conditions: any[] = [eq(repairOrdersTable.vehicleId, vehicleId)];
+  const conditions: any[] = [
+    eq(repairOrdersTable.vehicleId, vehicleId),
+    sql`${repairOrdersTable.completedAt} IS NOT NULL`,
+  ];
 
-  // Use completedAt as primary date; fall back to createdAt for open/incomplete ROs
-  // Lower bound: completedAt >= sinceDate (or createdAt if completedAt is null)
   if (sinceDate) {
-    conditions.push(
-      sql`COALESCE(${repairOrdersTable.completedAt}, ${repairOrdersTable.createdAt}) >= ${sinceDate}`
-    );
+    conditions.push(gte(repairOrdersTable.completedAt, sinceDate));
   }
-  // Upper bound: completedAt <= untilDate (or createdAt if completedAt is null)
   if (untilDate) {
-    conditions.push(
-      sql`COALESCE(${repairOrdersTable.completedAt}, ${repairOrdersTable.createdAt}) <= ${untilDate}`
-    );
+    conditions.push(lte(repairOrdersTable.completedAt, untilDate));
   }
 
   return db.select({

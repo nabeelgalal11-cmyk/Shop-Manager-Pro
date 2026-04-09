@@ -579,7 +579,7 @@ export default function NjmvcNew() {
                               onClick={() => applyRepairOrder(ro)}
                             >
                               <CheckCircle className="h-3 w-3 mr-1" />
-                              Apply — Mark items OK
+                              Apply — Mark &quot;Needs Repair&quot; items OK
                             </Button>
                           </div>
                         ))}
@@ -594,7 +594,7 @@ export default function NjmvcNew() {
                   <div className="flex gap-2">
                     <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-800">
-                      "Apply" marks <strong>unfilled items</strong> as OK using the repair date. Review each item before certifying.
+                      First mark specific items as "Needs Repair", then use Apply to mark those items as OK using the RO's completion date.
                     </p>
                   </div>
                 </CardContent>

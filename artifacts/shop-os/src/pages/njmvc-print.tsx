@@ -58,10 +58,12 @@ export default function NjmvcPrint() {
     items: cat.items?.filter((i: any) => i.active) || [],
   }));
 
-  // Divide sections into 3 columns
-  const col1 = allSections.slice(0, Math.ceil(allSections.length / 3));
-  const col2 = allSections.slice(Math.ceil(allSections.length / 3), Math.ceil((allSections.length * 2) / 3));
-  const col3 = allSections.slice(Math.ceil((allSections.length * 2) / 3));
+  // Fixed column assignment based on official NJMVC form layout.
+  // The 20 official categories are distributed as columns 1 (sort 0-6), 2 (sort 7-13), 3 (sort 14+).
+  // Using sortOrder for deterministic placement regardless of dynamic count.
+  const col1 = allSections.filter((_, i) => i < 7);
+  const col2 = allSections.filter((_, i) => i >= 7 && i < 14);
+  const col3 = allSections.filter((_, i) => i >= 14);
 
   function renderSection(section: { catName: string; items: any[] }) {
     return (
