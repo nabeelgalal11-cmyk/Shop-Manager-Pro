@@ -66,12 +66,22 @@ export default function NjmvcNew() {
     enabled: isEdit,
   });
 
-  // Related repair orders (only when editing)
-  const { data: relatedData } = useQuery<any>({
+  // Related repair orders — for existing inspections use inspection-based endpoint;
+  // for new inspections use vehicle-based endpoint once a vehicle is selected.
+  const vehicleIdForRepairs = isEdit ? null : (selectedVehicleId !== "none" ? selectedVehicleId : null);
+  const { data: relatedDataExisting } = useQuery<any>({
     queryKey: ["/api/njmvc/inspections", id, "related-repairs"],
     queryFn: () => apiFetch(`/api/njmvc/inspections/${id}/related-repairs`),
     enabled: isEdit,
   });
+  const { data: relatedDataNew } = useQuery<any>({
+    queryKey: ["/api/njmvc/vehicles", vehicleIdForRepairs, "related-repairs", header.inspectionDate],
+    queryFn: () => apiFetch(
+      `/api/njmvc/vehicles/${vehicleIdForRepairs}/related-repairs?untilDate=${encodeURIComponent(header.inspectionDate || new Date().toISOString().split("T")[0])}`
+    ),
+    enabled: !isEdit && vehicleIdForRepairs !== null,
+  });
+  const relatedData = isEdit ? relatedDataExisting : relatedDataNew;
   const relatedRepairs = relatedData?.repairOrders || [];
 
   // Expand all categories by default when template loads
@@ -494,7 +504,7 @@ export default function NjmvcNew() {
         </div>
 
         {/* Side Panel — Related Repair Orders */}
-        {isEdit && (
+        {(isEdit || selectedVehicleId !== "none") && (
           <div className="w-80 flex-shrink-0">
             <div className="sticky top-6 space-y-3">
               <Card className="border-border">

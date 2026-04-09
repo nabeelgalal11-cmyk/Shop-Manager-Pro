@@ -21,10 +21,17 @@ export default function NjmvcInspections() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const { data, isLoading } = useQuery<any>({
-    queryKey: [API, search],
-    queryFn: () => apiFetch(`${API}?limit=100`),
+    queryKey: [API, dateFrom, dateTo],
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: "200" });
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+      return apiFetch(`${API}?${params}`);
+    },
   });
 
   const remove = useMutation({
@@ -61,14 +68,25 @@ export default function NjmvcInspections() {
         </Button>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search vehicle, report #, mechanic..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search vehicle, report #, mechanic..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-muted-foreground whitespace-nowrap">Date from</label>
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-36 h-9" />
+          <label className="text-sm text-muted-foreground">to</label>
+          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-36 h-9" />
+          {(dateFrom || dateTo) && (
+            <button className="text-xs text-muted-foreground underline" onClick={() => { setDateFrom(""); setDateTo(""); }}>Clear</button>
+          )}
+        </div>
       </div>
 
       <Card className="shadow-sm border-border">

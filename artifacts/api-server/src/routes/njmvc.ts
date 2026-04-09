@@ -5,7 +5,7 @@ import {
   njmvcInspectionsTable, njmvcInspectionResultsTable,
   vehiclesTable, repairOrdersTable, employeesTable,
 } from "@workspace/db";
-import { eq, asc, desc, and, lt, gte, sql } from "drizzle-orm";
+import { eq, asc, desc, and, lt, lte, gte, sql } from "drizzle-orm";
 
 const router: Router = Router();
 
@@ -251,9 +251,27 @@ router.put("/categories/:id", async (req, res) => {
   res.json(cat);
 });
 
-// DELETE /api/njmvc/categories/:id
+// DELETE /api/njmvc/categories/:id — deactivates if results exist, otherwise hard-deletes
 router.delete("/categories/:id", async (req, res) => {
   const id = Number(req.params.id);
+  // Check if any inspection results reference items in this category
+  const itemIds = await db.select({ id: njmvcItemsTable.id })
+    .from(njmvcItemsTable)
+    .where(eq(njmvcItemsTable.categoryId, id));
+  if (itemIds.length > 0) {
+    const ids = itemIds.map(i => i.id);
+    const countResult = await db.execute<{ count: string }>(
+      sql`SELECT COUNT(*) as count FROM njmvc_inspection_results WHERE item_id = ANY(${ids})`
+    );
+    const count = countResult.rows[0]?.count ?? "0";
+    if (Number(count) > 0) {
+      // Results exist — soft-delete (deactivate) to preserve historical data
+      await db.update(njmvcCategoriesTable)
+        .set({ active: false, updatedAt: new Date() })
+        .where(eq(njmvcCategoriesTable.id, id));
+      return res.status(200).json({ deactivated: true, reason: "Historical results reference items in this category." });
+    }
+  }
   await db.delete(njmvcCategoriesTable).where(eq(njmvcCategoriesTable.id, id));
   res.status(204).send();
 });
@@ -283,9 +301,19 @@ router.put("/items/:id", async (req, res) => {
   res.json(item);
 });
 
-// DELETE /api/njmvc/items/:id
+// DELETE /api/njmvc/items/:id — deactivates if results exist, otherwise hard-deletes
 router.delete("/items/:id", async (req, res) => {
   const id = Number(req.params.id);
+  const [{ count }] = await db.select({ count: sql<number>`count(*)` })
+    .from(njmvcInspectionResultsTable)
+    .where(eq(njmvcInspectionResultsTable.itemId, id));
+  if (Number(count) > 0) {
+    const [item] = await db.update(njmvcItemsTable)
+      .set({ active: false })
+      .where(eq(njmvcItemsTable.id, id))
+      .returning();
+    return res.status(200).json({ deactivated: true, item });
+  }
   await db.delete(njmvcItemsTable).where(eq(njmvcItemsTable.id, id));
   res.status(204).send();
 });
@@ -298,18 +326,25 @@ async function enrichInspection(insp: any) {
 }
 
 // GET /api/njmvc/inspections
+// Query params: vehicleId, dateFrom (ISO date), dateTo (ISO date), page, limit
 router.get("/inspections", async (req, res) => {
   const vehicleId = req.query.vehicleId ? Number(req.query.vehicleId) : undefined;
+  const dateFrom = req.query.dateFrom ? String(req.query.dateFrom) : undefined;
+  const dateTo = req.query.dateTo ? String(req.query.dateTo) : undefined;
   const page = Math.max(1, Number(req.query.page) || 1);
-  const limit = Math.min(100, Number(req.query.limit) || 50);
+  const limit = Math.min(200, Number(req.query.limit) || 50);
   const offset = (page - 1) * limit;
 
-  const query = db.select().from(njmvcInspectionsTable);
-  const inspections = await (vehicleId
-    ? query.where(eq(njmvcInspectionsTable.vehicleId, vehicleId)).orderBy(desc(njmvcInspectionsTable.createdAt)).limit(limit).offset(offset)
-    : query.orderBy(desc(njmvcInspectionsTable.createdAt)).limit(limit).offset(offset)
-  );
+  const conditions: any[] = [];
+  if (vehicleId) conditions.push(eq(njmvcInspectionsTable.vehicleId, vehicleId));
+  if (dateFrom) conditions.push(gte(njmvcInspectionsTable.inspectionDate, dateFrom));
+  if (dateTo) conditions.push(lte(njmvcInspectionsTable.inspectionDate, dateTo));
 
+  const baseQuery = conditions.length > 0
+    ? db.select().from(njmvcInspectionsTable).where(and(...conditions))
+    : db.select().from(njmvcInspectionsTable);
+
+  const inspections = await baseQuery.orderBy(desc(njmvcInspectionsTable.inspectionDate)).limit(limit).offset(offset);
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(njmvcInspectionsTable);
   const enriched = await Promise.all(inspections.map(enrichInspection));
   res.json({ data: enriched, total: Number(count), page, limit });
@@ -424,27 +459,25 @@ router.delete("/inspections/:id", async (req, res) => {
   res.status(204).send();
 });
 
-// GET /api/njmvc/inspections/:id/related-repairs
-router.get("/inspections/:id/related-repairs", async (req, res) => {
-  const id = Number(req.params.id);
-  const [insp] = await db.select().from(njmvcInspectionsTable).where(eq(njmvcInspectionsTable.id, id));
-  if (!insp) return res.status(404).json({ error: "Inspection not found" });
+// Helper: query repair orders for a vehicle between two dates
+async function queryRelatedRepairs(vehicleId: number, sinceDate: Date | null, untilDate: Date | null) {
+  const conditions: any[] = [eq(repairOrdersTable.vehicleId, vehicleId)];
 
-  // Find the previous inspection for this vehicle
-  const [prevInsp] = await db.select()
-    .from(njmvcInspectionsTable)
-    .where(and(
-      eq(njmvcInspectionsTable.vehicleId, insp.vehicleId),
-      lt(njmvcInspectionsTable.createdAt, insp.createdAt)
-    ))
-    .orderBy(desc(njmvcInspectionsTable.createdAt))
-    .limit(1);
+  // Use completedAt as primary date; fall back to createdAt for open/incomplete ROs
+  // Lower bound: completedAt >= sinceDate (or createdAt if completedAt is null)
+  if (sinceDate) {
+    conditions.push(
+      sql`COALESCE(${repairOrdersTable.completedAt}, ${repairOrdersTable.createdAt}) >= ${sinceDate}`
+    );
+  }
+  // Upper bound: completedAt <= untilDate (or createdAt if completedAt is null)
+  if (untilDate) {
+    conditions.push(
+      sql`COALESCE(${repairOrdersTable.completedAt}, ${repairOrdersTable.createdAt}) <= ${untilDate}`
+    );
+  }
 
-  const sinceDate = prevInsp?.createdAt ?? new Date(0);
-  const untilDate = insp.createdAt;
-
-  // Get all repair orders for this vehicle in that date range
-  const repairOrders = await db.select({
+  return db.select({
     id: repairOrdersTable.id,
     orderNumber: repairOrdersTable.orderNumber,
     complaint: repairOrdersTable.complaint,
@@ -458,17 +491,70 @@ router.get("/inspections/:id/related-repairs", async (req, res) => {
   })
   .from(repairOrdersTable)
   .leftJoin(employeesTable, eq(repairOrdersTable.assignedToId, employeesTable.id))
-  .where(and(
-    eq(repairOrdersTable.vehicleId, insp.vehicleId),
-    gte(repairOrdersTable.createdAt, sinceDate)
-  ))
-  .orderBy(desc(repairOrdersTable.createdAt));
+  .where(and(...conditions))
+  .orderBy(desc(repairOrdersTable.completedAt));
+}
+
+// GET /api/njmvc/vehicles/:vehicleId/related-repairs — for new inspections (no ID yet)
+// Query params: sinceDate (ISO string), untilDate (ISO string)
+router.get("/vehicles/:vehicleId/related-repairs", async (req, res) => {
+  const vehicleId = Number(req.params.vehicleId);
+  const untilDate = req.query.untilDate ? new Date(req.query.untilDate as string) : new Date();
+
+  // Find the most recent inspection for this vehicle as the lower bound
+  const [lastInsp] = await db.select()
+    .from(njmvcInspectionsTable)
+    .where(eq(njmvcInspectionsTable.vehicleId, vehicleId))
+    .orderBy(desc(njmvcInspectionsTable.inspectionDate))
+    .limit(1);
+
+  const sinceDate = lastInsp?.inspectionDate ? new Date(lastInsp.inspectionDate) : null;
+
+  const rows = await queryRelatedRepairs(vehicleId, sinceDate, untilDate);
+  res.json({
+    sinceDate,
+    untilDate,
+    previousInspectionId: lastInsp?.id ?? null,
+    repairOrders: rows.map(ro => ({
+      ...ro,
+      technician: ro.technicianFirstName
+        ? `${ro.technicianFirstName} ${ro.technicianLastName}`
+        : null,
+    })),
+  });
+});
+
+// GET /api/njmvc/inspections/:id/related-repairs
+router.get("/inspections/:id/related-repairs", async (req, res) => {
+  const id = Number(req.params.id);
+  const [insp] = await db.select().from(njmvcInspectionsTable).where(eq(njmvcInspectionsTable.id, id));
+  if (!insp) return res.status(404).json({ error: "Inspection not found" });
+
+  // Use inspectionDate as the upper bound (what the form says, not createdAt)
+  const untilDate = insp.inspectionDate ? new Date(insp.inspectionDate) : insp.createdAt;
+
+  // Find the previous inspection for this vehicle — use inspectionDate for comparison
+  const [prevInsp] = await db.select()
+    .from(njmvcInspectionsTable)
+    .where(and(
+      eq(njmvcInspectionsTable.vehicleId, insp.vehicleId),
+      sql`id <> ${id}`,
+      sql`COALESCE(inspection_date::timestamp, created_at) < ${untilDate}`
+    ))
+    .orderBy(desc(njmvcInspectionsTable.inspectionDate))
+    .limit(1);
+
+  const sinceDate = prevInsp?.inspectionDate
+    ? new Date(prevInsp.inspectionDate)
+    : prevInsp?.createdAt ?? null;
+
+  const rows = await queryRelatedRepairs(insp.vehicleId, sinceDate, untilDate);
 
   res.json({
     sinceDate,
     untilDate,
     previousInspectionId: prevInsp?.id ?? null,
-    repairOrders: repairOrders.map(ro => ({
+    repairOrders: rows.map(ro => ({
       ...ro,
       technician: ro.technicianFirstName
         ? `${ro.technicianFirstName} ${ro.technicianLastName}`
