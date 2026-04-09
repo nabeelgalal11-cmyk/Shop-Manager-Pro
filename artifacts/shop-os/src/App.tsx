@@ -41,6 +41,10 @@ import UsedCarsNew from "@/pages/used-cars-new";
 import Reports from "@/pages/reports";
 import Purchases from "@/pages/purchases";
 import PurchasesNew from "@/pages/purchases-new";
+import NjmvcInspections from "@/pages/njmvc";
+import NjmvcNew from "@/pages/njmvc-new";
+import NjmvcPrint from "@/pages/njmvc-print";
+import NjmvcTemplate from "@/pages/njmvc-template";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +104,12 @@ function Router() {
         <Route path="/purchases" component={Purchases} />
         <Route path="/purchases/new" component={PurchasesNew} />
         <Route path="/purchases/:id" component={PurchasesNew} />
+
+        <Route path="/njmvc" component={NjmvcInspections} />
+        <Route path="/njmvc/template" component={NjmvcTemplate} />
+        <Route path="/njmvc/new" component={NjmvcNew} />
+        <Route path="/njmvc/:id/print" component={NjmvcPrint} />
+        <Route path="/njmvc/:id" component={NjmvcNew} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

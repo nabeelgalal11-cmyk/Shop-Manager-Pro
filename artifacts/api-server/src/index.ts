@@ -12,6 +12,7 @@ dotenv.config();
 // 2️⃣ Import your app and logger
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
+import { seedNjmvcTemplate } from "./routes/njmvc.js";
 
 // 3️⃣ Get the PORT from environment variables (fallback to 3000)
 const rawPort = process.env.PORT || "3000";
@@ -21,7 +22,9 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// 4️⃣ Start the server
+// 4️⃣ Start the server — seed NJMVC template on first run
+seedNjmvcTemplate().catch(err => console.error("[NJMVC] Seed error:", err));
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");

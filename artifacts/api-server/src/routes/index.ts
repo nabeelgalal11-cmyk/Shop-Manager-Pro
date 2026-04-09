@@ -21,6 +21,7 @@ import usedCarsRouter from "./used-cars.js";
 import reportsRouter from "./reports.js";
 import storageRouter from "./storage.js";
 import purchasesRouter from "./purchases.js";
+import njmvcRouter from "./njmvc.js";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use("/used-cars", usedCarsRouter);
 router.use("/reports", reportsRouter);
 router.use(storageRouter);
 router.use("/purchases", purchasesRouter);
+router.use("/njmvc", njmvcRouter);
 
 export default router;
