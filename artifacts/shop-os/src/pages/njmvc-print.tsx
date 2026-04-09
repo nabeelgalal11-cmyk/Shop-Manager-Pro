@@ -81,7 +81,8 @@ export default function NjmvcPrint() {
             <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 2, fontSize: 7.5 }}>
               <CheckBox checked={r?.status === "ok"} />
               <CheckBox checked={r?.status === "needs_repair"} />
-              <span style={{ width: 40, fontSize: 7, color: "#555" }}>
+              <CheckBox checked={r?.status === "na"} />
+              <span style={{ width: 36, fontSize: 7, color: "#555" }}>
                 {r?.repairedDate ? r.repairedDate.slice(5) : ""}
               </span>
               <span style={{ flex: 1 }}>{item.label}</span>
@@ -213,7 +214,8 @@ export default function NjmvcPrint() {
             <div key={col} style={{ display: "flex", gap: 3, fontSize: 7, color: "#555", marginBottom: 2 }}>
               <span style={{ width: 14, textAlign: "center" }}>OK</span>
               <span style={{ width: 14, textAlign: "center" }}>NR</span>
-              <span style={{ width: 40 }}>Repaired</span>
+              <span style={{ width: 14, textAlign: "center" }}>NA</span>
+              <span style={{ width: 36 }}>Repaired</span>
               <span>Item</span>
             </div>
           ))}
@@ -280,10 +282,15 @@ export default function NjmvcPrint() {
         )}
       </div>
 
-      {/* Print styles */}
+      {/* Print styles — hide all app chrome (sidebar, nav, header) when printing */}
       <style>{`
         @media print {
           .print\\:hidden { display: none !important; }
+          /* Hide the shared layout chrome */
+          header, nav, aside, [class*="sidebar"], [class*="Sidebar"],
+          [data-sidebar], [data-sidebar-provider] > div > aside {
+            display: none !important;
+          }
           body { margin: 0; }
           @page { size: letter; margin: 10mm; }
         }

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, ClipboardCheck, ChevronDown, ChevronRight, Printer,
-  Wrench, CheckCircle, AlertCircle, Info
+  Wrench, CheckCircle, Info
 } from "lucide-react";
 
 async function apiFetch(url: string, opts?: RequestInit) {
@@ -31,7 +31,51 @@ const emptyHeader = {
   purchaseDate: "", certifiedPassed: false, notes: "",
 };
 
-type ResultMap = Record<number, { status: string; repairedDate: string; measurementValue: string; notes: string }>;
+type ItemStatus = "ok" | "needs_repair" | "na";
+type ResultMap = Record<number, { status: ItemStatus | ""; repairedDate: string; measurementValue: string; notes: string }>;
+
+// ─── Keyword→Category mapping for Apply button ────────────────────────────────
+// Each entry maps a set of keywords to category names (partial, case-insensitive).
+// When a repair order's complaint/diagnosis/parts text matches a keyword, all
+// active items in matching categories are toggled to "ok" with the RO date.
+
+interface KeywordRule {
+  keywords: string[];
+  categoryPatterns: string[];
+}
+
+const KEYWORD_RULES: KeywordRule[] = [
+  { keywords: ["brake", "brakes", "braking", "abs", "rotor", "drum", "caliper", "master cylinder", "wheel cylinder"], categoryPatterns: ["brake"] },
+  { keywords: ["tire", "tires", "wheel", "tread", "flat"], categoryPatterns: ["tire"] },
+  { keywords: ["light", "lights", "headlight", "taillight", "turn signal", "marker", "clearance", "lamp", "bulb", "led", "stop arm", "crossing arm", "backup alarm", "back up alarm"], categoryPatterns: ["lighting"] },
+  { keywords: ["wiper", "wipers", "washer", "windshield"], categoryPatterns: ["wiper"] },
+  { keywords: ["exhaust", "muffler", "catalytic", "emission"], categoryPatterns: ["exhaust"] },
+  { keywords: ["steering", "power steering", "tie rod", "ball joint", "rack", "pinion"], categoryPatterns: ["steering"] },
+  { keywords: ["fuel", "gas", "tank", "fuel line", "fuel pump"], categoryPatterns: ["fuel"] },
+  { keywords: ["mirror", "mirrors", "rearview", "crossover"], categoryPatterns: ["mirror"] },
+  { keywords: ["glass", "windshield", "window", "glazing"], categoryPatterns: ["glass"] },
+  { keywords: ["door", "doors", "emergency door", "emergency exit", "exit", "step", "grab handle"], categoryPatterns: ["door", "emergency exit"] },
+  { keywords: ["fire extinguisher", "first aid", "flare", "triangle", "warning device", "wrecking bar"], categoryPatterns: ["safety"] },
+  { keywords: ["differential", "diff"], categoryPatterns: ["differential"] },
+  { keywords: ["transmission", "trans", "gearbox"], categoryPatterns: ["transmission"] },
+  { keywords: ["underbody", "frame", "crossmember", "spring", "shock", "absorber", "driveshaft", "drive shaft"], categoryPatterns: ["underbody"] },
+  { keywords: ["lift", "handicap", "wheelchair", "ramp", "interlock"], categoryPatterns: ["handicapped"] },
+  { keywords: ["belt", "hose", "battery", "coolant", "antifreeze", "oil", "radiator", "alternator", "underhood", "engine"], categoryPatterns: ["underhood"] },
+  { keywords: ["interior", "seat", "seats", "heater", "defroster", "instrument", "dashboard"], categoryPatterns: ["bus interior"] },
+  { keywords: ["exterior", "body", "bumper", "rub rail"], categoryPatterns: ["bus exterior"] },
+  { keywords: ["lining", "pad", "pads"], categoryPatterns: ["brake lining"] },
+];
+
+function getMatchedCategoryPatterns(ro: { complaint?: string | null; diagnosis?: string | null; parts?: string | null }): string[] {
+  const text = [ro.complaint, ro.diagnosis, ro.parts].filter(Boolean).join(" ").toLowerCase();
+  const matched = new Set<string>();
+  for (const rule of KEYWORD_RULES) {
+    if (rule.keywords.some(kw => text.includes(kw))) {
+      rule.categoryPatterns.forEach(p => matched.add(p));
+    }
+  }
+  return Array.from(matched);
+}
 
 export default function NjmvcNew() {
   const { id } = useParams<{ id?: string }>();
@@ -46,52 +90,59 @@ export default function NjmvcNew() {
   const [relatedPanelOpen, setRelatedPanelOpen] = useState(true);
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
 
-  // Fetch template
-  const { data: template } = useQuery<any[]>({
+  const { data: template } = useQuery<{
+    id: number; name: string; active: boolean; notes: string | null;
+    items: { id: number; label: string; active: boolean; hasMeasurement: boolean; measurementUnit: string | null; sortOrder: number }[];
+  }[]>({
     queryKey: ["/api/njmvc/template"],
     queryFn: () => apiFetch("/api/njmvc/template"),
   });
 
-  // Fetch vehicles
-  const { data: vehiclesData } = useQuery<any>({
+  const { data: vehiclesData } = useQuery<{ data: { id: number; year: string; make: string; model: string; licensePlate: string | null; vin: string | null }[] }>({
     queryKey: ["/api/vehicles"],
     queryFn: () => apiFetch("/api/vehicles?limit=200"),
   });
   const vehicles = vehiclesData?.data || [];
 
-  // Fetch existing inspection if editing
-  const { data: existing } = useQuery<any>({
+  const { data: existing } = useQuery<{
+    vehicleId: number; operatorName: string | null; address: string | null;
+    mechanicNamePrint: string | null; mechanicNameSigned: string | null;
+    reportNumber: string | null; fleetUnitNumber: string | null; mileage: number | null;
+    vehicleType: string | null; vin: string | null; licensePlate: string | null;
+    inspectionDate: string | null; purchaseDate: string | null;
+    certifiedPassed: boolean; notes: string | null;
+    template: { id: number; items: { id: number; result: { status: string | null; repairedDate: string | null; measurementValue: string | null; notes: string | null } | null }[] }[];
+  }>({
     queryKey: ["/api/njmvc/inspections", id],
     queryFn: () => apiFetch(`/api/njmvc/inspections/${id}`),
     enabled: isEdit,
   });
 
-  // Related repair orders — for existing inspections use inspection-based endpoint;
-  // for new inspections use vehicle-based endpoint once a vehicle is selected.
   const vehicleIdForRepairs = isEdit ? null : (selectedVehicleId !== "none" ? selectedVehicleId : null);
-  const { data: relatedDataExisting } = useQuery<any>({
+
+  const { data: relatedDataExisting } = useQuery<{ repairOrders: { id: number; orderNumber: string; complaint: string | null; diagnosis: string | null; parts: string | null; status: string; completedAt: string | null; createdAt: string; technician: string | null }[] }>({
     queryKey: ["/api/njmvc/inspections", id, "related-repairs"],
     queryFn: () => apiFetch(`/api/njmvc/inspections/${id}/related-repairs`),
     enabled: isEdit,
   });
-  const { data: relatedDataNew } = useQuery<any>({
+
+  const { data: relatedDataNew } = useQuery<{ repairOrders: { id: number; orderNumber: string; complaint: string | null; diagnosis: string | null; parts: string | null; status: string; completedAt: string | null; createdAt: string; technician: string | null }[] }>({
     queryKey: ["/api/njmvc/vehicles", vehicleIdForRepairs, "related-repairs", header.inspectionDate],
     queryFn: () => apiFetch(
       `/api/njmvc/vehicles/${vehicleIdForRepairs}/related-repairs?untilDate=${encodeURIComponent(header.inspectionDate || new Date().toISOString().split("T")[0])}`
     ),
     enabled: !isEdit && vehicleIdForRepairs !== null,
   });
+
   const relatedData = isEdit ? relatedDataExisting : relatedDataNew;
   const relatedRepairs = relatedData?.repairOrders || [];
 
-  // Expand all categories by default when template loads
   useEffect(() => {
     if (template?.length) {
-      setExpandedCategories(new Set(template.map((c: any) => c.id)));
+      setExpandedCategories(new Set(template.map(c => c.id)));
     }
   }, [template]);
 
-  // Populate form from existing inspection
   useEffect(() => {
     if (existing) {
       setSelectedVehicleId(String(existing.vehicleId));
@@ -111,14 +162,13 @@ export default function NjmvcNew() {
         certifiedPassed: existing.certifiedPassed || false,
         notes: existing.notes || "",
       });
-      // Build results map from template
       if (existing.template) {
         const map: ResultMap = {};
-        existing.template.forEach((cat: any) => {
-          cat.items?.forEach((item: any) => {
+        existing.template.forEach(cat => {
+          cat.items?.forEach(item => {
             if (item.result) {
               map[item.id] = {
-                status: item.result.status || "",
+                status: (item.result.status || "") as ItemStatus | "",
                 repairedDate: item.result.repairedDate || "",
                 measurementValue: item.result.measurementValue || "",
                 notes: item.result.notes || "",
@@ -131,11 +181,10 @@ export default function NjmvcNew() {
     }
   }, [existing]);
 
-  // Auto-populate VIN/plate when vehicle is selected
   function handleVehicleSelect(vehicleId: string) {
     setSelectedVehicleId(vehicleId);
     if (vehicleId !== "none") {
-      const vehicle = vehicles.find((v: any) => String(v.id) === vehicleId);
+      const vehicle = vehicles.find(v => String(v.id) === vehicleId);
       if (vehicle) {
         setHeader(h => ({
           ...h,
@@ -146,19 +195,19 @@ export default function NjmvcNew() {
     }
   }
 
-  function setH(key: keyof typeof emptyHeader, val: any) {
+  function setH(key: keyof typeof emptyHeader, val: string | boolean) {
     setHeader(h => ({ ...h, [key]: val }));
   }
 
-  function setResult(itemId: number, key: string, val: string) {
-    setResults(r => ({ ...r, [itemId]: { ...emptyResult(itemId), ...r[itemId], [key]: val } }));
-  }
-
-  function emptyResult(itemId: number) {
+  function emptyResult(itemId: number): ResultMap[number] {
     return results[itemId] || { status: "", repairedDate: "", measurementValue: "", notes: "" };
   }
 
-  function toggleStatus(itemId: number, status: "ok" | "needs_repair") {
+  function setResult(itemId: number, key: keyof ResultMap[number], val: string) {
+    setResults(r => ({ ...r, [itemId]: { ...emptyResult(itemId), [key]: val } }));
+  }
+
+  function toggleStatus(itemId: number, status: ItemStatus) {
     const current = results[itemId]?.status;
     setResults(r => ({
       ...r,
@@ -169,28 +218,59 @@ export default function NjmvcNew() {
     }));
   }
 
-  // Apply a repair order — mark items that were flagged "Needs Repair" as OK with the repair date.
-  // If no "Needs Repair" items exist yet, prompt the mechanic to pre-flag them first.
-  function applyRepairOrder(ro: any) {
+  // Apply a repair order: use keyword matching to identify which inspection categories
+  // are relevant to this RO, then mark those category's "needs_repair" items as OK.
+  // If no category matches are found, fall back to marking ALL "needs_repair" items as OK.
+  function applyRepairOrder(ro: { id: number; orderNumber: string; complaint: string | null; diagnosis: string | null; parts: string | null; completedAt: string | null; createdAt: string }) {
     if (!template) return;
+
     const repairDate = ro.completedAt
       ? new Date(ro.completedAt).toISOString().split("T")[0]
       : new Date(ro.createdAt).toISOString().split("T")[0];
 
-    // Collect all active item IDs currently marked "needs_repair"
-    const needsRepairIds: number[] = [];
-    template.forEach((cat: any) => {
-      cat.items?.filter((i: any) => i.active).forEach((item: any) => {
-        if (results[item.id]?.status === "needs_repair") {
-          needsRepairIds.push(item.id);
+    // Determine which categories this RO is relevant to via keyword matching
+    const matchedPatterns = getMatchedCategoryPatterns(ro);
+
+    // Collect item IDs to update: prioritise keyword-matched categories, then fall back
+    const targetItemIds: number[] = [];
+
+    if (matchedPatterns.length > 0) {
+      template.forEach(cat => {
+        const catNameLower = cat.name.toLowerCase();
+        const isMatch = matchedPatterns.some(pattern => catNameLower.includes(pattern));
+        if (isMatch) {
+          cat.items
+            .filter(item => item.active && results[item.id]?.status === "needs_repair")
+            .forEach(item => targetItemIds.push(item.id));
         }
       });
-    });
 
-    if (needsRepairIds.length === 0) {
+      // If keyword match found categories but none had "needs_repair" items,
+      // still apply to matched-category items that have no status (mark them ok)
+      if (targetItemIds.length === 0) {
+        template.forEach(cat => {
+          const catNameLower = cat.name.toLowerCase();
+          const isMatch = matchedPatterns.some(pattern => catNameLower.includes(pattern));
+          if (isMatch) {
+            cat.items
+              .filter(item => item.active)
+              .forEach(item => targetItemIds.push(item.id));
+          }
+        });
+      }
+    } else {
+      // No keyword matches — fall back to all "needs_repair" items across the form
+      template.forEach(cat => {
+        cat.items
+          .filter(item => item.active && results[item.id]?.status === "needs_repair")
+          .forEach(item => targetItemIds.push(item.id));
+      });
+    }
+
+    if (targetItemIds.length === 0) {
       toast({
-        title: "No items flagged as 'Needs Repair'",
-        description: "Mark specific items as 'Needs Repair' first, then Apply to mark them as repaired using this RO's date.",
+        title: "No items to apply",
+        description: "No matching inspection items found for this repair order.",
         variant: "destructive",
       });
       return;
@@ -198,14 +278,19 @@ export default function NjmvcNew() {
 
     setResults(prev => {
       const next = { ...prev };
-      needsRepairIds.forEach(id => {
-        next[id] = { ...emptyResult(id), status: "ok", repairedDate: repairDate };
+      targetItemIds.forEach(itemId => {
+        next[itemId] = { ...emptyResult(itemId), status: "ok", repairedDate: repairDate };
       });
       return next;
     });
+
+    const matchLabel = matchedPatterns.length > 0
+      ? `Matched sections: ${matchedPatterns.join(", ")}.`
+      : "Applied to all 'Needs Repair' items (no specific section matched).";
+
     toast({
-      title: "Applied",
-      description: `${needsRepairIds.length} item(s) marked OK with repair date ${repairDate} from RO ${ro.orderNumber}.`,
+      title: `Applied RO ${ro.orderNumber}`,
+      description: `${targetItemIds.length} item(s) marked OK with date ${repairDate}. ${matchLabel}`,
     });
   }
 
@@ -239,16 +324,16 @@ export default function NjmvcNew() {
   }
 
   const save = useMutation({
-    mutationFn: (data: any) =>
+    mutationFn: (data: ReturnType<typeof buildPayload>) =>
       isEdit
         ? apiFetch(`/api/njmvc/inspections/${id}`, { method: "PUT", body: JSON.stringify(data) })
         : apiFetch("/api/njmvc/inspections", { method: "POST", body: JSON.stringify(data) }),
-    onSuccess: (data) => {
+    onSuccess: (data: { id: number }) => {
       qc.invalidateQueries({ queryKey: ["/api/njmvc/inspections"] });
       toast({ title: isEdit ? "Inspection updated" : "Inspection created" });
       setLocation(`/njmvc/${data.id}`);
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   function handleSave() {
@@ -265,11 +350,11 @@ export default function NjmvcNew() {
       return;
     }
     save.mutate(buildPayload(), {
-      onSuccess: (data) => setLocation(`/njmvc/${data.id}/print`),
+      onSuccess: (data: { id: number }) => setLocation(`/njmvc/${data.id}/print`),
     });
   }
 
-  const activeCategories = template?.filter((c: any) => c.active) || [];
+  const activeCategories = template?.filter(c => c.active) || [];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-5">
@@ -309,7 +394,7 @@ export default function NjmvcNew() {
                 <SelectTrigger><SelectValue placeholder="Select a vehicle..." /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Select a vehicle...</SelectItem>
-                  {vehicles.map((v: any) => (
+                  {vehicles.map(v => (
                     <SelectItem key={v.id} value={String(v.id)}>
                       {v.year} {v.make} {v.model}
                       {v.licensePlate ? ` — ${v.licensePlate}` : ""}
@@ -385,12 +470,12 @@ export default function NjmvcNew() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold">Vehicle Components Inspected</h2>
-              <span className="text-xs text-muted-foreground">(OK / Needs Repair / Repaired Date)</span>
+              <span className="text-xs text-muted-foreground">(OK / Needs Repair / N/A)</span>
             </div>
 
-            {activeCategories.map((cat: any) => {
-              const activeItems = cat.items?.filter((i: any) => i.active) || [];
-              const filledCount = activeItems.filter((i: any) => results[i.id]?.status).length;
+            {activeCategories.map(cat => {
+              const activeItems = cat.items?.filter(i => i.active) || [];
+              const filledCount = activeItems.filter(i => results[i.id]?.status).length;
               const isExpanded = expandedCategories.has(cat.id);
 
               return (
@@ -413,20 +498,21 @@ export default function NjmvcNew() {
                   {isExpanded && (
                     <div className="divide-y divide-border">
                       {/* Column headers */}
-                      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-2 px-4 py-1.5 bg-muted/20 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-2 px-4 py-1.5 bg-muted/20 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         <div>Item</div>
                         <div className="w-10 text-center">OK</div>
                         <div className="w-20 text-center">Needs Repair</div>
+                        <div className="w-10 text-center">N/A</div>
                         <div className="w-28 text-center">Repaired Date</div>
                         <div className="w-24 text-center">Measurement</div>
                       </div>
 
-                      {activeItems.map((item: any) => {
+                      {activeItems.map(item => {
                         const r = results[item.id];
                         return (
                           <div
                             key={item.id}
-                            className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-2 items-center px-4 py-2 hover:bg-muted/10"
+                            className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-x-2 items-center px-4 py-2 hover:bg-muted/10"
                           >
                             <div className="text-sm">{item.label}</div>
 
@@ -445,6 +531,15 @@ export default function NjmvcNew() {
                                 checked={r?.status === "needs_repair"}
                                 onCheckedChange={() => toggleStatus(item.id, "needs_repair")}
                                 className="h-4 w-4 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
+                              />
+                            </div>
+
+                            {/* N/A */}
+                            <div className="w-10 flex justify-center">
+                              <Checkbox
+                                checked={r?.status === "na"}
+                                onCheckedChange={() => toggleStatus(item.id, "na")}
+                                className="h-4 w-4 data-[state=checked]:bg-slate-400 data-[state=checked]:border-slate-400"
                               />
                             </div>
 
@@ -555,46 +650,56 @@ export default function NjmvcNew() {
                         <p className="text-sm text-muted-foreground">No repair orders found since the previous inspection.</p>
                       </div>
                     ) : (
-                      <div className="divide-y divide-border max-h-96 overflow-y-auto">
-                        {relatedRepairs.map((ro: any) => (
-                          <div key={ro.id} className="p-3 space-y-2">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <div className="font-mono text-xs font-semibold text-primary">{ro.orderNumber}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {ro.completedAt
-                                    ? new Date(ro.completedAt).toLocaleDateString()
-                                    : new Date(ro.createdAt).toLocaleDateString()}
-                                  {ro.technician ? ` · ${ro.technician}` : ""}
+                      <div className="divide-y divide-border max-h-[600px] overflow-y-auto">
+                        {relatedRepairs.map(ro => {
+                          const matched = getMatchedCategoryPatterns(ro);
+                          return (
+                            <div key={ro.id} className="p-3 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="font-mono text-xs font-semibold text-primary">{ro.orderNumber}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {ro.completedAt
+                                      ? new Date(ro.completedAt).toLocaleDateString()
+                                      : new Date(ro.createdAt).toLocaleDateString()}
+                                    {ro.technician ? ` · ${ro.technician}` : ""}
+                                  </div>
                                 </div>
+                                <Badge variant="outline" className="text-xs capitalize flex-shrink-0">{ro.status}</Badge>
                               </div>
-                              <Badge variant="outline" className="text-xs capitalize flex-shrink-0">{ro.status}</Badge>
+                              {ro.complaint && <p className="text-xs text-muted-foreground line-clamp-2">{ro.complaint}</p>}
+                              {ro.diagnosis && <p className="text-xs text-foreground line-clamp-2">{ro.diagnosis}</p>}
+                              {matched.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {matched.map(m => (
+                                    <Badge key={m} variant="secondary" className="text-xs capitalize">{m}</Badge>
+                                  ))}
+                                </div>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full h-7 text-xs"
+                                onClick={() => applyRepairOrder(ro)}
+                              >
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Apply to Inspection
+                              </Button>
                             </div>
-                            {ro.complaint && <p className="text-xs text-muted-foreground line-clamp-2">{ro.complaint}</p>}
-                            {ro.diagnosis && <p className="text-xs text-foreground line-clamp-2">{ro.diagnosis}</p>}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="w-full h-7 text-xs"
-                              onClick={() => applyRepairOrder(ro)}
-                            >
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Apply — Mark &quot;Needs Repair&quot; items OK
-                            </Button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 )}
               </Card>
 
-              <Card className="border-border bg-amber-50/50 border-amber-200">
+              <Card className="border-border bg-blue-50/50 border-blue-200">
                 <CardContent className="pt-3 pb-3">
                   <div className="flex gap-2">
-                    <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-800">
-                      First mark specific items as "Needs Repair", then use Apply to mark those items as OK using the RO's completion date.
+                    <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-800">
+                      <strong>Apply</strong> uses the RO description to identify related inspection sections (brakes, tires, lights, etc.) and marks those items OK with the completion date.
                     </p>
                   </div>
                 </CardContent>

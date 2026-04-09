@@ -5,13 +5,25 @@ import {
   njmvcInspectionsTable, njmvcInspectionResultsTable,
   vehiclesTable, repairOrdersTable, employeesTable,
 } from "@workspace/db";
-import { eq, asc, desc, and, lt, lte, gte, sql } from "drizzle-orm";
+import { eq, asc, desc, and, lte, gte, sql } from "drizzle-orm";
 
 const router: Router = Router();
 
 // ─── Seed Data ────────────────────────────────────────────────────────────────
 
-const SEED_TEMPLATE = [
+interface SeedItem {
+  label: string;
+  hasMeasurement?: boolean;
+  measurementUnit?: string;
+}
+
+interface SeedCategory {
+  name: string;
+  notes: string | null;
+  items: SeedItem[];
+}
+
+const SEED_TEMPLATE: SeedCategory[] = [
   {
     name: "Brake System", notes: null, items: [
       { label: "a. Service Brakes" },
@@ -204,7 +216,7 @@ export async function seedNjmvcTemplate() {
 
     if (cat.items.length > 0) {
       await db.insert(njmvcItemsTable).values(
-        cat.items.map((item: any, j: number) => ({
+        cat.items.map((item, j) => ({
           categoryId: inserted.id,
           label: item.label,
           hasMeasurement: item.hasMeasurement ?? false,
@@ -245,15 +257,21 @@ router.get("/categories", async (_req, res) => {
 
 // POST /api/njmvc/categories
 router.post("/categories", async (req, res) => {
-  const { name, sortOrder, active, notes } = req.body;
-  const [cat] = await db.insert(njmvcCategoriesTable).values({ name, sortOrder: sortOrder ?? 999, active: active ?? true, notes }).returning();
+  const { name, sortOrder, active, notes } = req.body as {
+    name: string; sortOrder?: number; active?: boolean; notes?: string;
+  };
+  const [cat] = await db.insert(njmvcCategoriesTable).values({
+    name, sortOrder: sortOrder ?? 999, active: active ?? true, notes,
+  }).returning();
   res.status(201).json(cat);
 });
 
 // PUT /api/njmvc/categories/:id
 router.put("/categories/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { name, sortOrder, active, notes } = req.body;
+  const { name, sortOrder, active, notes } = req.body as {
+    name: string; sortOrder: number; active: boolean; notes?: string;
+  };
   const [cat] = await db.update(njmvcCategoriesTable)
     .set({ name, sortOrder, active, notes, updatedAt: new Date() })
     .where(eq(njmvcCategoriesTable.id, id))
@@ -265,10 +283,10 @@ router.put("/categories/:id", async (req, res) => {
 // DELETE /api/njmvc/categories/:id — deactivates if results exist, otherwise hard-deletes
 router.delete("/categories/:id", async (req, res) => {
   const id = Number(req.params.id);
-  // Check if any inspection results reference items in this category
   const itemIds = await db.select({ id: njmvcItemsTable.id })
     .from(njmvcItemsTable)
     .where(eq(njmvcItemsTable.categoryId, id));
+
   if (itemIds.length > 0) {
     const ids = itemIds.map(i => i.id);
     const countResult = await db.execute<{ count: string }>(
@@ -276,7 +294,6 @@ router.delete("/categories/:id", async (req, res) => {
     );
     const count = countResult.rows[0]?.count ?? "0";
     if (Number(count) > 0) {
-      // Results exist — soft-delete (deactivate) to preserve historical data
       await db.update(njmvcCategoriesTable)
         .set({ active: false, updatedAt: new Date() })
         .where(eq(njmvcCategoriesTable.id, id));
@@ -287,7 +304,7 @@ router.delete("/categories/:id", async (req, res) => {
   res.status(204).send();
 });
 
-// GET /api/njmvc/items
+// GET /api/njmvc/items — all items or filtered by categoryId
 router.get("/items", async (req, res) => {
   const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
   const items = categoryId
@@ -298,7 +315,10 @@ router.get("/items", async (req, res) => {
 
 // POST /api/njmvc/items
 router.post("/items", async (req, res) => {
-  const { categoryId, label, hasMeasurement, measurementUnit, sortOrder, active } = req.body;
+  const { categoryId, label, hasMeasurement, measurementUnit, sortOrder, active } = req.body as {
+    categoryId: number; label: string; hasMeasurement?: boolean;
+    measurementUnit?: string; sortOrder?: number; active?: boolean;
+  };
   const [item] = await db.insert(njmvcItemsTable).values({
     categoryId: Number(categoryId), label,
     hasMeasurement: hasMeasurement ?? false,
@@ -312,7 +332,10 @@ router.post("/items", async (req, res) => {
 // PUT /api/njmvc/items/:id
 router.put("/items/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { label, hasMeasurement, measurementUnit, sortOrder, active } = req.body;
+  const { label, hasMeasurement, measurementUnit, sortOrder, active } = req.body as {
+    label: string; hasMeasurement: boolean; measurementUnit?: string;
+    sortOrder: number; active: boolean;
+  };
   const [item] = await db.update(njmvcItemsTable)
     .set({ label, hasMeasurement, measurementUnit, sortOrder, active })
     .where(eq(njmvcItemsTable.id, id))
@@ -340,7 +363,17 @@ router.delete("/items/:id", async (req, res) => {
 
 // ─── Inspections API ──────────────────────────────────────────────────────────
 
-async function enrichInspection(insp: any) {
+type InspectionStatus = "ok" | "needs_repair" | "na";
+
+interface InspectionResultInput {
+  itemId: number;
+  status?: InspectionStatus | null;
+  repairedDate?: string | null;
+  measurementValue?: string | null;
+  notes?: string | null;
+}
+
+async function enrichInspection(insp: typeof njmvcInspectionsTable.$inferSelect) {
   const [vehicle] = await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, insp.vehicleId));
   return { ...insp, vehicle };
 }
@@ -355,25 +388,24 @@ router.get("/inspections", async (req, res) => {
   const limit = Math.min(200, Number(req.query.limit) || 50);
   const offset = (page - 1) * limit;
 
-  const conditions: any[] = [];
-  if (vehicleId) conditions.push(eq(njmvcInspectionsTable.vehicleId, vehicleId));
-  if (dateFrom) conditions.push(gte(njmvcInspectionsTable.inspectionDate, dateFrom));
-  if (dateTo) conditions.push(lte(njmvcInspectionsTable.inspectionDate, dateTo));
+  const whereConditions = [];
+  if (vehicleId) whereConditions.push(eq(njmvcInspectionsTable.vehicleId, vehicleId));
+  if (dateFrom) whereConditions.push(gte(njmvcInspectionsTable.inspectionDate, dateFrom));
+  if (dateTo) whereConditions.push(lte(njmvcInspectionsTable.inspectionDate, dateTo));
 
-  const baseQuery = conditions.length > 0
-    ? db.select().from(njmvcInspectionsTable).where(and(...conditions))
-    : db.select().from(njmvcInspectionsTable);
+  const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
-  const inspections = await baseQuery.orderBy(desc(njmvcInspectionsTable.inspectionDate)).limit(limit).offset(offset);
-
-  // Count with same filters for accurate pagination
-  const countQuery = conditions.length > 0
-    ? db.select({ count: sql<number>`count(*)` }).from(njmvcInspectionsTable).where(and(...conditions))
-    : db.select({ count: sql<number>`count(*)` }).from(njmvcInspectionsTable);
-  const [{ count }] = await countQuery;
+  const [inspections, countResult] = await Promise.all([
+    whereClause
+      ? db.select().from(njmvcInspectionsTable).where(whereClause).orderBy(desc(njmvcInspectionsTable.inspectionDate)).limit(limit).offset(offset)
+      : db.select().from(njmvcInspectionsTable).orderBy(desc(njmvcInspectionsTable.inspectionDate)).limit(limit).offset(offset),
+    whereClause
+      ? db.select({ count: sql<number>`count(*)` }).from(njmvcInspectionsTable).where(whereClause)
+      : db.select({ count: sql<number>`count(*)` }).from(njmvcInspectionsTable),
+  ]);
 
   const enriched = await Promise.all(inspections.map(enrichInspection));
-  res.json({ data: enriched, total: Number(count), page, limit });
+  res.json({ data: enriched, total: Number(countResult[0].count), page, limit });
 });
 
 // POST /api/njmvc/inspections
@@ -381,21 +413,28 @@ router.post("/inspections", async (req, res) => {
   const {
     vehicleId, operatorName, address, mechanicNamePrint, mechanicNameSigned,
     reportNumber, fleetUnitNumber, mileage, vehicleType, vin, licensePlate,
-    inspectionDate, certifiedPassed, notes, results = [],
-  } = req.body;
+    inspectionDate, purchaseDate, certifiedPassed, notes, results = [],
+  } = req.body as {
+    vehicleId: number; operatorName?: string; address?: string;
+    mechanicNamePrint?: string; mechanicNameSigned?: string;
+    reportNumber?: string; fleetUnitNumber?: string; mileage?: number;
+    vehicleType?: string; vin?: string; licensePlate?: string;
+    inspectionDate?: string; purchaseDate?: string; certifiedPassed?: boolean;
+    notes?: string; results?: InspectionResultInput[];
+  };
 
   const [insp] = await db.insert(njmvcInspectionsTable).values({
     vehicleId: Number(vehicleId), operatorName, address, mechanicNamePrint,
     mechanicNameSigned, reportNumber, fleetUnitNumber,
     mileage: mileage ? Number(mileage) : null,
     vehicleType, vin, licensePlate, inspectionDate,
-    purchaseDate: req.body.purchaseDate || null,
+    purchaseDate: purchaseDate || null,
     certifiedPassed: certifiedPassed ?? false, notes,
   }).returning();
 
   if (results.length > 0) {
     await db.insert(njmvcInspectionResultsTable).values(
-      results.map((r: any) => ({
+      results.map(r => ({
         inspectionId: insp.id,
         itemId: Number(r.itemId),
         status: r.status || null,
@@ -433,7 +472,7 @@ async function getFullInspection(id: number) {
     ...cat,
     items: items.filter(item => item.categoryId === cat.id).map(item => ({
       ...item,
-      result: resultsByItemId[item.id] || null,
+      result: resultsByItemId[item.id] ?? null,
     })),
   }));
 
@@ -446,8 +485,15 @@ router.put("/inspections/:id", async (req, res) => {
   const {
     vehicleId, operatorName, address, mechanicNamePrint, mechanicNameSigned,
     reportNumber, fleetUnitNumber, mileage, vehicleType, vin, licensePlate,
-    inspectionDate, certifiedPassed, notes, results,
-  } = req.body;
+    inspectionDate, purchaseDate, certifiedPassed, notes, results,
+  } = req.body as {
+    vehicleId?: number; operatorName?: string; address?: string;
+    mechanicNamePrint?: string; mechanicNameSigned?: string;
+    reportNumber?: string; fleetUnitNumber?: string; mileage?: number | null;
+    vehicleType?: string; vin?: string; licensePlate?: string;
+    inspectionDate?: string; purchaseDate?: string; certifiedPassed?: boolean;
+    notes?: string; results?: InspectionResultInput[];
+  };
 
   const [insp] = await db.update(njmvcInspectionsTable).set({
     vehicleId: vehicleId ? Number(vehicleId) : undefined,
@@ -455,7 +501,7 @@ router.put("/inspections/:id", async (req, res) => {
     reportNumber, fleetUnitNumber,
     mileage: mileage != null ? Number(mileage) : null,
     vehicleType, vin, licensePlate, inspectionDate,
-    purchaseDate: req.body.purchaseDate || null,
+    purchaseDate: purchaseDate || null,
     certifiedPassed: certifiedPassed ?? false, notes,
     updatedAt: new Date(),
   }).where(eq(njmvcInspectionsTable.id, id)).returning();
@@ -466,7 +512,7 @@ router.put("/inspections/:id", async (req, res) => {
     await db.delete(njmvcInspectionResultsTable).where(eq(njmvcInspectionResultsTable.inspectionId, id));
     if (results.length > 0) {
       await db.insert(njmvcInspectionResultsTable).values(
-        results.map((r: any) => ({
+        results.map(r => ({
           inspectionId: id,
           itemId: Number(r.itemId),
           status: r.status || null,
@@ -489,17 +535,12 @@ router.delete("/inspections/:id", async (req, res) => {
 
 // Helper: query COMPLETED repair orders for a vehicle with completedAt in the window
 async function queryRelatedRepairs(vehicleId: number, sinceDate: Date | null, untilDate: Date | null) {
-  const conditions: any[] = [
+  const conditions = [
     eq(repairOrdersTable.vehicleId, vehicleId),
     sql`${repairOrdersTable.completedAt} IS NOT NULL`,
+    ...(sinceDate ? [gte(repairOrdersTable.completedAt, sinceDate)] : []),
+    ...(untilDate ? [lte(repairOrdersTable.completedAt, untilDate)] : []),
   ];
-
-  if (sinceDate) {
-    conditions.push(gte(repairOrdersTable.completedAt, sinceDate));
-  }
-  if (untilDate) {
-    conditions.push(lte(repairOrdersTable.completedAt, untilDate));
-  }
 
   return db.select({
     id: repairOrdersTable.id,
@@ -519,13 +560,12 @@ async function queryRelatedRepairs(vehicleId: number, sinceDate: Date | null, un
   .orderBy(desc(repairOrdersTable.completedAt));
 }
 
-// GET /api/njmvc/vehicles/:vehicleId/related-repairs — for new inspections (no ID yet)
-// Query params: sinceDate (ISO string), untilDate (ISO string)
+// GET /api/njmvc/vehicles/:vehicleId/related-repairs — for new inspections before saving
+// Query params: untilDate (ISO date string, defaults to now)
 router.get("/vehicles/:vehicleId/related-repairs", async (req, res) => {
   const vehicleId = Number(req.params.vehicleId);
   const untilDate = req.query.untilDate ? new Date(req.query.untilDate as string) : new Date();
 
-  // Find the most recent inspection for this vehicle as the lower bound
   const [lastInsp] = await db.select()
     .from(njmvcInspectionsTable)
     .where(eq(njmvcInspectionsTable.vehicleId, vehicleId))
@@ -533,8 +573,8 @@ router.get("/vehicles/:vehicleId/related-repairs", async (req, res) => {
     .limit(1);
 
   const sinceDate = lastInsp?.inspectionDate ? new Date(lastInsp.inspectionDate) : null;
-
   const rows = await queryRelatedRepairs(vehicleId, sinceDate, untilDate);
+
   res.json({
     sinceDate,
     untilDate,
@@ -549,15 +589,15 @@ router.get("/vehicles/:vehicleId/related-repairs", async (req, res) => {
 });
 
 // GET /api/njmvc/inspections/:id/related-repairs
+// Returns completed ROs with completedAt between previous and current inspection dates
 router.get("/inspections/:id/related-repairs", async (req, res) => {
   const id = Number(req.params.id);
   const [insp] = await db.select().from(njmvcInspectionsTable).where(eq(njmvcInspectionsTable.id, id));
   if (!insp) return res.status(404).json({ error: "Inspection not found" });
 
-  // Use inspectionDate as the upper bound (what the form says, not createdAt)
   const untilDate = insp.inspectionDate ? new Date(insp.inspectionDate) : insp.createdAt;
 
-  // Find the previous inspection for this vehicle — use inspectionDate for comparison
+  // Find the previous inspection for this vehicle
   const [prevInsp] = await db.select()
     .from(njmvcInspectionsTable)
     .where(and(
