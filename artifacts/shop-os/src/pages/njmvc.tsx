@@ -17,6 +17,34 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return r.json();
 }
 
+interface InspectionVehicle {
+  year: string | null;
+  make: string | null;
+  model: string | null;
+}
+
+interface Inspection {
+  id: number;
+  vehicleId: number;
+  vehicle: InspectionVehicle | null;
+  inspectionDate: string | null;
+  createdAt: string;
+  reportNumber: string | null;
+  fleetUnitNumber: string | null;
+  mechanicNamePrint: string | null;
+  mechanicNameSigned: string | null;
+  mileage: number | null;
+  vin: string | null;
+  certifiedPassed: boolean;
+}
+
+interface InspectionListResponse {
+  data: Inspection[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 export default function NjmvcInspections() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
@@ -24,7 +52,7 @@ export default function NjmvcInspections() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  const { data, isLoading } = useQuery<any>({
+  const { data, isLoading } = useQuery<InspectionListResponse>({
     queryKey: [API, dateFrom, dateTo],
     queryFn: () => {
       const params = new URLSearchParams({ limit: "200" });
@@ -39,7 +67,7 @@ export default function NjmvcInspections() {
     onSuccess: () => qc.invalidateQueries({ queryKey: [API] }),
   });
 
-  const inspections = (data?.data || []).filter((insp: any) => {
+  const inspections = (data?.data || []).filter(insp => {
     if (!search) return true;
     const q = search.toLowerCase();
     const vehicle = insp.vehicle;
@@ -112,7 +140,7 @@ export default function NjmvcInspections() {
                   No inspections yet. Create your first NJMVC quarterly inspection.
                 </TableCell>
               </TableRow>
-            ) : inspections.map((insp: any) => (
+            ) : inspections.map(insp => (
               <TableRow
                 key={insp.id}
                 className="hover:bg-muted/50 cursor-pointer"

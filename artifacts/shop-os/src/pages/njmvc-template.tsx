@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -21,6 +21,25 @@ async function apiFetch(url: string, opts?: RequestInit) {
   if (!r.ok) throw new Error(await r.text());
   if (r.status === 204) return null;
   return r.json();
+}
+
+interface TemplateItem {
+  id: number;
+  categoryId: number;
+  label: string;
+  hasMeasurement: boolean;
+  measurementUnit: string | null;
+  sortOrder: number;
+  active: boolean;
+}
+
+interface TemplateCategory {
+  id: number;
+  name: string;
+  sortOrder: number;
+  active: boolean;
+  notes: string | null;
+  items: TemplateItem[];
 }
 
 function EditableText({ value, onSave, className = "" }: { value: string; onSave: (v: string) => void; className?: string }) {
@@ -69,7 +88,7 @@ export default function NjmvcTemplate() {
   const [newItemMeasurement, setNewItemMeasurement] = useState(false);
   const [newItemUnit, setNewItemUnit] = useState("mm");
 
-  const { data: template, isLoading } = useQuery<any[]>({
+  const { data: template, isLoading } = useQuery<TemplateCategory[]>({
     queryKey: [TEMPLATE_API],
     queryFn: () => apiFetch(TEMPLATE_API),
   });
@@ -78,14 +97,14 @@ export default function NjmvcTemplate() {
     qc.invalidateQueries({ queryKey: [TEMPLATE_API] });
   }
 
-  // Categories
   const createCat = useMutation({
     mutationFn: (name: string) => apiFetch(CAT_API, { method: "POST", body: JSON.stringify({ name, sortOrder: (template?.length || 0) }) }),
     onSuccess: () => { invalidate(); setNewCatName(""); setAddingCat(false); toast({ title: "Category added" }); },
   });
 
   const updateCat = useMutation({
-    mutationFn: ({ id, data }: any) => apiFetch(`${CAT_API}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    mutationFn: ({ id, data }: { id: number; data: Partial<TemplateCategory> }) =>
+      apiFetch(`${CAT_API}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     onSuccess: invalidate,
   });
 
@@ -94,9 +113,9 @@ export default function NjmvcTemplate() {
     onSuccess: () => { invalidate(); toast({ title: "Category deleted" }); },
   });
 
-  // Items
   const createItem = useMutation({
-    mutationFn: (data: any) => apiFetch(ITEM_API, { method: "POST", body: JSON.stringify(data) }),
+    mutationFn: (data: { categoryId: number; label: string; hasMeasurement: boolean; measurementUnit: string | null; sortOrder: number }) =>
+      apiFetch(ITEM_API, { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
       invalidate();
       setNewItemLabel("");
@@ -108,7 +127,8 @@ export default function NjmvcTemplate() {
   });
 
   const updateItem = useMutation({
-    mutationFn: ({ id, data }: any) => apiFetch(`${ITEM_API}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    mutationFn: ({ id, data }: { id: number; data: Partial<TemplateItem> }) =>
+      apiFetch(`${ITEM_API}/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     onSuccess: invalidate,
   });
 
@@ -117,22 +137,22 @@ export default function NjmvcTemplate() {
     onSuccess: () => { invalidate(); toast({ title: "Item deleted" }); },
   });
 
-  function moveCat(cat: any, dir: -1 | 1) {
-    const sorted = [...(template || [])].sort((a, b) => a.sortOrder - b.sortOrder);
-    const idx = sorted.findIndex(c => c.id === cat.id);
+  function moveCat(cat: TemplateCategory, dir: -1 | 1) {
+    const sortedCats = [...(template || [])].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sortedCats.findIndex(c => c.id === cat.id);
     const swapIdx = idx + dir;
-    if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    const swap = sorted[swapIdx];
+    if (swapIdx < 0 || swapIdx >= sortedCats.length) return;
+    const swap = sortedCats[swapIdx];
     updateCat.mutate({ id: cat.id, data: { ...cat, sortOrder: swap.sortOrder } });
     updateCat.mutate({ id: swap.id, data: { ...swap, sortOrder: cat.sortOrder } });
   }
 
-  function moveItem(item: any, catItems: any[], dir: -1 | 1) {
-    const sorted = [...catItems].sort((a, b) => a.sortOrder - b.sortOrder);
-    const idx = sorted.findIndex(i => i.id === item.id);
+  function moveItem(item: TemplateItem, catItems: TemplateItem[], dir: -1 | 1) {
+    const sortedItems = [...catItems].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sortedItems.findIndex(i => i.id === item.id);
     const swapIdx = idx + dir;
-    if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    const swap = sorted[swapIdx];
+    if (swapIdx < 0 || swapIdx >= sortedItems.length) return;
+    const swap = sortedItems[swapIdx];
     updateItem.mutate({ id: item.id, data: { ...item, sortOrder: swap.sortOrder } });
     updateItem.mutate({ id: swap.id, data: { ...swap, sortOrder: item.sortOrder } });
   }

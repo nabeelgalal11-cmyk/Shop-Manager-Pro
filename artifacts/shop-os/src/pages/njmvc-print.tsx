@@ -19,16 +19,87 @@ function CheckBox({ checked }: { checked: boolean }) {
   );
 }
 
+interface ItemResult {
+  status: string | null;
+  repairedDate: string | null;
+  measurementValue: string | null;
+  notes: string | null;
+}
+
+interface TemplateItem {
+  id: number;
+  label: string;
+  active: boolean;
+  hasMeasurement: boolean;
+  measurementUnit: string | null;
+  result: ItemResult | null;
+}
+
+interface TemplateCategory {
+  id: number;
+  name: string;
+  active: boolean;
+  items: TemplateItem[];
+}
+
+interface InspectionVehicle {
+  year: string | null;
+  make: string | null;
+  model: string | null;
+}
+
+interface FullInspection {
+  id: number;
+  vehicleId: number;
+  vehicle: InspectionVehicle | null;
+  operatorName: string | null;
+  address: string | null;
+  mechanicNamePrint: string | null;
+  mechanicNameSigned: string | null;
+  reportNumber: string | null;
+  fleetUnitNumber: string | null;
+  mileage: number | null;
+  vehicleType: string | null;
+  vin: string | null;
+  licensePlate: string | null;
+  inspectionDate: string | null;
+  purchaseDate: string | null;
+  certifiedPassed: boolean;
+  notes: string | null;
+  createdAt: string;
+  template: TemplateCategory[];
+}
+
+interface RelatedRepair {
+  id: number;
+  orderNumber: string;
+  complaint: string | null;
+  diagnosis: string | null;
+  status: string;
+  completedAt: string | null;
+  createdAt: string;
+  technician: string | null;
+}
+
+interface RelatedRepairsResponse {
+  repairOrders: RelatedRepair[];
+}
+
+interface PrintSection {
+  catName: string;
+  items: TemplateItem[];
+}
+
 export default function NjmvcPrint() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
 
-  const { data: insp, isLoading } = useQuery<any>({
+  const { data: insp, isLoading } = useQuery<FullInspection>({
     queryKey: ["/api/njmvc/inspections", id],
     queryFn: () => apiFetch(`/api/njmvc/inspections/${id}`),
   });
 
-  const { data: relatedData } = useQuery<any>({
+  const { data: relatedData } = useQuery<RelatedRepairsResponse>({
     queryKey: ["/api/njmvc/inspections", id, "related-repairs"],
     queryFn: () => apiFetch(`/api/njmvc/inspections/${id}/related-repairs`),
   });
@@ -41,31 +112,28 @@ export default function NjmvcPrint() {
     return <div className="p-8 text-center text-muted-foreground">Inspection not found.</div>;
   }
 
-  // Build flat result map
-  const resultMap: Record<number, any> = {};
-  insp.template?.forEach((cat: any) => {
-    cat.items?.forEach((item: any) => {
+  // Build flat result map from template
+  const resultMap: Record<number, ItemResult | null> = {};
+  insp.template?.forEach(cat => {
+    cat.items?.forEach(item => {
       resultMap[item.id] = item.result;
     });
   });
 
-  const activeCategories = (insp.template || []).filter((c: any) => c.active);
+  const activeCategories = (insp.template || []).filter(c => c.active);
 
-  // Split into 3 columns for the print layout
-  // All items flattened
-  const allSections: { catName: string; items: any[] }[] = activeCategories.map((cat: any) => ({
+  const allSections: PrintSection[] = activeCategories.map(cat => ({
     catName: cat.name,
-    items: cat.items?.filter((i: any) => i.active) || [],
+    items: cat.items?.filter(i => i.active) || [],
   }));
 
   // Fixed column assignment based on official NJMVC form layout.
   // The 20 official categories are distributed as columns 1 (sort 0-6), 2 (sort 7-13), 3 (sort 14+).
-  // Using sortOrder for deterministic placement regardless of dynamic count.
   const col1 = allSections.filter((_, i) => i < 7);
   const col2 = allSections.filter((_, i) => i >= 7 && i < 14);
   const col3 = allSections.filter((_, i) => i >= 14);
 
-  function renderSection(section: { catName: string; items: any[] }) {
+  function renderSection(section: PrintSection) {
     return (
       <div key={section.catName} style={{ marginBottom: 8 }}>
         <div style={{
@@ -75,7 +143,7 @@ export default function NjmvcPrint() {
         }}>
           {section.catName}
         </div>
-        {section.items.map((item: any) => {
+        {section.items.map(item => {
           const r = resultMap[item.id];
           return (
             <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 2, fontSize: 7.5 }}>
@@ -118,15 +186,7 @@ export default function NjmvcPrint() {
       </div>
 
       {/* Print Content */}
-      <div style={{
-        fontFamily: "Arial, sans-serif",
-        fontSize: 9,
-        color: "#000",
-        padding: "10mm 10mm",
-        maxWidth: "210mm",
-        margin: "0 auto",
-        lineHeight: 1.3,
-      }}>
+      <div style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "10mm", maxWidth: "210mm", margin: "0 auto", background: "#fff", color: "#000" }}>
 
         {/* Title Row */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, borderBottom: "2px solid #000", paddingBottom: 4 }}>
@@ -261,7 +321,7 @@ export default function NjmvcPrint() {
                 </tr>
               </thead>
               <tbody>
-                {relatedRepairs.map((ro: any) => (
+                {relatedRepairs.map(ro => (
                   <tr key={ro.id}>
                     <td style={{ border: "1px solid #ccc", padding: "2px 4px", fontFamily: "monospace" }}>{ro.orderNumber}</td>
                     <td style={{ border: "1px solid #ccc", padding: "2px 4px", whiteSpace: "nowrap" }}>
