@@ -232,6 +232,12 @@ router.get("/template", async (_req, res) => {
   res.json(result);
 });
 
+// GET /api/njmvc/categories
+router.get("/categories", async (_req, res) => {
+  const categories = await db.select().from(njmvcCategoriesTable).orderBy(asc(njmvcCategoriesTable.sortOrder));
+  res.json(categories);
+});
+
 // POST /api/njmvc/categories
 router.post("/categories", async (req, res) => {
   const { name, sortOrder, active, notes } = req.body;
@@ -274,6 +280,15 @@ router.delete("/categories/:id", async (req, res) => {
   }
   await db.delete(njmvcCategoriesTable).where(eq(njmvcCategoriesTable.id, id));
   res.status(204).send();
+});
+
+// GET /api/njmvc/items
+router.get("/items", async (req, res) => {
+  const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
+  const items = categoryId
+    ? await db.select().from(njmvcItemsTable).where(eq(njmvcItemsTable.categoryId, categoryId)).orderBy(asc(njmvcItemsTable.sortOrder))
+    : await db.select().from(njmvcItemsTable).orderBy(asc(njmvcItemsTable.sortOrder));
+  res.json(items);
 });
 
 // POST /api/njmvc/items
@@ -345,7 +360,13 @@ router.get("/inspections", async (req, res) => {
     : db.select().from(njmvcInspectionsTable);
 
   const inspections = await baseQuery.orderBy(desc(njmvcInspectionsTable.inspectionDate)).limit(limit).offset(offset);
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(njmvcInspectionsTable);
+
+  // Count with same filters for accurate pagination
+  const countQuery = conditions.length > 0
+    ? db.select({ count: sql<number>`count(*)` }).from(njmvcInspectionsTable).where(and(...conditions))
+    : db.select({ count: sql<number>`count(*)` }).from(njmvcInspectionsTable);
+  const [{ count }] = await countQuery;
+
   const enriched = await Promise.all(inspections.map(enrichInspection));
   res.json({ data: enriched, total: Number(count), page, limit });
 });
@@ -363,6 +384,7 @@ router.post("/inspections", async (req, res) => {
     mechanicNameSigned, reportNumber, fleetUnitNumber,
     mileage: mileage ? Number(mileage) : null,
     vehicleType, vin, licensePlate, inspectionDate,
+    purchaseDate: req.body.purchaseDate || null,
     certifiedPassed: certifiedPassed ?? false, notes,
   }).returning();
 
@@ -428,6 +450,7 @@ router.put("/inspections/:id", async (req, res) => {
     reportNumber, fleetUnitNumber,
     mileage: mileage != null ? Number(mileage) : null,
     vehicleType, vin, licensePlate, inspectionDate,
+    purchaseDate: req.body.purchaseDate || null,
     certifiedPassed: certifiedPassed ?? false, notes,
     updatedAt: new Date(),
   }).where(eq(njmvcInspectionsTable.id, id)).returning();

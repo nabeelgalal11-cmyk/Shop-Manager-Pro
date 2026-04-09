@@ -28,7 +28,7 @@ const emptyHeader = {
   operatorName: "", address: "", mechanicNamePrint: "", mechanicNameSigned: "",
   reportNumber: "", fleetUnitNumber: "", mileage: "", vehicleType: "none",
   vin: "", licensePlate: "", inspectionDate: new Date().toISOString().split("T")[0],
-  certifiedPassed: false, notes: "",
+  purchaseDate: "", certifiedPassed: false, notes: "",
 };
 
 type ResultMap = Record<number, { status: string; repairedDate: string; measurementValue: string; notes: string }>;
@@ -107,6 +107,7 @@ export default function NjmvcNew() {
         vin: existing.vin || "",
         licensePlate: existing.licensePlate || "",
         inspectionDate: existing.inspectionDate || new Date().toISOString().split("T")[0],
+        purchaseDate: existing.purchaseDate || "",
         certifiedPassed: existing.certifiedPassed || false,
         notes: existing.notes || "",
       });
@@ -168,25 +169,44 @@ export default function NjmvcNew() {
     }));
   }
 
-  // Apply a repair order to all items — mark them OK with the repair date
+  // Apply a repair order — mark items that were flagged "Needs Repair" as OK with the repair date.
+  // If no "Needs Repair" items exist yet, prompt the mechanic to pre-flag them first.
   function applyRepairOrder(ro: any) {
     if (!template) return;
     const repairDate = ro.completedAt
       ? new Date(ro.completedAt).toISOString().split("T")[0]
       : new Date(ro.createdAt).toISOString().split("T")[0];
 
+    // Collect all active item IDs currently marked "needs_repair"
+    const needsRepairIds: number[] = [];
+    template.forEach((cat: any) => {
+      cat.items?.filter((i: any) => i.active).forEach((item: any) => {
+        if (results[item.id]?.status === "needs_repair") {
+          needsRepairIds.push(item.id);
+        }
+      });
+    });
+
+    if (needsRepairIds.length === 0) {
+      toast({
+        title: "No items flagged as 'Needs Repair'",
+        description: "Mark specific items as 'Needs Repair' first, then Apply to mark them as repaired using this RO's date.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setResults(prev => {
       const next = { ...prev };
-      template.forEach((cat: any) => {
-        cat.items?.forEach((item: any) => {
-          if (!next[item.id] || next[item.id].status === "") {
-            next[item.id] = { ...emptyResult(item.id), status: "ok", repairedDate: repairDate };
-          }
-        });
+      needsRepairIds.forEach(id => {
+        next[id] = { ...emptyResult(id), status: "ok", repairedDate: repairDate };
       });
       return next;
     });
-    toast({ title: "Applied", description: `RO ${ro.orderNumber} applied — items marked OK with date ${repairDate}.` });
+    toast({
+      title: "Applied",
+      description: `${needsRepairIds.length} item(s) marked OK with repair date ${repairDate} from RO ${ro.orderNumber}.`,
+    });
   }
 
   function toggleCategory(catId: number) {
@@ -353,6 +373,10 @@ export default function NjmvcNew() {
               <div className="space-y-1.5">
                 <Label>License Plate</Label>
                 <Input placeholder="Plate number" value={header.licensePlate} onChange={e => setH("licensePlate", e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Purchase Date</Label>
+                <Input type="date" value={header.purchaseDate} onChange={e => setH("purchaseDate", e.target.value)} />
               </div>
             </CardContent>
           </Card>
