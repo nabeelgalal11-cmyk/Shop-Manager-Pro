@@ -11,14 +11,6 @@ async function apiFetch(url: string) {
 
 const VEHICLE_TYPES = ["A", "B", "C", "D", "SV"];
 
-function CheckBox({ checked }: { checked: boolean }) {
-  return (
-    <span style={{ display: "inline-block", width: 14, height: 14, border: "1.5px solid #333", textAlign: "center", lineHeight: "13px", fontSize: 11, fontWeight: "bold" }}>
-      {checked ? "✔" : ""}
-    </span>
-  );
-}
-
 interface ItemResult {
   status: string | null;
   repairedDate: string | null;
@@ -89,6 +81,10 @@ interface PrintSection {
   items: TemplateItem[];
 }
 
+const cellBorder = "1px solid #000";
+const headerBg = "#c8c8c8";
+const subHeaderBg = "#e8e8e8";
+
 export default function NjmvcPrint() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -111,7 +107,6 @@ export default function NjmvcPrint() {
     return <div className="p-8 text-center text-muted-foreground">Inspection not found.</div>;
   }
 
-  // Build flat result map from template
   const resultMap: Record<number, ItemResult | null> = {};
   insp.template?.forEach(cat => {
     cat.items?.forEach(item => {
@@ -120,53 +115,82 @@ export default function NjmvcPrint() {
   });
 
   const activeCategories = (insp.template || []).filter(c => c.active);
-
   const allSections: PrintSection[] = activeCategories.map(cat => ({
     catName: cat.name,
     items: cat.items?.filter(i => i.active) || [],
   }));
 
-  // Fixed column assignment based on official NJMVC form layout.
-  // The 20 official categories are distributed as columns 1 (sort 0-6), 2 (sort 7-13), 3 (sort 14+).
   const col1 = allSections.filter((_, i) => i < 7);
   const col2 = allSections.filter((_, i) => i >= 7 && i < 14);
   const col3 = allSections.filter((_, i) => i >= 14);
 
   function renderSection(section: PrintSection) {
     return (
-      <div key={section.catName} style={{ marginBottom: 8 }}>
-        <div style={{
-          fontWeight: "bold", fontSize: 8, textTransform: "uppercase",
-          borderBottom: "1px solid #333", paddingBottom: 1, marginBottom: 3,
-          letterSpacing: "0.05em",
-        }}>
-          {section.catName}
-        </div>
-        {section.items.map(item => {
-          const r = resultMap[item.id];
-          const status = r?.status || null;
-          const okNaCell = status === "ok"
-            ? <CheckBox checked={true} />
-            : status === "na"
-              ? <span style={{ display: "inline-block", width: 14, textAlign: "center", fontSize: 7.5, fontWeight: "bold" }}>NA</span>
-              : <CheckBox checked={false} />;
-          return (
-            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 2, fontSize: 7.5 }}>
-              {okNaCell}
-              <CheckBox checked={status === "needs_repair"} />
-              <span style={{ width: 36, fontSize: 7, color: "#555" }}>
-                {status === "needs_repair" && r?.repairedDate ? r.repairedDate.slice(5) : ""}
-              </span>
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {item.hasMeasurement && (
-                <span style={{ fontSize: 7, color: "#444" }}>
-                  {r?.measurementValue ? `${r.measurementValue}${item.measurementUnit}` : `___${item.measurementUnit}`}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <table key={section.catName} style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4, tableLayout: "fixed" }}>
+        <colgroup>
+          <col style={{ width: 16 }} />
+          <col style={{ width: 16 }} />
+          <col style={{ width: 38 }} />
+          <col />
+        </colgroup>
+        <thead>
+          <tr>
+            <th colSpan={4} style={{
+              background: headerBg,
+              border: cellBorder,
+              fontSize: 7.5,
+              fontWeight: "bold",
+              textTransform: "uppercase",
+              textAlign: "left",
+              padding: "2px 3px",
+              letterSpacing: "0.04em",
+            }}>
+              {section.catName}
+            </th>
+          </tr>
+          <tr>
+            <th style={{ background: subHeaderBg, border: cellBorder, fontSize: 6.5, textAlign: "center", padding: "1px 1px", fontWeight: "bold" }}>OK/NA</th>
+            <th style={{ background: subHeaderBg, border: cellBorder, fontSize: 6.5, textAlign: "center", padding: "1px 1px", fontWeight: "bold" }}>NR</th>
+            <th style={{ background: subHeaderBg, border: cellBorder, fontSize: 6.5, textAlign: "center", padding: "1px 1px", fontWeight: "bold" }}>DATE REP.</th>
+            <th style={{ background: subHeaderBg, border: cellBorder, fontSize: 6.5, textAlign: "left", padding: "1px 3px", fontWeight: "bold" }}>ITEM</th>
+          </tr>
+        </thead>
+        <tbody>
+          {section.items.map((item, idx) => {
+            const r = resultMap[item.id];
+            const status = r?.status || null;
+            const rowBg = idx % 2 === 0 ? "#fff" : "#f7f7f7";
+            return (
+              <tr key={item.id} style={{ background: rowBg }}>
+                <td style={{ border: cellBorder, textAlign: "center", padding: "1px", verticalAlign: "middle" }}>
+                  {status === "ok" && (
+                    <span style={{ fontSize: 10, fontWeight: "bold", lineHeight: 1 }}>✔</span>
+                  )}
+                  {status === "na" && (
+                    <span style={{ fontSize: 7, fontWeight: "bold", lineHeight: 1 }}>NA</span>
+                  )}
+                </td>
+                <td style={{ border: cellBorder, textAlign: "center", padding: "1px", verticalAlign: "middle" }}>
+                  {status === "needs_repair" && (
+                    <span style={{ fontSize: 10, fontWeight: "bold", lineHeight: 1 }}>✔</span>
+                  )}
+                </td>
+                <td style={{ border: cellBorder, textAlign: "center", fontSize: 6.5, padding: "1px 2px", verticalAlign: "middle" }}>
+                  {status === "needs_repair" && r?.repairedDate ? r.repairedDate.slice(5) : ""}
+                </td>
+                <td style={{ border: cellBorder, fontSize: 7.5, padding: "1px 3px", verticalAlign: "middle" }}>
+                  {item.label}
+                  {item.hasMeasurement && (
+                    <span style={{ fontSize: 6.5, color: "#555", marginLeft: 3 }}>
+                      {r?.measurementValue ? `${r.measurementValue}${item.measurementUnit}` : `___${item.measurementUnit}`}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     );
   }
 
@@ -190,153 +214,175 @@ export default function NjmvcPrint() {
       </div>
 
       {/* Print Content */}
-      <div style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "10mm", maxWidth: "210mm", margin: "0 auto", background: "#fff", color: "#000" }}>
+      <div style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "8mm 10mm", maxWidth: "210mm", margin: "0 auto", background: "#fff", color: "#000" }}>
 
-        {/* Title Row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, borderBottom: "2px solid #000", paddingBottom: 4 }}>
-          <div style={{ fontWeight: "bold", fontSize: 13, letterSpacing: "0.05em" }}>
-            NJMVC QUARTERLY VEHICLE INSPECTION REPORT
-          </div>
-          <div style={{ textAlign: "right", fontSize: 8 }}>
-            <div><strong>REPORT #</strong> {insp.reportNumber || "___________"}</div>
-            <div style={{ marginTop: 2 }}><strong>FLEET UNIT NUMBER</strong> {insp.fleetUnitNumber || "___________"}</div>
-          </div>
-        </div>
-
-        {/* Operator / Mechanic Row */}
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 5 }}>
+        {/* Title Bar */}
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4 }}>
           <tbody>
             <tr>
-              <td style={{ width: "45%", verticalAlign: "bottom", paddingRight: 10 }}>
-                <div style={{ fontSize: 8, fontWeight: "bold" }}>OPERATOR</div>
-                <div style={{ borderBottom: "1px solid #333", minHeight: 16, fontSize: 9 }}>{insp.operatorName || ""}</div>
+              <td style={{ background: headerBg, border: cellBorder, padding: "4px 8px", verticalAlign: "middle" }}>
+                <div style={{ fontWeight: "bold", fontSize: 12, letterSpacing: "0.04em" }}>
+                  STATE OF NEW JERSEY — MOTOR VEHICLE COMMISSION
+                </div>
+                <div style={{ fontWeight: "bold", fontSize: 10, letterSpacing: "0.03em" }}>
+                  QUARTERLY VEHICLE INSPECTION REPORT
+                </div>
               </td>
-              <td style={{ width: "20%", verticalAlign: "bottom", paddingRight: 10 }}>
-                <div style={{ fontSize: 8, fontWeight: "bold" }}>MILES</div>
-                <div style={{ borderBottom: "1px solid #333", minHeight: 16, fontSize: 9 }}>{insp.mileage ? insp.mileage.toLocaleString() : ""}</div>
+              <td style={{ background: headerBg, border: cellBorder, padding: "4px 8px", verticalAlign: "middle", width: "28%", textAlign: "right" }}>
+                <div style={{ fontSize: 8, fontWeight: "bold" }}>REPORT #</div>
+                <div style={{ fontSize: 10, borderBottom: "1px solid #333", minWidth: 100, minHeight: 14 }}>{insp.reportNumber || ""}</div>
+                <div style={{ fontSize: 8, fontWeight: "bold", marginTop: 4 }}>FLEET UNIT #</div>
+                <div style={{ fontSize: 10, borderBottom: "1px solid #333", minWidth: 100, minHeight: 14 }}>{insp.fleetUnitNumber || ""}</div>
               </td>
-              <td style={{ width: "15%", verticalAlign: "bottom", paddingRight: 10 }}>
-                <div style={{ fontSize: 8, fontWeight: "bold" }}>DATE</div>
-                <div style={{ borderBottom: "1px solid #333", minHeight: 16, fontSize: 9 }}>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Operator / Date / Mechanic */}
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4 }}>
+          <tbody>
+            <tr>
+              <td style={{ border: cellBorder, padding: "2px 4px", width: "40%", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>OPERATOR</div>
+                <div style={{ fontSize: 9, minHeight: 14 }}>{insp.operatorName || ""}</div>
+              </td>
+              <td style={{ border: cellBorder, padding: "2px 4px", width: "18%", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>MILES</div>
+                <div style={{ fontSize: 9, minHeight: 14 }}>{insp.mileage ? insp.mileage.toLocaleString() : ""}</div>
+              </td>
+              <td style={{ border: cellBorder, padding: "2px 4px", width: "18%", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>DATE</div>
+                <div style={{ fontSize: 9, minHeight: 14 }}>
                   {insp.inspectionDate ? new Date(insp.inspectionDate + "T00:00:00").toLocaleDateString() : ""}
                 </div>
               </td>
-              <td style={{ width: "20%", verticalAlign: "bottom" }}>
-                <div style={{ fontSize: 8, fontWeight: "bold" }}>MECHANIC NAME (Print or Type)</div>
-                <div style={{ borderBottom: "1px solid #333", minHeight: 16, fontSize: 9 }}>{insp.mechanicNamePrint || ""}</div>
+              <td style={{ border: cellBorder, padding: "2px 4px", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>MECHANIC NAME (Print or Type)</div>
+                <div style={{ fontSize: 9, minHeight: 14 }}>{insp.mechanicNamePrint || ""}</div>
               </td>
             </tr>
-            <tr style={{ marginTop: 4 }}>
-              <td style={{ paddingTop: 4, paddingRight: 10, verticalAlign: "bottom" }}>
-                <div style={{ fontSize: 8, fontWeight: "bold" }}>ADDRESS</div>
-                <div style={{ borderBottom: "1px solid #333", minHeight: 16, fontSize: 9 }}>{insp.address || ""}</div>
+            <tr>
+              <td style={{ border: cellBorder, padding: "2px 4px", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>ADDRESS</div>
+                <div style={{ fontSize: 9, minHeight: 14 }}>{insp.address || ""}</div>
               </td>
-              <td colSpan={2} style={{ paddingTop: 4 }} />
-              <td style={{ paddingTop: 4, verticalAlign: "bottom" }}>
-                <div style={{ fontSize: 8, fontWeight: "bold" }}>MECHANIC NAME SIGNED</div>
-                <div style={{ borderBottom: "1px solid #333", minHeight: 16, fontSize: 9 }}>{insp.mechanicNameSigned || ""}</div>
+              <td colSpan={2} style={{ border: cellBorder, padding: "2px 4px", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>VEHICLE TYPE (Circle One)</div>
+                <div style={{ padding: "2px 0" }}>
+                  {VEHICLE_TYPES.map(t => (
+                    <span key={t} style={{
+                      display: "inline-block",
+                      marginRight: 6,
+                      fontWeight: insp.vehicleType === t ? "bold" : "normal",
+                      border: insp.vehicleType === t ? "1.5px solid #000" : "1px solid transparent",
+                      borderRadius: "50%",
+                      padding: "0 3px",
+                      fontSize: 9,
+                      background: insp.vehicleType === t ? "#ddd" : "transparent",
+                    }}>{t}</span>
+                  ))}
+                </div>
+              </td>
+              <td style={{ border: cellBorder, padding: "2px 4px", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>MECHANIC NAME (Signed)</div>
+                <div style={{ fontSize: 9, minHeight: 14 }}>{insp.mechanicNameSigned || ""}</div>
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={2} style={{ border: cellBorder, padding: "2px 4px", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>VIN</div>
+                <div style={{ fontSize: 9, minHeight: 14 }}>{insp.vin || ""}</div>
+              </td>
+              <td colSpan={2} style={{ border: cellBorder, padding: "2px 4px", verticalAlign: "bottom" }}>
+                <div style={{ fontSize: 7, fontWeight: "bold", background: subHeaderBg, margin: "-2px -4px 2px", padding: "1px 4px" }}>LICENSE PLATE NO.</div>
+                <div style={{ fontSize: 9, minHeight: 14 }}>{insp.licensePlate || ""}</div>
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* Vehicle Type + Identification */}
+        {/* Section Title */}
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4 }}>
+          <tbody>
+            <tr>
+              <td style={{ background: "#000", color: "#fff", textAlign: "center", fontWeight: "bold", fontSize: 9, padding: "3px", letterSpacing: "0.08em", textTransform: "uppercase", border: cellBorder }}>
+                Vehicle Components Inspected
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* 3-Column Inspection Grid */}
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 6 }}>
+          <tbody>
+            <tr style={{ verticalAlign: "top" }}>
+              <td style={{ width: "33.33%", padding: "0 3px 0 0", verticalAlign: "top" }}>
+                {col1.map(renderSection)}
+              </td>
+              <td style={{ width: "33.33%", padding: "0 2px", verticalAlign: "top" }}>
+                {col2.map(renderSection)}
+              </td>
+              <td style={{ width: "33.33%", padding: "0 0 0 3px", verticalAlign: "top" }}>
+                {col3.map(renderSection)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Certification */}
         <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 6 }}>
           <tbody>
             <tr>
-              <td style={{ width: "50%", paddingRight: 10, verticalAlign: "middle" }}>
-                <span style={{ fontSize: 8, fontWeight: "bold" }}>VEHICLE TYPE (Circle One)&nbsp;&nbsp;</span>
-                {VEHICLE_TYPES.map(t => (
-                  <span key={t} style={{
-                    display: "inline-block",
-                    marginRight: 8,
-                    fontWeight: insp.vehicleType === t ? "bold" : "normal",
-                    border: insp.vehicleType === t ? "1.5px solid #000" : "none",
-                    borderRadius: "50%",
-                    padding: "0 3px",
-                    fontSize: 9,
-                  }}>{t}</span>
-                ))}
-              </td>
-              <td style={{ verticalAlign: "bottom" }}>
-                <div style={{ fontSize: 8, fontWeight: "bold" }}>VEHICLE IDENTIFICATION</div>
-                <div style={{ fontSize: 8 }}>VIN: <span style={{ borderBottom: "1px solid #333", display: "inline-block", minWidth: 120, fontSize: 9 }}>{insp.vin || ""}</span></div>
-                <div style={{ fontSize: 8 }}>LIC. PLATE NO.: <span style={{ borderBottom: "1px solid #333", display: "inline-block", minWidth: 80, fontSize: 9 }}>{insp.licensePlate || ""}</span></div>
+              <td style={{ border: "2px solid #000", padding: "5px 8px", background: "#f9f9f9" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    display: "inline-block", width: 16, height: 16, flexShrink: 0,
+                    border: "2px solid #000", textAlign: "center", lineHeight: "15px",
+                    fontSize: 12, fontWeight: "bold", background: insp.certifiedPassed ? "#fff" : "#fff",
+                  }}>
+                    {insp.certifiedPassed ? "✔" : ""}
+                  </span>
+                  <span style={{ fontSize: 8.5 }}>
+                    <strong>CERTIFICATION:</strong> THIS VEHICLE HAS PASSED ALL THE INSPECTION ITEMS FOR THE QUARTERLY VEHICLE INSPECTION REPORT.
+                  </span>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
 
-        {/* Component Inspection Grid Header */}
-        <div style={{ fontWeight: "bold", fontSize: 9, textAlign: "center", borderTop: "1.5px solid #000", borderBottom: "1px solid #000", padding: "2px 0", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Vehicle Components Inspected
-        </div>
-
-        {/* Column sub-headers */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 8px", marginBottom: 3 }}>
-          {[0, 1, 2].map(col => (
-            <div key={col} style={{ display: "flex", gap: 3, fontSize: 7, color: "#555", marginBottom: 2 }}>
-              <span style={{ width: 14, textAlign: "center" }}>OK/NA</span>
-              <span style={{ width: 14, textAlign: "center" }}>NR</span>
-              <span style={{ width: 36 }}>DATE REPAIRED</span>
-              <span>Item</span>
-            </div>
-          ))}
-        </div>
-
-        {/* 3-Column Grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 10px", marginBottom: 8 }}>
-          <div>{col1.map(renderSection)}</div>
-          <div>{col2.map(renderSection)}</div>
-          <div>{col3.map(renderSection)}</div>
-        </div>
-
-        {/* Certification */}
-        <div style={{ border: "1.5px solid #000", padding: "6px 10px", fontSize: 8.5, marginBottom: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{
-              display: "inline-block", width: 14, height: 14,
-              border: "1.5px solid #333", textAlign: "center", lineHeight: "13px", fontSize: 11,
-              flexShrink: 0,
-            }}>
-              {insp.certifiedPassed ? "✓" : ""}
-            </span>
-            <span>
-              <strong>CERTIFICATION:</strong> THIS VEHICLE HAS PASSED ALL THE INSPECTION ITEMS FOR THE QUARTERLY VEHICLE INSPECTION REPORT.
-            </span>
-          </div>
-        </div>
-
         {/* Supplemental: Work Performed Since Last Inspection */}
         {relatedRepairs.length > 0 && (
-          <div style={{ marginTop: 10, borderTop: "1.5px dashed #666", paddingTop: 8 }}>
-            <div style={{ fontWeight: "bold", fontSize: 10, marginBottom: 4 }}>
-              SUPPLEMENTAL — Work Performed Since Last Inspection
-            </div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 8 }}>
+          <div style={{ marginTop: 8 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr style={{ background: "#f0f0f0" }}>
-                  <th style={{ border: "1px solid #ccc", padding: "2px 4px", textAlign: "left" }}>RO #</th>
-                  <th style={{ border: "1px solid #ccc", padding: "2px 4px", textAlign: "left" }}>Date</th>
-                  <th style={{ border: "1px solid #ccc", padding: "2px 4px", textAlign: "left" }}>Complaint / Work Done</th>
-                  <th style={{ border: "1px solid #ccc", padding: "2px 4px", textAlign: "left" }}>Technician</th>
-                  <th style={{ border: "1px solid #ccc", padding: "2px 4px", textAlign: "left" }}>Status</th>
+                <tr>
+                  <th colSpan={5} style={{ background: headerBg, border: cellBorder, padding: "3px 6px", textAlign: "left", fontSize: 9, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Work Performed Since Last Inspection
+                  </th>
+                </tr>
+                <tr>
+                  <th style={{ border: cellBorder, padding: "2px 4px", background: subHeaderBg, fontSize: 7.5, textAlign: "left", width: "12%" }}>RO #</th>
+                  <th style={{ border: cellBorder, padding: "2px 4px", background: subHeaderBg, fontSize: 7.5, textAlign: "left", width: "12%" }}>Date</th>
+                  <th style={{ border: cellBorder, padding: "2px 4px", background: subHeaderBg, fontSize: 7.5, textAlign: "left" }}>Complaint / Work Done</th>
+                  <th style={{ border: cellBorder, padding: "2px 4px", background: subHeaderBg, fontSize: 7.5, textAlign: "left", width: "15%" }}>Technician</th>
+                  <th style={{ border: cellBorder, padding: "2px 4px", background: subHeaderBg, fontSize: 7.5, textAlign: "left", width: "10%" }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {relatedRepairs.map(ro => (
-                  <tr key={ro.id}>
-                    <td style={{ border: "1px solid #ccc", padding: "2px 4px", fontFamily: "monospace" }}>{ro.orderNumber}</td>
-                    <td style={{ border: "1px solid #ccc", padding: "2px 4px", whiteSpace: "nowrap" }}>
+                {relatedRepairs.map((ro, idx) => (
+                  <tr key={ro.id} style={{ background: idx % 2 === 0 ? "#fff" : "#f7f7f7" }}>
+                    <td style={{ border: cellBorder, padding: "2px 4px", fontFamily: "monospace", fontSize: 7.5 }}>{ro.orderNumber}</td>
+                    <td style={{ border: cellBorder, padding: "2px 4px", fontSize: 7.5, whiteSpace: "nowrap" }}>
                       {ro.completedAt
                         ? new Date(ro.completedAt).toLocaleDateString()
                         : new Date(ro.createdAt).toLocaleDateString()}
                     </td>
-                    <td style={{ border: "1px solid #ccc", padding: "2px 4px" }}>
+                    <td style={{ border: cellBorder, padding: "2px 4px", fontSize: 7.5 }}>
                       {ro.complaint || ""}{ro.diagnosis ? (ro.complaint ? " — " : "") + ro.diagnosis : ""}
                     </td>
-                    <td style={{ border: "1px solid #ccc", padding: "2px 4px" }}>{ro.technician || ""}</td>
-                    <td style={{ border: "1px solid #ccc", padding: "2px 4px", textTransform: "capitalize" }}>{ro.status}</td>
+                    <td style={{ border: cellBorder, padding: "2px 4px", fontSize: 7.5 }}>{ro.technician || ""}</td>
+                    <td style={{ border: cellBorder, padding: "2px 4px", fontSize: 7.5, textTransform: "capitalize" }}>{ro.status}</td>
                   </tr>
                 ))}
               </tbody>
@@ -345,17 +391,16 @@ export default function NjmvcPrint() {
         )}
       </div>
 
-      {/* Print styles — hide all app chrome (sidebar, nav, header) when printing */}
+      {/* Print styles */}
       <style>{`
         @media print {
           .print\\:hidden { display: none !important; }
-          /* Hide the shared layout chrome */
           header, nav, aside, [class*="sidebar"], [class*="Sidebar"],
           [data-sidebar], [data-sidebar-provider] > div > aside {
             display: none !important;
           }
           body { margin: 0; }
-          @page { size: letter; margin: 10mm; }
+          @page { size: letter portrait; margin: 8mm; }
         }
       `}</style>
     </>
