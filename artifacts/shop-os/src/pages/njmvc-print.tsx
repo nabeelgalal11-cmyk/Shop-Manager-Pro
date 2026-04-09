@@ -13,8 +13,8 @@ const VEHICLE_TYPES = ["A", "B", "C", "D", "SV"];
 
 function CheckBox({ checked }: { checked: boolean }) {
   return (
-    <span style={{ display: "inline-block", width: 14, height: 14, border: "1.5px solid #333", textAlign: "center", lineHeight: "13px", fontSize: 11 }}>
-      {checked ? "✓" : ""}
+    <span style={{ display: "inline-block", width: 14, height: 14, border: "1.5px solid #333", textAlign: "center", lineHeight: "13px", fontSize: 11, fontWeight: "bold" }}>
+      {checked ? "✔" : ""}
     </span>
   );
 }
@@ -63,7 +63,6 @@ interface FullInspection {
   vin: string | null;
   licensePlate: string | null;
   inspectionDate: string | null;
-  purchaseDate: string | null;
   certifiedPassed: boolean;
   notes: string | null;
   createdAt: string;
@@ -145,13 +144,18 @@ export default function NjmvcPrint() {
         </div>
         {section.items.map(item => {
           const r = resultMap[item.id];
+          const status = r?.status || null;
+          const okNaCell = status === "ok"
+            ? <CheckBox checked={true} />
+            : status === "na"
+              ? <span style={{ display: "inline-block", width: 14, textAlign: "center", fontSize: 7.5, fontWeight: "bold" }}>NA</span>
+              : <CheckBox checked={false} />;
           return (
             <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 3, marginBottom: 2, fontSize: 7.5 }}>
-              <CheckBox checked={r?.status === "ok"} />
-              <CheckBox checked={r?.status === "needs_repair"} />
-              <CheckBox checked={r?.status === "na"} />
+              {okNaCell}
+              <CheckBox checked={status === "needs_repair"} />
               <span style={{ width: 36, fontSize: 7, color: "#555" }}>
-                {r?.repairedDate ? r.repairedDate.slice(5) : ""}
+                {status === "needs_repair" && r?.repairedDate ? r.repairedDate.slice(5) : ""}
               </span>
               <span style={{ flex: 1 }}>{item.label}</span>
               {item.hasMeasurement && (
@@ -272,10 +276,9 @@ export default function NjmvcPrint() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 8px", marginBottom: 3 }}>
           {[0, 1, 2].map(col => (
             <div key={col} style={{ display: "flex", gap: 3, fontSize: 7, color: "#555", marginBottom: 2 }}>
-              <span style={{ width: 14, textAlign: "center" }}>OK</span>
+              <span style={{ width: 14, textAlign: "center" }}>OK/NA</span>
               <span style={{ width: 14, textAlign: "center" }}>NR</span>
-              <span style={{ width: 14, textAlign: "center" }}>NA</span>
-              <span style={{ width: 36 }}>Repaired</span>
+              <span style={{ width: 36 }}>DATE REPAIRED</span>
               <span>Item</span>
             </div>
           ))}

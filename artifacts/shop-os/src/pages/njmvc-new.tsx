@@ -28,7 +28,7 @@ const emptyHeader = {
   operatorName: "", address: "", mechanicNamePrint: "", mechanicNameSigned: "",
   reportNumber: "", fleetUnitNumber: "", mileage: "", vehicleType: "none",
   vin: "", licensePlate: "", inspectionDate: new Date().toISOString().split("T")[0],
-  purchaseDate: "", certifiedPassed: false, notes: "",
+  certifiedPassed: false, notes: "",
 };
 
 type ItemStatus = "ok" | "needs_repair" | "na";
@@ -87,7 +87,7 @@ export default function NjmvcNew() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("none");
   const [header, setHeader] = useState(emptyHeader);
   const [results, setResults] = useState<ResultMap>({});
-  const [relatedPanelOpen, setRelatedPanelOpen] = useState(true);
+  const [relatedPanelOpen, setRelatedPanelOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
 
   const { data: template } = useQuery<{
@@ -109,7 +109,7 @@ export default function NjmvcNew() {
     mechanicNamePrint: string | null; mechanicNameSigned: string | null;
     reportNumber: string | null; fleetUnitNumber: string | null; mileage: number | null;
     vehicleType: string | null; vin: string | null; licensePlate: string | null;
-    inspectionDate: string | null; purchaseDate: string | null;
+    inspectionDate: string | null;
     certifiedPassed: boolean; notes: string | null;
     template: { id: number; items: { id: number; result: { status: string | null; repairedDate: string | null; measurementValue: string | null; notes: string | null } | null }[] }[];
   }>({
@@ -140,8 +140,17 @@ export default function NjmvcNew() {
   useEffect(() => {
     if (template?.length) {
       setExpandedCategories(new Set(template.map(c => c.id)));
+      if (!isEdit) {
+        const defaults: ResultMap = {};
+        template.forEach(cat => {
+          cat.items.filter(i => i.active).forEach(item => {
+            defaults[item.id] = { status: "ok", repairedDate: "", measurementValue: "", notes: "" };
+          });
+        });
+        setResults(defaults);
+      }
     }
-  }, [template]);
+  }, [template, isEdit]);
 
   useEffect(() => {
     if (existing) {
@@ -158,7 +167,6 @@ export default function NjmvcNew() {
         vin: existing.vin || "",
         licensePlate: existing.licensePlate || "",
         inspectionDate: existing.inspectionDate || new Date().toISOString().split("T")[0],
-        purchaseDate: existing.purchaseDate || "",
         certifiedPassed: existing.certifiedPassed || false,
         notes: existing.notes || "",
       });
@@ -459,10 +467,6 @@ export default function NjmvcNew() {
                 <Label>License Plate</Label>
                 <Input placeholder="Plate number" value={header.licensePlate} onChange={e => setH("licensePlate", e.target.value)} />
               </div>
-              <div className="space-y-1.5">
-                <Label>Purchase Date</Label>
-                <Input type="date" value={header.purchaseDate} onChange={e => setH("purchaseDate", e.target.value)} />
-              </div>
             </CardContent>
           </Card>
 
@@ -624,7 +628,7 @@ export default function NjmvcNew() {
 
         {/* Side Panel — Related Repair Orders */}
         {(isEdit || selectedVehicleId !== "none") && (
-          <div className="w-80 flex-shrink-0">
+          <div className={`flex-shrink-0 ${relatedPanelOpen ? "w-80" : ""}`}>
             <div className="sticky top-6 space-y-3">
               <Card className="border-border">
                 <button
