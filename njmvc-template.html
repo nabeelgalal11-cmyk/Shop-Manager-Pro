@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NJMVC Quarterly Vehicle Inspection Report</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8pt;
+      color: #000;
+      background: #fff;
+    }
+
+    /* ── PAGE WRAPPER ─────────────────────────────────────── */
+    #page {
+      width: 8.5in;
+      min-height: 11in;
+      padding: 0.35in 0.4in;
+      margin: 0 auto;
+      background: #fff;
+    }
+
+    /* ── SHARED TABLE RESET ───────────────────────────────── */
+    table { border-collapse: collapse; width: 100%; }
+    td, th { vertical-align: top; }
+
+    /* ── TITLE BLOCK ──────────────────────────────────────── */
+    .title-table { margin-bottom: 4px; }
+    .title-left {
+      background: #b0b0b0;
+      border: 1px solid #000;
+      padding: 4px 8px;
+    }
+    .title-left .agency  { font-size: 9pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.04em; }
+    .title-left .formname { font-size: 8pt; font-weight: bold; text-transform: uppercase; }
+    .title-right {
+      border: 1px solid #000;
+      padding: 3px 6px;
+      width: 22%;
+      vertical-align: middle;
+    }
+    .title-right .field-label { font-size: 6pt; font-weight: bold; }
+    .title-right .field-value { font-size: 9pt; font-weight: bold; min-height: 13px; }
+
+    /* ── HEADER FIELDS TABLE ──────────────────────────────── */
+    .header-table { margin-bottom: 4px; }
+    .hdr-cell {
+      border: 1px solid #000;
+      padding: 1px 3px;
+      vertical-align: top;
+    }
+    .hdr-label {
+      font-size: 6pt;
+      font-weight: bold;
+      background: #d8d8d8;
+      margin: -1px -3px 2px -3px;
+      padding: 1px 3px;
+      display: block;
+    }
+    .hdr-value { font-size: 8.5pt; min-height: 13px; }
+    .vtype-letter {
+      display: inline-block;
+      margin-right: 5px;
+      font-size: 9pt;
+      padding: 0 2px;
+    }
+    .vtype-letter.selected {
+      font-weight: bold;
+      border: 1.5px solid #000;
+      border-radius: 50%;
+    }
+
+    /* ── SECTION TITLE BAR ────────────────────────────────── */
+    .section-title {
+      background: #000;
+      color: #fff;
+      text-align: center;
+      font-weight: bold;
+      font-size: 8pt;
+      padding: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+
+    /* ── 3-COLUMN INSPECTION GRID ─────────────────────────── */
+    .grid-table { margin-bottom: 5px; }
+    .grid-col { width: 33.33%; vertical-align: top; }
+    .grid-col:nth-child(1) { padding-right: 4px; }
+    .grid-col:nth-child(2) { padding: 0 3px; }
+    .grid-col:nth-child(3) { padding-left: 4px; }
+
+    /* ── CATEGORY TABLE ───────────────────────────────────── */
+    .cat-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 3px;
+      table-layout: fixed;
+    }
+    .cat-table col.col-okna  { width: 16px; }
+    .cat-table col.col-nr    { width: 16px; }
+    .cat-table col.col-date  { width: 34px; }
+    .cat-table col.col-item  { }   /* takes remaining width */
+
+    /* Category name row — top border only, gray bg */
+    .cat-name {
+      background: #b0b0b0;
+      border-top: 1px solid #000;
+      border-left: 1px solid #000;
+      border-right: 1px solid #000;
+      font-size: 7pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      padding: 1px 3px;
+      letter-spacing: 0.03em;
+    }
+
+    /* Sub-header row (OK/NA, NR, DATE REP., ITEM) */
+    .cat-subhdr {
+      background: #d8d8d8;
+      border-left: 1px solid #000;
+      border-right: 1px solid #000;
+      border-bottom: 1px solid #000;
+      font-size: 6pt;
+      font-weight: bold;
+      text-align: center;
+      padding: 1px;
+    }
+    .cat-subhdr.item-col { text-align: left; padding-left: 3px; }
+
+    /* Item data rows — NO horizontal borders, only left/right outer borders */
+    .item-row td {
+      border-left: 1px solid #000;
+      border-right: 1px solid #000;
+      padding: 0px 1px;
+      vertical-align: middle;
+      height: 11px;
+    }
+    .item-row td.item-name { font-size: 7pt; padding: 0 2px; }
+    .item-row td.check-cell { text-align: center; font-size: 10pt; font-weight: bold; line-height: 1; }
+    .item-row td.na-cell { text-align: center; font-size: 6pt; font-weight: bold; line-height: 1; }
+    .item-row td.date-cell { text-align: center; font-size: 6pt; }
+    .item-row td.meas-note { font-size: 6pt; color: #444; }
+
+    /* Close-off border at bottom of category */
+    .cat-bottom td {
+      border-left: 1px solid #000;
+      border-right: 1px solid #000;
+      border-bottom: 1px solid #000;
+      height: 1px;
+      padding: 0;
+    }
+
+    /* ── CERTIFICATION ────────────────────────────────────── */
+    .cert-table { margin-bottom: 5px; }
+    .cert-cell {
+      border: 2px solid #000;
+      padding: 5px 8px;
+    }
+    .cert-box {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #000;
+      text-align: center;
+      line-height: 13px;
+      font-size: 11pt;
+      font-weight: bold;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    .cert-text { font-size: 8.5pt; vertical-align: middle; }
+
+    /* ── SUPPLEMENTAL TABLE ───────────────────────────────── */
+    .supp-table th {
+      border: 1px solid #000;
+      padding: 2px 4px;
+      background: #d8d8d8;
+      font-size: 7pt;
+      text-align: left;
+    }
+    .supp-table td {
+      border: 1px solid #000;
+      padding: 1px 4px;
+      font-size: 7pt;
+    }
+    .supp-title {
+      background: #b0b0b0;
+      border: 1px solid #000;
+      padding: 2px 6px;
+      font-size: 8pt;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    /* ── PRINT MEDIA ──────────────────────────────────────── */
+    @media print {
+      body { margin: 0; }
+      #page { width: 100%; padding: 0; margin: 0; }
+      @page { size: letter portrait; margin: 0.35in 0.4in; }
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  </style>
+</head>
+<body>
+<div id="page">
+
+  <!-- ═══════════ TITLE ════════════════════════════════════ -->
+  <table class="title-table">
+    <tr>
+      <td class="title-left">
+        <div class="agency">State of New Jersey — Motor Vehicle Commission</div>
+        <div class="formname">Quarterly Vehicle Inspection Report</div>
+      </td>
+      <td class="title-right">
+        <div class="field-label">REPORT #</div>
+        <div class="field-value">{{reportNumber}}</div>
+        <div class="field-label" style="margin-top:3px;">FLEET UNIT #</div>
+        <div class="field-value">{{fleetUnitNumber}}</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- ═══════════ HEADER FIELDS ════════════════════════════ -->
+  <table class="header-table">
+    <tr>
+      <td class="hdr-cell" style="width:38%">
+        <span class="hdr-label">OPERATOR</span>
+        <span class="hdr-value">{{operatorName}}</span>
+      </td>
+      <td class="hdr-cell" style="width:16%">
+        <span class="hdr-label">MILES</span>
+        <span class="hdr-value">{{mileage}}</span>
+      </td>
+      <td class="hdr-cell" style="width:16%">
+        <span class="hdr-label">DATE</span>
+        <span class="hdr-value">{{inspectionDate}}</span>
+      </td>
+      <td class="hdr-cell">
+        <span class="hdr-label">MECHANIC NAME (Print or Type)</span>
+        <span class="hdr-value">{{mechanicNamePrint}}</span>
+      </td>
+    </tr>
+    <tr>
+      <td class="hdr-cell">
+        <span class="hdr-label">ADDRESS</span>
+        <span class="hdr-value">{{address}}</span>
+      </td>
+      <td class="hdr-cell" colspan="2">
+        <span class="hdr-label">VEHICLE TYPE (Circle One)</span>
+        <span class="hdr-value">
+          <!-- Each letter gets class "selected" if it matches vehicleType -->
+          <span class="vtype-letter">A</span>
+          <span class="vtype-letter">B</span>
+          <span class="vtype-letter">C</span>
+          <span class="vtype-letter">D</span>
+          <span class="vtype-letter selected">SV</span>  <!-- {{vehicleType}} -->
+        </span>
+      </td>
+      <td class="hdr-cell">
+        <span class="hdr-label">MECHANIC NAME (Signed)</span>
+        <span class="hdr-value">{{mechanicNameSigned}}</span>
+      </td>
+    </tr>
+    <tr>
+      <td class="hdr-cell" colspan="2">
+        <span class="hdr-label">VIN</span>
+        <span class="hdr-value">{{vin}}</span>
+      </td>
+      <td class="hdr-cell" colspan="2">
+        <span class="hdr-label">LICENSE PLATE NO.</span>
+        <span class="hdr-value">{{licensePlate}}</span>
+      </td>
+    </tr>
+  </table>
+
+  <!-- ═══════════ SECTION TITLE ════════════════════════════ -->
+  <div class="section-title">Vehicle Components Inspected</div>
+
+  <!-- ═══════════ 3-COLUMN INSPECTION GRID ════════════════ -->
+  <!--
+    Each column contains category blocks.
+    Category block pattern:
+
+    <table class="cat-table">
+      <colgroup>
+        <col class="col-okna" /><col class="col-nr" />
+        <col class="col-date" /><col class="col-item" />
+      </colgroup>
+      <tr><td colspan="4" class="cat-name">CATEGORY NAME</td></tr>
+      <tr>
+        <td class="cat-subhdr">OK/NA</td>
+        <td class="cat-subhdr">NR</td>
+        <td class="cat-subhdr">DATE REP.</td>
+        <td class="cat-subhdr item-col">ITEM</td>
+      </tr>
+      {{REPEAT items}}
+      <tr class="item-row">
+        <td class="check-cell">✔</td>   ← if status=ok
+        <td class="check-cell"></td>
+        <td class="date-cell"></td>
+        <td class="item-name">Item label here</td>
+      </tr>
+      {{END items}}
+      <tr class="cat-bottom"><td colspan="4"></td></tr>
+    </table>
+  -->
+
+  <table class="grid-table">
+    <tr>
+
+      <!-- ── COLUMN 1 ── -->
+      <td class="grid-col">
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Brake System</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Service Brakes</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Parking Brake System</td></tr>
+          <tr class="item-row"><td></td><td class="check-cell">✔</td><td class="date-cell">04-03</td><td class="item-name">c. Brake Drums or Rotors</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Brake Hose</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">e. Brake Tubing</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">f. Low Pressure Warning</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">g. Air Compressor</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">h. Vacuum Systems</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">i. Electric Brakes</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">j. Hydraulic Brakes</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Brake Linings</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. L/F ___mm</td></tr>
+          <tr class="item-row"><td></td><td class="check-cell">✔</td><td class="date-cell">03-04</td><td class="item-name">b. R/F ___mm</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. L/R ___mm</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. R/R ___mm</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Lighting Devices</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Headlights</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Tail Lights</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Turn Signals</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Marker/Clearance</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">e. School Bus Warning</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">f. Indicator</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">g. Stop Arm/Crossing Arm</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">h. Back Up Alarm</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Glass/Glazing</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Cracks</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Discoloration</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Vision Obstruction</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Doors</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Entry Steps</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Stepwell Light</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Door Seals</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Grab Handles</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Fuel System</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Visible Leak</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Fuel Tank Filler Cap Missing</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Fuel Tank Mounting</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Tires</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Size</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. No. of Ply</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. L/F ___/32"</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. R/F ___/32"</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">e. R/R/O ___/32"</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">f. R/R/I ___/32"</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">g. L/R/I ___/32"</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">h. L/R/O ___/32"</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+      </td><!-- end col 1 -->
+
+      <!-- ── COLUMN 2 ── -->
+      <td class="grid-col">
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Steering Mechanism</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Steering System</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Steering Column</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Power Steering</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Safety Equipment (If Applicable)</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Fire Extinguisher</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. First Aid Kit</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Portable Warning Device</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Wrecking Bar</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Underbody</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Drive Shaft/Guards</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Spring Assembly</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Crossmembers</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Body Clips/Bolts</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">e. Shocks</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">f. Fluid Leaks</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">g. Undercoating</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">h. Carrier Bearings</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Wipers</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Wiper Inoperable</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Washer Inoperable</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Wiper Blades</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Wiper Sweep</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Exhaust System</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Mounting</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Leaks</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Transmission</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">Transmission</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Bus Exterior</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Condition</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Bumpers</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Rub Rails</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+      </td><!-- end col 2 -->
+
+      <!-- ── COLUMN 3 ── -->
+      <td class="grid-col">
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Underhood</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Belts</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Hoses</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Battery</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Antifreeze Leak</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">e. Oil Leak</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Emergency Exit</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Lettering</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Buzzers</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Landing Lights</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Door Slide Bar</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">e. Door Handles</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Bus Interior</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Instruments</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Heaters</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Defrosters</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Lights</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">e. Cleanliness</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">f. Seats</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Differential</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">Differential</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Mirrors</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Crossover</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Rearview/Convex</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Interior</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Mirror Adjustment</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+        <table class="cat-table">
+          <colgroup><col class="col-okna"/><col class="col-nr"/><col class="col-date"/><col class="col-item"/></colgroup>
+          <tr><td colspan="4" class="cat-name">Handicapped (If Applicable)</td></tr>
+          <tr><td class="cat-subhdr">OK/NA</td><td class="cat-subhdr">NR</td><td class="cat-subhdr">DATE REP.</td><td class="cat-subhdr item-col">ITEM</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">a. Power Lift</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">b. Lift Door</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">c. Buzzer</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">d. Interlock</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">e. Identification</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">f. Light</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">g. Fluid Leaks</td></tr>
+          <tr class="item-row"><td class="check-cell">✔</td><td></td><td class="date-cell"></td><td class="item-name">h. Manual Pump</td></tr>
+          <tr class="cat-bottom"><td colspan="4"></td></tr>
+        </table>
+
+      </td><!-- end col 3 -->
+
+    </tr>
+  </table>
+
+  <!-- ═══════════ CERTIFICATION ════════════════════════════ -->
+  <table class="cert-table">
+    <tr>
+      <td class="cert-cell">
+        <!-- {{certifiedPassed}} → add ✔ inside .cert-box if true -->
+        <span class="cert-box">✔</span>
+        <span class="cert-text">
+          <strong>CERTIFICATION:</strong> THIS VEHICLE HAS PASSED ALL THE INSPECTION ITEMS
+          FOR THE QUARTERLY VEHICLE INSPECTION REPORT.
+        </span>
+      </td>
+    </tr>
+  </table>
+
+  <!-- ═══════════ SUPPLEMENTAL (only if ROs exist) ════════ -->
+  <!-- {{#if relatedRepairs.length > 0}} -->
+  <table class="supp-table">
+    <tr><td colspan="5" class="supp-title">Work Performed Since Last Inspection</td></tr>
+    <tr>
+      <th style="width:10%">RO #</th>
+      <th style="width:12%">Date</th>
+      <th>Complaint / Work Done</th>
+      <th style="width:14%">Technician</th>
+      <th style="width:9%">Status</th>
+    </tr>
+    <!-- {{REPEAT relatedRepairs}} -->
+    <tr>
+      <td style="font-family:monospace">RO-00042</td>
+      <td>4/3/2026</td>
+      <td>Replaced brake drums — rear axle worn beyond spec</td>
+      <td>John Doe</td>
+      <td>Completed</td>
+    </tr>
+    <!-- {{END relatedRepairs}} -->
+  </table>
+  <!-- {{/if}} -->
+
+</div>
+</body>
+</html>
