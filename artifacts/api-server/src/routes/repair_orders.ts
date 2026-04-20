@@ -139,20 +139,35 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt } = req.body;
+  const { assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt, createdAt } = req.body;
 
   // Fetch previous status to detect completion transition
   const [prev] = await db.select({ status: repairOrdersTable.status }).from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
 
-  const [order] = await db.update(repairOrdersTable).set({
-    assignedToId, status, priority, complaint, diagnosis, notes,
-    parts: parts !== undefined ? parts : undefined,
-    estimatedHours, actualHours,
-    mileageIn, mileageOut,
-    promisedDate: promisedDate ? new Date(promisedDate) : undefined,
-    completedAt: completedAt ? new Date(completedAt) : (status === "completed" && prev?.status !== "completed" ? new Date() : undefined),
-    updatedAt: new Date(),
-  }).where(eq(repairOrdersTable.id, id)).returning();
+  // Build update payload — only include fields explicitly present in the body so we don't overwrite with undefined
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (assignedToId !== undefined) updates.assignedToId = assignedToId === null || assignedToId === "" ? null : Number(assignedToId);
+  if (status !== undefined) updates.status = status;
+  if (priority !== undefined) updates.priority = priority;
+  if (complaint !== undefined) updates.complaint = complaint;
+  if (diagnosis !== undefined) updates.diagnosis = diagnosis;
+  if (notes !== undefined) updates.notes = notes;
+  if (parts !== undefined) updates.parts = parts;
+  if (estimatedHours !== undefined) updates.estimatedHours = estimatedHours === null || estimatedHours === "" ? null : estimatedHours;
+  if (actualHours !== undefined) updates.actualHours = actualHours === null || actualHours === "" ? null : actualHours;
+  if (mileageIn !== undefined) updates.mileageIn = mileageIn === null || mileageIn === "" ? null : Number(mileageIn);
+  if (mileageOut !== undefined) updates.mileageOut = mileageOut === null || mileageOut === "" ? null : Number(mileageOut);
+  if (promisedDate !== undefined) updates.promisedDate = promisedDate ? new Date(promisedDate) : null;
+  if (createdAt !== undefined && createdAt !== null && createdAt !== "") updates.createdAt = new Date(createdAt);
+
+  // Auto-set completedAt on transition to completed; allow explicit override
+  if (completedAt !== undefined) {
+    updates.completedAt = completedAt ? new Date(completedAt) : null;
+  } else if (status === "completed" && prev?.status !== "completed") {
+    updates.completedAt = new Date();
+  }
+
+  const [order] = await db.update(repairOrdersTable).set(updates).where(eq(repairOrdersTable.id, id)).returning();
 
   if (!order) return res.status(404).json({ error: "Repair order not found" });
 

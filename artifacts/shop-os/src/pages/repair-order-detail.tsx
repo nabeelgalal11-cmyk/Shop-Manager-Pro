@@ -5,13 +5,14 @@ import {
   useGetRepairOrder, getGetRepairOrderQueryKey,
   useUpdateRepairOrder, useDeleteRepairOrder,
   useGetInventory, getGetInventoryQueryKey,
+  useGetEmployees, getGetEmployeesQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car } from "lucide-react";
+import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -78,8 +79,122 @@ export default function RepairOrderDetail() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
+  // ── Edit Details mode ──────────────────────────────
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [editForm, setEditForm] = useState<{
+    createdAt: string;
+    priority: string;
+    assignedToId: string;
+    mileageIn: string;
+    mileageOut: string;
+    estimatedHours: string;
+    actualHours: string;
+    promisedDate: string;
+    complaint: string;
+    notes: string;
+  } | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const { data: employeesData } = useGetEmployees(
+    { role: "technician" },
+    { query: { queryKey: getGetEmployeesQueryKey({ role: "technician" }), enabled: editingDetails } }
+  );
+  const techList = Array.isArray(employeesData) ? employeesData : employeesData?.data ?? [];
+
   const updateRO = useUpdateRepairOrder();
   const deleteRO = useDeleteRepairOrder();
+
+  const toDateInput = (v: any) => {
+    if (!v) return "";
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return "";
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60000);
+    return local.toISOString().slice(0, 10);
+  };
+
+  const startEdit = () => {
+    if (!ro) return;
+    setEditForm({
+      createdAt: toDateInput(ro.createdAt),
+      priority: ro.priority || "normal",
+      assignedToId: ro.assignedToId ? String(ro.assignedToId) : "none",
+      mileageIn: ro.mileageIn != null ? String(ro.mileageIn) : "",
+      mileageOut: ro.mileageOut != null ? String(ro.mileageOut) : "",
+      estimatedHours: ro.estimatedHours != null ? String(ro.estimatedHours) : "",
+      actualHours: ro.actualHours != null ? String(ro.actualHours) : "",
+      promisedDate: toDateInput(ro.promisedDate),
+      complaint: ro.complaint ?? "",
+      notes: ro.notes ?? "",
+    });
+    setEditError(null);
+    setEditingDetails(true);
+  };
+
+  const cancelEdit = () => {
+    setEditingDetails(false);
+    setEditForm(null);
+    setEditError(null);
+  };
+
+  const saveEdit = () => {
+    if (!editForm) return;
+    setEditError(null);
+
+    // Validate
+    const numOrErr = (v: string, label: string, allowDecimal: boolean) => {
+      if (v.trim() === "") return { ok: true, value: null };
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0 || (!allowDecimal && !Number.isInteger(n))) {
+        return { ok: false, error: `${label} must be a positive number` };
+      }
+      return { ok: true, value: n };
+    };
+
+    const mIn = numOrErr(editForm.mileageIn, "Mileage In", false);
+    if (!mIn.ok) return setEditError(mIn.error!);
+    const mOut = numOrErr(editForm.mileageOut, "Mileage Out", false);
+    if (!mOut.ok) return setEditError(mOut.error!);
+    const est = numOrErr(editForm.estimatedHours, "Estimated Hours", true);
+    if (!est.ok) return setEditError(est.error!);
+    const act = numOrErr(editForm.actualHours, "Actual Hours", true);
+    if (!act.ok) return setEditError(act.error!);
+
+    if (editForm.createdAt && isNaN(new Date(editForm.createdAt).getTime())) {
+      return setEditError("Created date is invalid");
+    }
+    if (editForm.promisedDate && isNaN(new Date(editForm.promisedDate).getTime())) {
+      return setEditError("Promised date is invalid");
+    }
+
+    const payload: any = {
+      priority: editForm.priority,
+      assignedToId: editForm.assignedToId === "none" ? null : Number(editForm.assignedToId),
+      mileageIn: mIn.value,
+      mileageOut: mOut.value,
+      estimatedHours: est.value,
+      actualHours: act.value,
+      promisedDate: editForm.promisedDate ? new Date(editForm.promisedDate).toISOString() : null,
+      complaint: editForm.complaint,
+      notes: editForm.notes,
+    };
+    if (editForm.createdAt) {
+      payload.createdAt = new Date(editForm.createdAt).toISOString();
+    }
+
+    updateRO.mutate({ id, data: payload }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
+        toast({ title: "Repair order updated" });
+        setEditingDetails(false);
+        setEditForm(null);
+      },
+      onError: () => {
+        setEditError("Failed to save changes. Please try again.");
+        toast({ title: "Failed to save", variant: "destructive" });
+      },
+    });
+  };
 
   const currentDiagnosis = diagnosis !== null ? diagnosis : (ro?.diagnosis ?? "");
   const currentParts: Part[] = parts !== null ? parts : ((ro?.parts as Part[]) ?? []);
@@ -508,60 +623,210 @@ export default function RepairOrderDetail() {
         {/* Sidebar */}
         <div className="space-y-6">
           <Card>
-            <CardHeader className="bg-muted/20 border-b pb-3">
+            <CardHeader className="bg-muted/20 border-b pb-3 flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Details</CardTitle>
+              {!editingDetails && (
+                <Button variant="ghost" size="sm" className="h-7 -mr-2" onClick={startEdit}>
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="pt-5 space-y-4 text-sm">
-              <div>
-                <p className="text-muted-foreground mb-1">Status</p>
-                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[ro.status] || "bg-gray-100 text-gray-700"}`}>
-                  {ro.status.replace("_", " ")}
-                </span>
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1">Priority</p>
-                <Badge variant={ro.priority === "urgent" ? "destructive" : "secondary"} className="capitalize">
-                  {ro.priority}
-                </Badge>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-muted-foreground mb-1">Assigned Technician</p>
-                <p className="font-medium">
-                  {ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned"}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1">Mileage In</p>
-                <p className="font-medium">{ro.mileageIn ? ro.mileageIn.toLocaleString() + " mi" : "—"}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1">Estimated Hours</p>
-                <p className="font-medium">{ro.estimatedHours ? ro.estimatedHours + " hrs" : "—"}</p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-muted-foreground mb-1">Created</p>
-                <p className="font-medium">{new Date(ro.createdAt).toLocaleDateString()}</p>
-              </div>
-              {ro.promisedDate && (
-                <div>
-                  <p className="text-muted-foreground mb-1">Promised Date</p>
-                  <p className="font-medium">{new Date(ro.promisedDate).toLocaleDateString()}</p>
-                </div>
-              )}
-              {currentParts.length > 0 && (
+              {!editingDetails && (
                 <>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Status</p>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[ro.status] || "bg-gray-100 text-gray-700"}`}>
+                      {ro.status.replace("_", " ")}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground mb-1">Priority</p>
+                    <Badge variant={ro.priority === "urgent" ? "destructive" : "secondary"} className="capitalize">
+                      {ro.priority}
+                    </Badge>
+                  </div>
                   <Separator />
                   <div>
-                    <p className="text-muted-foreground mb-1">Parts</p>
-                    <p className="font-medium">{currentParts.length} part{currentParts.length !== 1 ? "s" : ""}</p>
+                    <p className="text-muted-foreground mb-1">Assigned Technician</p>
+                    <p className="font-medium">
+                      {ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground mb-1">Parts Total</p>
-                    <p className="font-bold text-base">${partsTotal.toFixed(2)}</p>
+                    <p className="text-muted-foreground mb-1">Mileage In</p>
+                    <p className="font-medium">{ro.mileageIn ? ro.mileageIn.toLocaleString() + " mi" : "—"}</p>
                   </div>
+                  {ro.mileageOut != null && (
+                    <div>
+                      <p className="text-muted-foreground mb-1">Mileage Out</p>
+                      <p className="font-medium">{ro.mileageOut.toLocaleString()} mi</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-muted-foreground mb-1">Estimated Hours</p>
+                    <p className="font-medium">{ro.estimatedHours ? ro.estimatedHours + " hrs" : "—"}</p>
+                  </div>
+                  {ro.actualHours != null && (
+                    <div>
+                      <p className="text-muted-foreground mb-1">Actual Hours</p>
+                      <p className="font-medium">{ro.actualHours} hrs</p>
+                    </div>
+                  )}
+                  <Separator />
+                  <div>
+                    <p className="text-muted-foreground mb-1">Created</p>
+                    <p className="font-medium">{new Date(ro.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  {ro.promisedDate && (
+                    <div>
+                      <p className="text-muted-foreground mb-1">Promised Date</p>
+                      <p className="font-medium">{new Date(ro.promisedDate).toLocaleDateString()}</p>
+                    </div>
+                  )}
+                  {ro.notes && (
+                    <>
+                      <Separator />
+                      <div>
+                        <p className="text-muted-foreground mb-1">Internal Notes</p>
+                        <p className="font-medium whitespace-pre-wrap">{ro.notes}</p>
+                      </div>
+                    </>
+                  )}
+                  {currentParts.length > 0 && (
+                    <>
+                      <Separator />
+                      <div>
+                        <p className="text-muted-foreground mb-1">Parts</p>
+                        <p className="font-medium">{currentParts.length} part{currentParts.length !== 1 ? "s" : ""}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground mb-1">Parts Total</p>
+                        <p className="font-bold text-base">${partsTotal.toFixed(2)}</p>
+                      </div>
+                    </>
+                  )}
                 </>
+              )}
+
+              {editingDetails && editForm && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Created Date</label>
+                    <Input
+                      type="date"
+                      value={editForm.createdAt}
+                      onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Priority</label>
+                    <Select value={editForm.priority} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Assigned Technician</label>
+                    <Select value={editForm.assignedToId} onValueChange={(v) => setEditForm({ ...editForm, assignedToId: v })}>
+                      <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Unassigned</SelectItem>
+                        {techList.map(e => (
+                          <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Mileage In</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={editForm.mileageIn}
+                        onChange={(e) => setEditForm({ ...editForm, mileageIn: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Mileage Out</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={editForm.mileageOut}
+                        onChange={(e) => setEditForm({ ...editForm, mileageOut: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Est. Hours</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.25}
+                        value={editForm.estimatedHours}
+                        onChange={(e) => setEditForm({ ...editForm, estimatedHours: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Actual Hours</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.25}
+                        value={editForm.actualHours}
+                        onChange={(e) => setEditForm({ ...editForm, actualHours: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Promised Date</label>
+                    <Input
+                      type="date"
+                      value={editForm.promisedDate}
+                      onChange={(e) => setEditForm({ ...editForm, promisedDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Customer Complaint</label>
+                    <Textarea
+                      rows={3}
+                      value={editForm.complaint}
+                      onChange={(e) => setEditForm({ ...editForm, complaint: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Internal Notes</label>
+                    <Textarea
+                      rows={3}
+                      placeholder="Notes visible only to shop staff..."
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    />
+                  </div>
+
+                  {editError && (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      {editError}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button size="sm" onClick={saveEdit} disabled={updateRO.isPending} className="flex-1">
+                      <Save className="h-3.5 w-3.5 mr-1.5" />
+                      {updateRO.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={cancelEdit} disabled={updateRO.isPending}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
