@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { EmployeeRole } from "./employeeRole";
+import type { EmployeeRolesItem } from "./employeeRolesItem";
 
 export interface Employee {
   id: number;
@@ -13,7 +14,9 @@ export interface Employee {
   lastName: string;
   email?: string;
   phone?: string;
+  /** Legacy primary role; prefer 'roles' for multi-role support. */
   role: EmployeeRole;
+  roles?: EmployeeRolesItem[];
   hourlyRate?: number;
   active: boolean;
   hireDate?: Date;

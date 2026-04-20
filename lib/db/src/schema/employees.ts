@@ -1,4 +1,5 @@
 import { pgTable, serial, text, numeric, boolean, date, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,6 +10,7 @@ export const employeesTable = pgTable("employees", {
   email: text("email"),
   phone: text("phone"),
   role: text("role").notNull().default("technician"),
+  roles: text("roles").array().notNull().default(sql`ARRAY[]::text[]`),
   hourlyRate: numeric("hourly_rate", { precision: 10, scale: 2 }),
   active: boolean("active").notNull().default(true),
   hireDate: date("hire_date"),

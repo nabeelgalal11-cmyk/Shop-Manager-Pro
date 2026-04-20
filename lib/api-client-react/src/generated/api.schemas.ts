@@ -317,9 +317,23 @@ export const RepairOrderPriority = {
   urgent: "urgent",
 } as const;
 
+/**
+ * Legacy primary role; prefer 'roles' for multi-role support.
+ */
 export type EmployeeRole = (typeof EmployeeRole)[keyof typeof EmployeeRole];
 
 export const EmployeeRole = {
+  technician: "technician",
+  service_advisor: "service_advisor",
+  manager: "manager",
+  admin: "admin",
+  receptionist: "receptionist",
+} as const;
+
+export type EmployeeRolesItem =
+  (typeof EmployeeRolesItem)[keyof typeof EmployeeRolesItem];
+
+export const EmployeeRolesItem = {
   technician: "technician",
   service_advisor: "service_advisor",
   manager: "manager",
@@ -333,7 +347,9 @@ export interface Employee {
   lastName: string;
   email?: string;
   phone?: string;
+  /** Legacy primary role; prefer 'roles' for multi-role support. */
   role: EmployeeRole;
+  roles?: EmployeeRolesItem[];
   hourlyRate?: number;
   active: boolean;
   hireDate?: string;
@@ -666,12 +682,24 @@ export const CreateEmployeeInputRole = {
   receptionist: "receptionist",
 } as const;
 
+export type CreateEmployeeInputRolesItem =
+  (typeof CreateEmployeeInputRolesItem)[keyof typeof CreateEmployeeInputRolesItem];
+
+export const CreateEmployeeInputRolesItem = {
+  technician: "technician",
+  service_advisor: "service_advisor",
+  manager: "manager",
+  admin: "admin",
+  receptionist: "receptionist",
+} as const;
+
 export interface CreateEmployeeInput {
   firstName: string;
   lastName: string;
   email?: string;
   phone?: string;
-  role: CreateEmployeeInputRole;
+  role?: CreateEmployeeInputRole;
+  roles?: CreateEmployeeInputRolesItem[];
   hourlyRate?: number;
   active?: boolean;
   hireDate?: string;

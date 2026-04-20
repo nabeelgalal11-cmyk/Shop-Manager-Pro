@@ -6,12 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Legacy primary role; prefer 'roles' for multi-role support.
- */
-export type EmployeeRole = (typeof EmployeeRole)[keyof typeof EmployeeRole];
+export type EmployeeRolesItem =
+  (typeof EmployeeRolesItem)[keyof typeof EmployeeRolesItem];
 
-export const EmployeeRole = {
+export const EmployeeRolesItem = {
   technician: "technician",
   service_advisor: "service_advisor",
   manager: "manager",

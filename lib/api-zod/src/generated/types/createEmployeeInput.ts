@@ -6,13 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CreateEmployeeInputRole } from "./createEmployeeInputRole";
+import type { CreateEmployeeInputRolesItem } from "./createEmployeeInputRolesItem";
 
 export interface CreateEmployeeInput {
   firstName: string;
   lastName: string;
   email?: string;
   phone?: string;
-  role: CreateEmployeeInputRole;
+  role?: CreateEmployeeInputRole;
+  roles?: CreateEmployeeInputRolesItem[];
   hourlyRate?: number;
   active?: boolean;
   hireDate?: Date;

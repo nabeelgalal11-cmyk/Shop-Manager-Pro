@@ -2585,6 +2585,12 @@ components:
         role:
           type: string
           enum: [technician, service_advisor, manager, admin, receptionist]
+          description: "Legacy primary role; prefer 'roles' for multi-role support."
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [technician, service_advisor, manager, admin, receptionist]
         hourlyRate:
           type: number
         active:
@@ -2625,6 +2631,11 @@ components:
         role:
           type: string
           enum: [technician, service_advisor, manager, admin, receptionist]
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [technician, service_advisor, manager, admin, receptionist]
         hourlyRate:
           type: number
         active:
@@ -2637,7 +2648,6 @@ components:
       required:
         - firstName
         - lastName
-        - role
 
     TimeEntry:
       type: object

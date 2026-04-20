@@ -1449,13 +1449,28 @@ export const GetRepairOrdersResponse = zod.object({
           lastName: zod.string(),
           email: zod.string().optional(),
           phone: zod.string().optional(),
-          role: zod.enum([
-            "technician",
-            "service_advisor",
-            "manager",
-            "admin",
-            "receptionist",
-          ]),
+          role: zod
+            .enum([
+              "technician",
+              "service_advisor",
+              "manager",
+              "admin",
+              "receptionist",
+            ])
+            .describe(
+              "Legacy primary role; prefer 'roles' for multi-role support.",
+            ),
+          roles: zod
+            .array(
+              zod.enum([
+                "technician",
+                "service_advisor",
+                "manager",
+                "admin",
+                "receptionist",
+              ]),
+            )
+            .optional(),
           hourlyRate: zod.number().optional(),
           active: zod.boolean(),
           hireDate: zod.coerce.date().optional(),
@@ -1596,13 +1611,28 @@ export const GetRepairOrderResponse = zod.object({
       lastName: zod.string(),
       email: zod.string().optional(),
       phone: zod.string().optional(),
-      role: zod.enum([
-        "technician",
-        "service_advisor",
-        "manager",
-        "admin",
-        "receptionist",
-      ]),
+      role: zod
+        .enum([
+          "technician",
+          "service_advisor",
+          "manager",
+          "admin",
+          "receptionist",
+        ])
+        .describe(
+          "Legacy primary role; prefer 'roles' for multi-role support.",
+        ),
+      roles: zod
+        .array(
+          zod.enum([
+            "technician",
+            "service_advisor",
+            "manager",
+            "admin",
+            "receptionist",
+          ]),
+        )
+        .optional(),
       hourlyRate: zod.number().optional(),
       active: zod.boolean(),
       hireDate: zod.coerce.date().optional(),
@@ -1748,13 +1778,28 @@ export const UpdateRepairOrderResponse = zod.object({
       lastName: zod.string(),
       email: zod.string().optional(),
       phone: zod.string().optional(),
-      role: zod.enum([
-        "technician",
-        "service_advisor",
-        "manager",
-        "admin",
-        "receptionist",
-      ]),
+      role: zod
+        .enum([
+          "technician",
+          "service_advisor",
+          "manager",
+          "admin",
+          "receptionist",
+        ])
+        .describe(
+          "Legacy primary role; prefer 'roles' for multi-role support.",
+        ),
+      roles: zod
+        .array(
+          zod.enum([
+            "technician",
+            "service_advisor",
+            "manager",
+            "admin",
+            "receptionist",
+          ]),
+        )
+        .optional(),
       hourlyRate: zod.number().optional(),
       active: zod.boolean(),
       hireDate: zod.coerce.date().optional(),
@@ -1981,13 +2026,28 @@ export const GetInspectionsResponse = zod.object({
           lastName: zod.string(),
           email: zod.string().optional(),
           phone: zod.string().optional(),
-          role: zod.enum([
-            "technician",
-            "service_advisor",
-            "manager",
-            "admin",
-            "receptionist",
-          ]),
+          role: zod
+            .enum([
+              "technician",
+              "service_advisor",
+              "manager",
+              "admin",
+              "receptionist",
+            ])
+            .describe(
+              "Legacy primary role; prefer 'roles' for multi-role support.",
+            ),
+          roles: zod
+            .array(
+              zod.enum([
+                "technician",
+                "service_advisor",
+                "manager",
+                "admin",
+                "receptionist",
+              ]),
+            )
+            .optional(),
           hourlyRate: zod.number().optional(),
           active: zod.boolean(),
           hireDate: zod.coerce.date().optional(),
@@ -2101,13 +2161,28 @@ export const GetInspectionResponse = zod.object({
       lastName: zod.string(),
       email: zod.string().optional(),
       phone: zod.string().optional(),
-      role: zod.enum([
-        "technician",
-        "service_advisor",
-        "manager",
-        "admin",
-        "receptionist",
-      ]),
+      role: zod
+        .enum([
+          "technician",
+          "service_advisor",
+          "manager",
+          "admin",
+          "receptionist",
+        ])
+        .describe(
+          "Legacy primary role; prefer 'roles' for multi-role support.",
+        ),
+      roles: zod
+        .array(
+          zod.enum([
+            "technician",
+            "service_advisor",
+            "manager",
+            "admin",
+            "receptionist",
+          ]),
+        )
+        .optional(),
       hourlyRate: zod.number().optional(),
       active: zod.boolean(),
       hireDate: zod.coerce.date().optional(),
@@ -2213,13 +2288,28 @@ export const UpdateInspectionResponse = zod.object({
       lastName: zod.string(),
       email: zod.string().optional(),
       phone: zod.string().optional(),
-      role: zod.enum([
-        "technician",
-        "service_advisor",
-        "manager",
-        "admin",
-        "receptionist",
-      ]),
+      role: zod
+        .enum([
+          "technician",
+          "service_advisor",
+          "manager",
+          "admin",
+          "receptionist",
+        ])
+        .describe(
+          "Legacy primary role; prefer 'roles' for multi-role support.",
+        ),
+      roles: zod
+        .array(
+          zod.enum([
+            "technician",
+            "service_advisor",
+            "manager",
+            "admin",
+            "receptionist",
+          ]),
+        )
+        .optional(),
       hourlyRate: zod.number().optional(),
       active: zod.boolean(),
       hireDate: zod.coerce.date().optional(),
@@ -2338,13 +2428,28 @@ export const GetAppointmentsResponse = zod.object({
           lastName: zod.string(),
           email: zod.string().optional(),
           phone: zod.string().optional(),
-          role: zod.enum([
-            "technician",
-            "service_advisor",
-            "manager",
-            "admin",
-            "receptionist",
-          ]),
+          role: zod
+            .enum([
+              "technician",
+              "service_advisor",
+              "manager",
+              "admin",
+              "receptionist",
+            ])
+            .describe(
+              "Legacy primary role; prefer 'roles' for multi-role support.",
+            ),
+          roles: zod
+            .array(
+              zod.enum([
+                "technician",
+                "service_advisor",
+                "manager",
+                "admin",
+                "receptionist",
+              ]),
+            )
+            .optional(),
           hourlyRate: zod.number().optional(),
           active: zod.boolean(),
           hireDate: zod.coerce.date().optional(),
@@ -2477,13 +2582,28 @@ export const GetAppointmentResponse = zod.object({
       lastName: zod.string(),
       email: zod.string().optional(),
       phone: zod.string().optional(),
-      role: zod.enum([
-        "technician",
-        "service_advisor",
-        "manager",
-        "admin",
-        "receptionist",
-      ]),
+      role: zod
+        .enum([
+          "technician",
+          "service_advisor",
+          "manager",
+          "admin",
+          "receptionist",
+        ])
+        .describe(
+          "Legacy primary role; prefer 'roles' for multi-role support.",
+        ),
+      roles: zod
+        .array(
+          zod.enum([
+            "technician",
+            "service_advisor",
+            "manager",
+            "admin",
+            "receptionist",
+          ]),
+        )
+        .optional(),
       hourlyRate: zod.number().optional(),
       active: zod.boolean(),
       hireDate: zod.coerce.date().optional(),
@@ -2608,13 +2728,28 @@ export const UpdateAppointmentResponse = zod.object({
       lastName: zod.string(),
       email: zod.string().optional(),
       phone: zod.string().optional(),
-      role: zod.enum([
-        "technician",
-        "service_advisor",
-        "manager",
-        "admin",
-        "receptionist",
-      ]),
+      role: zod
+        .enum([
+          "technician",
+          "service_advisor",
+          "manager",
+          "admin",
+          "receptionist",
+        ])
+        .describe(
+          "Legacy primary role; prefer 'roles' for multi-role support.",
+        ),
+      roles: zod
+        .array(
+          zod.enum([
+            "technician",
+            "service_advisor",
+            "manager",
+            "admin",
+            "receptionist",
+          ]),
+        )
+        .optional(),
       hourlyRate: zod.number().optional(),
       active: zod.boolean(),
       hireDate: zod.coerce.date().optional(),
@@ -2744,13 +2879,20 @@ export const GetEmployeesResponseItem = zod.object({
   lastName: zod.string(),
   email: zod.string().optional(),
   phone: zod.string().optional(),
-  role: zod.enum([
-    "technician",
-    "service_advisor",
-    "manager",
-    "admin",
-    "receptionist",
-  ]),
+  role: zod
+    .enum(["technician", "service_advisor", "manager", "admin", "receptionist"])
+    .describe("Legacy primary role; prefer 'roles' for multi-role support."),
+  roles: zod
+    .array(
+      zod.enum([
+        "technician",
+        "service_advisor",
+        "manager",
+        "admin",
+        "receptionist",
+      ]),
+    )
+    .optional(),
   hourlyRate: zod.number().optional(),
   active: zod.boolean(),
   hireDate: zod.coerce.date().optional(),
@@ -2769,13 +2911,20 @@ export const CreateEmployeeBody = zod.object({
   lastName: zod.string(),
   email: zod.string().optional(),
   phone: zod.string().optional(),
-  role: zod.enum([
-    "technician",
-    "service_advisor",
-    "manager",
-    "admin",
-    "receptionist",
-  ]),
+  role: zod
+    .enum(["technician", "service_advisor", "manager", "admin", "receptionist"])
+    .optional(),
+  roles: zod
+    .array(
+      zod.enum([
+        "technician",
+        "service_advisor",
+        "manager",
+        "admin",
+        "receptionist",
+      ]),
+    )
+    .optional(),
   hourlyRate: zod.number().optional(),
   active: zod.boolean().optional(),
   hireDate: zod.coerce.date().optional(),
@@ -2795,13 +2944,20 @@ export const GetEmployeeResponse = zod.object({
   lastName: zod.string(),
   email: zod.string().optional(),
   phone: zod.string().optional(),
-  role: zod.enum([
-    "technician",
-    "service_advisor",
-    "manager",
-    "admin",
-    "receptionist",
-  ]),
+  role: zod
+    .enum(["technician", "service_advisor", "manager", "admin", "receptionist"])
+    .describe("Legacy primary role; prefer 'roles' for multi-role support."),
+  roles: zod
+    .array(
+      zod.enum([
+        "technician",
+        "service_advisor",
+        "manager",
+        "admin",
+        "receptionist",
+      ]),
+    )
+    .optional(),
   hourlyRate: zod.number().optional(),
   active: zod.boolean(),
   hireDate: zod.coerce.date().optional(),
@@ -2823,13 +2979,20 @@ export const UpdateEmployeeBody = zod.object({
   lastName: zod.string(),
   email: zod.string().optional(),
   phone: zod.string().optional(),
-  role: zod.enum([
-    "technician",
-    "service_advisor",
-    "manager",
-    "admin",
-    "receptionist",
-  ]),
+  role: zod
+    .enum(["technician", "service_advisor", "manager", "admin", "receptionist"])
+    .optional(),
+  roles: zod
+    .array(
+      zod.enum([
+        "technician",
+        "service_advisor",
+        "manager",
+        "admin",
+        "receptionist",
+      ]),
+    )
+    .optional(),
   hourlyRate: zod.number().optional(),
   active: zod.boolean().optional(),
   hireDate: zod.coerce.date().optional(),
@@ -2842,13 +3005,20 @@ export const UpdateEmployeeResponse = zod.object({
   lastName: zod.string(),
   email: zod.string().optional(),
   phone: zod.string().optional(),
-  role: zod.enum([
-    "technician",
-    "service_advisor",
-    "manager",
-    "admin",
-    "receptionist",
-  ]),
+  role: zod
+    .enum(["technician", "service_advisor", "manager", "admin", "receptionist"])
+    .describe("Legacy primary role; prefer 'roles' for multi-role support."),
+  roles: zod
+    .array(
+      zod.enum([
+        "technician",
+        "service_advisor",
+        "manager",
+        "admin",
+        "receptionist",
+      ]),
+    )
+    .optional(),
   hourlyRate: zod.number().optional(),
   active: zod.boolean(),
   hireDate: zod.coerce.date().optional(),
@@ -2893,13 +3063,28 @@ export const ClockOutResponse = zod.object({
       lastName: zod.string(),
       email: zod.string().optional(),
       phone: zod.string().optional(),
-      role: zod.enum([
-        "technician",
-        "service_advisor",
-        "manager",
-        "admin",
-        "receptionist",
-      ]),
+      role: zod
+        .enum([
+          "technician",
+          "service_advisor",
+          "manager",
+          "admin",
+          "receptionist",
+        ])
+        .describe(
+          "Legacy primary role; prefer 'roles' for multi-role support.",
+        ),
+      roles: zod
+        .array(
+          zod.enum([
+            "technician",
+            "service_advisor",
+            "manager",
+            "admin",
+            "receptionist",
+          ]),
+        )
+        .optional(),
       hourlyRate: zod.number().optional(),
       active: zod.boolean(),
       hireDate: zod.coerce.date().optional(),
@@ -2942,13 +3127,28 @@ export const GetTimeEntriesResponse = zod.object({
           lastName: zod.string(),
           email: zod.string().optional(),
           phone: zod.string().optional(),
-          role: zod.enum([
-            "technician",
-            "service_advisor",
-            "manager",
-            "admin",
-            "receptionist",
-          ]),
+          role: zod
+            .enum([
+              "technician",
+              "service_advisor",
+              "manager",
+              "admin",
+              "receptionist",
+            ])
+            .describe(
+              "Legacy primary role; prefer 'roles' for multi-role support.",
+            ),
+          roles: zod
+            .array(
+              zod.enum([
+                "technician",
+                "service_advisor",
+                "manager",
+                "admin",
+                "receptionist",
+              ]),
+            )
+            .optional(),
           hourlyRate: zod.number().optional(),
           active: zod.boolean(),
           hireDate: zod.coerce.date().optional(),
