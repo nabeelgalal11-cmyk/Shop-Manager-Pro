@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useGetCustomer, getGetCustomerQueryKey,
   useGetCustomerVehicles, getGetCustomerVehiclesQueryKey,
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +38,14 @@ export default function CustomerDetail() {
   const { data: customer, isLoading } = useGetCustomer(id, {
     query: { enabled: !!id, queryKey: getGetCustomerQueryKey(id) },
   });
+
+  const { data: categories = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ["/api/customer-categories"],
+    queryFn: () => fetch("/api/customer-categories").then(r => r.json()),
+  });
+  const customerCategoryName = (customer as any)?.categoryId
+    ? categories.find(c => c.id === (customer as any).categoryId)?.name
+    : null;
 
   const { data: vehicles } = useGetCustomerVehicles(id, {
     query: { enabled: !!id, queryKey: getGetCustomerVehiclesQueryKey(id) },
@@ -69,12 +78,18 @@ export default function CustomerDetail() {
       state: customer?.state ?? "",
       zip: customer?.zip ?? "",
       notes: customer?.notes ?? "",
+      categoryId: (customer as any)?.categoryId ? String((customer as any).categoryId) : "none",
     });
     setEditOpen(true);
   };
 
   const handleSave = () => {
-    updateCustomer.mutate({ id, data: editForm }, {
+    const { categoryId, ...rest } = editForm;
+    const payload = {
+      ...rest,
+      categoryId: categoryId && categoryId !== "none" ? Number(categoryId) : null,
+    };
+    updateCustomer.mutate({ id, data: payload as any }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(id) });
         toast({ title: "Customer updated" });
@@ -153,6 +168,12 @@ export default function CustomerDetail() {
                 </p>
               </div>
             </div>
+            {customerCategoryName && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm font-semibold mb-1">Pricing Category</p>
+                <Badge variant="secondary">{customerCategoryName}</Badge>
+              </div>
+            )}
             {customer.notes && (
               <div className="mt-4 pt-4 border-t">
                 <p className="text-sm font-semibold mb-1">Notes</p>
@@ -294,6 +315,23 @@ export default function CustomerDetail() {
                 <Label>ZIP</Label>
                 <Input value={editForm.zip || ""} onChange={e => setEditForm((f: any) => ({ ...f, zip: e.target.value }))} />
               </div>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label>Pricing Category</Label>
+              <Select
+                value={editForm.categoryId || "none"}
+                onValueChange={v => setEditForm((f: any) => ({ ...f, categoryId: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={String(cat.id)}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>Notes</Label>
