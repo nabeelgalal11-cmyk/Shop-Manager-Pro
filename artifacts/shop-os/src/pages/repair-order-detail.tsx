@@ -6,6 +6,8 @@ import {
   useUpdateRepairOrder, useDeleteRepairOrder,
   useGetInventory, getGetInventoryQueryKey,
   useGetEmployees, getGetEmployeesQueryKey,
+  type UpdateRepairOrderInput,
+  type UpdateRepairOrderInputStatus,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -167,19 +169,19 @@ export default function RepairOrderDetail() {
       return setEditError("Promised date is invalid");
     }
 
-    const payload: any = {
+    const payload: UpdateRepairOrderInput = {
       priority: editForm.priority,
       assignedToId: editForm.assignedToId === "none" ? null : Number(editForm.assignedToId),
       mileageIn: mIn.value,
       mileageOut: mOut.value,
       estimatedHours: est.value,
       actualHours: act.value,
-      promisedDate: editForm.promisedDate ? new Date(editForm.promisedDate).toISOString() : null,
+      promisedDate: editForm.promisedDate ? new Date(editForm.promisedDate) : null,
       complaint: editForm.complaint,
       notes: editForm.notes,
     };
     if (editForm.createdAt) {
-      payload.createdAt = new Date(editForm.createdAt).toISOString();
+      payload.createdAt = new Date(editForm.createdAt);
     }
 
     updateRO.mutate({ id, data: payload }, {
@@ -245,7 +247,7 @@ export default function RepairOrderDetail() {
   };
 
   const saveDiagnosis = () => {
-    updateRO.mutate({ id, data: { diagnosis: currentDiagnosis } as any }, {
+    updateRO.mutate({ id, data: { diagnosis: currentDiagnosis } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
         toast({ title: "Diagnosis saved" });
@@ -255,7 +257,7 @@ export default function RepairOrderDetail() {
   };
 
   const saveParts = (updated: Part[]) => {
-    updateRO.mutate({ id, data: { parts: updated } as any }, {
+    updateRO.mutate({ id, data: { parts: updated } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
         toast({ title: "Parts updated" });
@@ -282,8 +284,8 @@ export default function RepairOrderDetail() {
     saveParts(updated);
   };
 
-  const updateStatus = (newStatus: any) => {
-    updateRO.mutate({ id, data: { status: newStatus } as any }, {
+  const updateStatus = (newStatus: UpdateRepairOrderInputStatus) => {
+    updateRO.mutate({ id, data: { status: newStatus } }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
         toast({ title: "Status updated" });

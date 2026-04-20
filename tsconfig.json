@@ -12,7 +12,7 @@
     {
       "path": "./lib/api-zod"
     },
-    { "path": "./api-server" },
+    { "path": "./artifacts/api-server" },
     { "path": "./lib/object-storage-web" }
   ]
 }

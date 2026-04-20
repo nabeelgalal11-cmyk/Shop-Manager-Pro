@@ -2127,6 +2127,7 @@ components:
       properties:
         assignedToId:
           type: integer
+          nullable: true
         status:
           type: string
           enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
@@ -2139,18 +2140,43 @@ components:
           type: string
         notes:
           type: string
+        parts:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              partNumber:
+                type: string
+              quantity:
+                type: number
+              unitPrice:
+                type: number
+              fromInventory:
+                type: boolean
+            required: [name, quantity, unitPrice]
         estimatedHours:
           type: number
+          nullable: true
         actualHours:
           type: number
+          nullable: true
         mileageIn:
           type: integer
+          nullable: true
         mileageOut:
           type: integer
+          nullable: true
         promisedDate:
           type: string
           format: date-time
+          nullable: true
         completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
           type: string
           format: date-time
 
