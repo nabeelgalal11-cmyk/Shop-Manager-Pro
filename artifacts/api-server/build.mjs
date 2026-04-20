@@ -13,11 +13,15 @@ async function buildAll() {
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     bundle: true,
     platform: "node",
+    target: "node20",
     format: "esm",
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     sourcemap: "linked",
     logLevel: "info",
+    banner: {
+      js: "import { createRequire as __createRequire } from 'module'; const require = __createRequire(import.meta.url);",
+    },
   });
 }
 
