@@ -21,6 +21,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CustomerCombobox } from "@/components/customer-combobox";
 
 export default function VehicleDetail() {
   const [match, params] = useRoute("/vehicles/:id");
@@ -54,6 +55,7 @@ export default function VehicleDetail() {
 
   const openEdit = () => {
     setEditForm({
+      customerId: vehicle?.customerId,
       year: vehicle?.year ?? new Date().getFullYear(),
       make: vehicle?.make ?? "",
       model: vehicle?.model ?? "",
@@ -210,6 +212,13 @@ export default function VehicleDetail() {
             <DialogTitle>Edit Vehicle</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-3 gap-4 py-2">
+            <div className="col-span-3 space-y-1.5">
+              <Label>Customer</Label>
+              <CustomerCombobox
+                value={editForm.customerId ?? null}
+                onChange={(id) => setEditForm((f: any) => ({ ...f, customerId: id }))}
+              />
+            </div>
             <div className="space-y-1.5">
               <Label>Year</Label>
               <Input

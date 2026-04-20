@@ -1,15 +1,15 @@
 import { useLocation } from "wouter";
-import { useCreateVehicle, useGetCustomers, getGetCustomersQueryKey } from "@workspace/api-client-react";
+import { useCreateVehicle } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { CustomerCombobox } from "@/components/customer-combobox";
 
 const formSchema = z.object({
   customerId: z.coerce.number().min(1, "Customer is required"),
@@ -26,9 +26,7 @@ const formSchema = z.object({
 export default function VehiclesNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
-  const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -79,16 +77,12 @@ export default function VehiclesNew() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Customer</FormLabel>
-                    <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                      <FormControl>
-                        <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {customers?.data?.map(c => (
-                          <SelectItem key={c.id} value={String(c.id)}>{c.firstName} {c.lastName}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <CustomerCombobox
+                        value={field.value || null}
+                        onChange={(id) => field.onChange(id)}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
