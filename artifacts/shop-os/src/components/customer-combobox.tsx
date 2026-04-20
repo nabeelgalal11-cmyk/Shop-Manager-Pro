@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import {
   useGetCustomers,
@@ -35,10 +35,16 @@ export function CustomerCombobox({
 }: CustomerComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const params = search.trim()
-    ? { search: search.trim(), limit: 20 }
-    : { limit: 20 };
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 200);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const params = debouncedSearch.trim()
+    ? { search: debouncedSearch.trim(), limit: 50 }
+    : { limit: 50 };
   const { data, isFetching } = useGetCustomers(params, {
     query: { queryKey: getGetCustomersQueryKey(params) },
   });
