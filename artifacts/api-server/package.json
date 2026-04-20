@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc -b && node build.mjs",
-    "build:tsc": "tsc -b",
     "start": "node --enable-source-maps dist/index.mjs",
-    "dev": "NODE_ENV=development pnpm run build:tsc && node dist/index.js",
+    "dev": "NODE_ENV=development pnpm run build && pnpm run start",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
