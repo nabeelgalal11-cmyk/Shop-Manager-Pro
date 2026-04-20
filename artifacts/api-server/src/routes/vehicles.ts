@@ -18,7 +18,8 @@ router.get("/", async (req, res) => {
     ilike(vehiclesTable.make, `%${search}%`),
     ilike(vehiclesTable.model, `%${search}%`),
     ilike(vehiclesTable.vin, `%${search}%`),
-    ilike(vehiclesTable.licensePlate, `%${search}%`)
+    ilike(vehiclesTable.licensePlate, `%${search}%`),
+    ilike(vehiclesTable.fleetNumber, `%${search}%`)
   ));
 
   const whereClause = conditions.length === 1 ? conditions[0] : conditions.length > 1 ? sql`${conditions[0]} AND ${conditions[1]}` : undefined;
@@ -35,8 +36,8 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { customerId, vin, licensePlate, year, make, model, trim, color, mileage, engineType, transmissionType, notes } = req.body;
-  const [vehicle] = await db.insert(vehiclesTable).values({ customerId, vin, licensePlate, year, make, model, trim, color, mileage, engineType, transmissionType, notes }).returning();
+  const { customerId, vin, licensePlate, fleetNumber, year, make, model, trim, color, mileage, engineType, transmissionType, notes } = req.body;
+  const [vehicle] = await db.insert(vehiclesTable).values({ customerId, vin, licensePlate, fleetNumber: fleetNumber || null, year, make, model, trim, color, mileage, engineType, transmissionType, notes }).returning();
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, customerId));
   res.status(201).json({ ...vehicle, customer });
 });
@@ -51,8 +52,8 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { customerId, vin, licensePlate, year, make, model, trim, color, mileage, engineType, transmissionType, notes } = req.body;
-  const [vehicle] = await db.update(vehiclesTable).set({ customerId, vin, licensePlate, year, make, model, trim, color, mileage, engineType, transmissionType, notes, updatedAt: new Date() }).where(eq(vehiclesTable.id, id)).returning();
+  const { customerId, vin, licensePlate, fleetNumber, year, make, model, trim, color, mileage, engineType, transmissionType, notes } = req.body;
+  const [vehicle] = await db.update(vehiclesTable).set({ customerId, vin, licensePlate, fleetNumber: fleetNumber || null, year, make, model, trim, color, mileage, engineType, transmissionType, notes, updatedAt: new Date() }).where(eq(vehiclesTable.id, id)).returning();
   if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, vehicle.customerId));
   res.json({ ...vehicle, customer });

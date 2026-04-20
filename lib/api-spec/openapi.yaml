@@ -1651,6 +1651,9 @@ components:
           type: string
         licensePlate:
           type: string
+        fleetNumber:
+          type: string
+          nullable: true
         year:
           type: integer
         make:
@@ -1695,6 +1698,9 @@ components:
           type: string
         licensePlate:
           type: string
+        fleetNumber:
+          type: string
+          nullable: true
         year:
           type: integer
         make:

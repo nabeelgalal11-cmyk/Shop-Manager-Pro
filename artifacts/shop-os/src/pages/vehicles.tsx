@@ -34,7 +34,7 @@ export default function Vehicles() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search by VIN, plate, make, model..."
+              placeholder="Search by VIN, plate, fleet #, make, model..."
               className="pl-9 bg-background"
             />
           </div>
@@ -73,8 +73,13 @@ export default function Vehicles() {
                         <CarIcon className="h-5 w-5 opacity-50" />
                       </div>
                       <div>
-                        <div className="font-semibold text-foreground">
+                        <div className="font-semibold text-foreground flex items-center gap-2">
                           {vehicle.year} {vehicle.make} {vehicle.model}
+                          {vehicle.fleetNumber && (
+                            <Badge variant="secondary" className="font-mono text-xs">
+                              Fleet #{vehicle.fleetNumber}
+                            </Badge>
+                          )}
                         </div>
                         {vehicle.color && (
                           <div className="text-xs text-muted-foreground mt-0.5">

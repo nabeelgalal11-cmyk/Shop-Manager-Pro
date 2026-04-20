@@ -12,6 +12,7 @@ export interface Vehicle {
   customerId: number;
   vin?: string;
   licensePlate?: string;
+  fleetNumber?: string | null;
   year: number;
   make: string;
   model: string;

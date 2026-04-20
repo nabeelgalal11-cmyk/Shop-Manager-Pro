@@ -60,6 +60,7 @@ export default function VehicleDetail() {
       color: vehicle?.color ?? "",
       vin: vehicle?.vin ?? "",
       licensePlate: vehicle?.licensePlate ?? "",
+      fleetNumber: vehicle?.fleetNumber ?? "",
       mileage: vehicle?.mileage ?? "",
       engineType: vehicle?.engineType ?? "",
       transmissionType: vehicle?.transmissionType ?? "",
@@ -135,6 +136,12 @@ export default function VehicleDetail() {
             <div>
               <p className="text-muted-foreground mb-1">License Plate</p>
               <p className="font-mono">{vehicle.licensePlate || "—"}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground mb-1">Fleet #</p>
+              {vehicle.fleetNumber
+                ? <Badge variant="secondary" className="font-mono">{vehicle.fleetNumber}</Badge>
+                : <p className="font-medium text-muted-foreground">—</p>}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -238,6 +245,10 @@ export default function VehicleDetail() {
             <div className="col-span-3 space-y-1.5">
               <Label>VIN</Label>
               <Input value={editForm.vin || ""} onChange={e => setEditForm((f: any) => ({ ...f, vin: e.target.value }))} />
+            </div>
+            <div className="col-span-3 space-y-1.5">
+              <Label>Fleet # <span className="text-xs text-muted-foreground font-normal">(leave blank if not a fleet vehicle)</span></Label>
+              <Input placeholder="e.g. 042" value={editForm.fleetNumber || ""} onChange={e => setEditForm((f: any) => ({ ...f, fleetNumber: e.target.value }))} />
             </div>
             <div className="space-y-1.5 col-span-1">
               <Label>Engine Type</Label>

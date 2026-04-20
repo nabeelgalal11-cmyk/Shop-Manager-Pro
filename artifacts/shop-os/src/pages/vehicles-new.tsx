@@ -18,6 +18,7 @@ const formSchema = z.object({
   model: z.string().min(1, "Model is required"),
   licensePlate: z.string().optional().or(z.literal("")),
   vin: z.string().optional().or(z.literal("")),
+  fleetNumber: z.string().optional().or(z.literal("")),
   color: z.string().optional().or(z.literal("")),
   mileage: z.coerce.number().optional().or(z.literal(0)),
 });
@@ -37,6 +38,7 @@ export default function VehiclesNew() {
       model: "",
       licensePlate: "",
       vin: "",
+      fleetNumber: "",
       color: "",
       mileage: 0,
     },
@@ -108,6 +110,9 @@ export default function VehiclesNew() {
                 )} />
                 <FormField control={form.control} name="vin" render={({ field }) => (
                   <FormItem><FormLabel>VIN</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="fleetNumber" render={({ field }) => (
+                  <FormItem><FormLabel>Fleet # <span className="text-xs text-muted-foreground font-normal">(leave blank if not a fleet vehicle)</span></FormLabel><FormControl><Input placeholder="e.g. 042" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="color" render={({ field }) => (
                   <FormItem><FormLabel>Color</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
