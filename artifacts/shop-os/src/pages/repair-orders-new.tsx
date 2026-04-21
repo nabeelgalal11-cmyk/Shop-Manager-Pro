@@ -112,7 +112,7 @@ export default function RepairOrdersNew() {
                       <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger></FormControl>
                         <SelectContent>
-                          {vehicles?.data?.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}</SelectItem>)}
+                          {vehicles?.data?.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}{v.licensePlate ? ` — ${v.licensePlate}` : ""}</SelectItem>)}
                         </SelectContent>
                       </Select>
                       <FormMessage />
