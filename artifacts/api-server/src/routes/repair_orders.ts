@@ -139,13 +139,14 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt, createdAt } = req.body;
+  const { vehicleId, assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt, createdAt } = req.body;
 
   // Fetch previous status to detect completion transition
   const [prev] = await db.select({ status: repairOrdersTable.status }).from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
 
   // Build update payload — only include fields explicitly present in the body so we don't overwrite with undefined
   const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (vehicleId !== undefined && vehicleId !== null && vehicleId !== "") updates.vehicleId = Number(vehicleId);
   if (assignedToId !== undefined) updates.assignedToId = assignedToId === null || assignedToId === "" ? null : Number(assignedToId);
   if (status !== undefined) updates.status = status;
   if (priority !== undefined) updates.priority = priority;

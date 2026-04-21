@@ -2131,6 +2131,8 @@ components:
     UpdateRepairOrderInput:
       type: object
       properties:
+        vehicleId:
+          type: integer
         assignedToId:
           type: integer
           nullable: true

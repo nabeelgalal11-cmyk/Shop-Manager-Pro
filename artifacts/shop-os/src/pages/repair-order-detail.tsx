@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetRepairOrder, getGetRepairOrderQueryKey,
   useUpdateRepairOrder, useDeleteRepairOrder,
+  useGetCustomerVehicles, getGetCustomerVehiclesQueryKey,
   useGetInventory, getGetInventoryQueryKey,
   useGetEmployees, getGetEmployeesQueryKey,
   type UpdateRepairOrderInput,
@@ -85,6 +86,7 @@ export default function RepairOrderDetail() {
   const [editingDetails, setEditingDetails] = useState(false);
   const [editForm, setEditForm] = useState<{
     createdAt: string;
+    vehicleId: string;
     priority: string;
     assignedToId: string;
     mileageIn: string;
@@ -102,6 +104,13 @@ export default function RepairOrderDetail() {
     { query: { queryKey: getGetEmployeesQueryKey({ role: "technician" }), enabled: editingDetails } }
   );
   const techList = Array.isArray(employeesData) ? employeesData : employeesData?.data ?? [];
+
+  const customerIdForVehicles = ro?.customerId ?? 0;
+  const { data: customerVehicles } = useGetCustomerVehicles(
+    customerIdForVehicles,
+    { query: { queryKey: getGetCustomerVehiclesQueryKey(customerIdForVehicles), enabled: editingDetails && customerIdForVehicles > 0 } }
+  );
+  const vehicleList = Array.isArray(customerVehicles) ? customerVehicles : customerVehicles?.data ?? [];
 
   const updateRO = useUpdateRepairOrder();
   const deleteRO = useDeleteRepairOrder();
@@ -139,6 +148,7 @@ export default function RepairOrderDetail() {
     if (!ro) return;
     setEditForm({
       createdAt: toDateInput(ro.createdAt),
+      vehicleId: ro.vehicleId ? String(ro.vehicleId) : "",
       priority: ro.priority || "normal",
       assignedToId: ro.assignedToId ? String(ro.assignedToId) : "none",
       mileageIn: ro.mileageIn != null ? String(ro.mileageIn) : "",
@@ -189,7 +199,12 @@ export default function RepairOrderDetail() {
       return setEditError("Promised date is invalid");
     }
 
+    if (!editForm.vehicleId) {
+      return setEditError("Please select a vehicle");
+    }
+
     const payload: UpdateRepairOrderInput = {
+      vehicleId: Number(editForm.vehicleId),
       priority: editForm.priority,
       assignedToId: editForm.assignedToId === "none" ? null : Number(editForm.assignedToId),
       mileageIn: mIn.value,
@@ -734,6 +749,20 @@ export default function RepairOrderDetail() {
 
               {editingDetails && editForm && (
                 <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Vehicle</label>
+                    <Select value={editForm.vehicleId} onValueChange={(v) => setEditForm({ ...editForm, vehicleId: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger>
+                      <SelectContent>
+                        {vehicleList.map(v => (
+                          <SelectItem key={v.id} value={String(v.id)}>
+                            {v.year} {v.make} {v.model}{v.licensePlate ? ` — ${v.licensePlate}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground mt-1">Only this customer's vehicles are listed.</p>
+                  </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Priority</label>
                     <Select value={editForm.priority} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>

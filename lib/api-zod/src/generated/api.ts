@@ -1654,6 +1654,7 @@ export const UpdateRepairOrderParams = zod.object({
 });
 
 export const UpdateRepairOrderBody = zod.object({
+  vehicleId: zod.number().optional(),
   assignedToId: zod.number().nullish(),
   status: zod
     .enum([

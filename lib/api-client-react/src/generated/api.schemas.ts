@@ -450,6 +450,7 @@ export type UpdateRepairOrderInputPartsItem = {
 };
 
 export interface UpdateRepairOrderInput {
+  vehicleId?: number;
   assignedToId?: number | null;
   status?: UpdateRepairOrderInputStatus;
   priority?: UpdateRepairOrderInputPriority;
