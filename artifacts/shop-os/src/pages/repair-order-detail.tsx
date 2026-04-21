@@ -108,11 +108,20 @@ export default function RepairOrderDetail() {
 
   const toDateInput = (v: any) => {
     if (!v) return "";
+    if (typeof v === "string") {
+      const m = v.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (m) return m[1];
+    }
     const d = new Date(v);
     if (isNaN(d.getTime())) return "";
-    const off = d.getTimezoneOffset();
-    const local = new Date(d.getTime() - off * 60000);
-    return local.toISOString().slice(0, 10);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  };
+
+  const fromDateInput = (s: string): Date | null => {
+    if (!s) return null;
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   };
 
   const startEdit = () => {
@@ -176,12 +185,13 @@ export default function RepairOrderDetail() {
       mileageOut: mOut.value,
       estimatedHours: est.value,
       actualHours: act.value,
-      promisedDate: editForm.promisedDate ? new Date(editForm.promisedDate) : null,
+      promisedDate: fromDateInput(editForm.promisedDate),
       complaint: editForm.complaint,
       notes: editForm.notes,
     };
-    if (editForm.createdAt) {
-      payload.createdAt = new Date(editForm.createdAt);
+    const createdAtDate = fromDateInput(editForm.createdAt);
+    if (createdAtDate) {
+      payload.createdAt = createdAtDate;
     }
 
     updateRO.mutate({ id, data: payload }, {
@@ -714,14 +724,6 @@ export default function RepairOrderDetail() {
               {editingDetails && editForm && (
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Created Date</label>
-                    <Input
-                      type="date"
-                      value={editForm.createdAt}
-                      onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
-                    />
-                  </div>
-                  <div>
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Priority</label>
                     <Select value={editForm.priority} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -786,6 +788,14 @@ export default function RepairOrderDetail() {
                         onChange={(e) => setEditForm({ ...editForm, actualHours: e.target.value })}
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Created Date</label>
+                    <Input
+                      type="date"
+                      value={editForm.createdAt}
+                      onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
+                    />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Promised Date</label>
