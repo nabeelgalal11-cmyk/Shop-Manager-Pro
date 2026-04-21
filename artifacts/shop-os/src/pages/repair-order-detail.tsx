@@ -840,7 +840,7 @@ export default function RepairOrderDetail() {
         <h1>Repair Order: {ro.orderNumber}</h1>
         <p className="meta">
           Customer: {ro.customer?.firstName} {ro.customer?.lastName} &bull;{" "}
-          Vehicle: {ro.vehicle?.year} {ro.vehicle?.make} {ro.vehicle?.model} &bull;{" "}
+          Vehicle: {ro.vehicle?.year} {ro.vehicle?.make} {ro.vehicle?.model}{ro.vehicle?.licensePlate ? ` — Plate ${ro.vehicle.licensePlate}` : ""} &bull;{" "}
           Status: {ro.status?.replace("_", " ")} &bull; Priority: {ro.priority}
         </p>
         <div className="grid">
