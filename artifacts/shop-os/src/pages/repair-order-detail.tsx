@@ -124,6 +124,17 @@ export default function RepairOrderDetail() {
     return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   };
 
+  const formatDate = (v: any) => {
+    if (!v) return "";
+    if (typeof v === "string") {
+      const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return `${Number(m[2])}/${Number(m[3])}/${m[1]}`;
+    }
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return "";
+    return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+  };
+
   const startEdit = () => {
     if (!ro) return;
     setEditForm({
@@ -688,12 +699,12 @@ export default function RepairOrderDetail() {
                   <Separator />
                   <div>
                     <p className="text-muted-foreground mb-1">Created</p>
-                    <p className="font-medium">{new Date(ro.createdAt).toLocaleDateString()}</p>
+                    <p className="font-medium">{formatDate(ro.createdAt)}</p>
                   </div>
                   {ro.promisedDate && (
                     <div>
                       <p className="text-muted-foreground mb-1">Promised Date</p>
-                      <p className="font-medium">{new Date(ro.promisedDate).toLocaleDateString()}</p>
+                      <p className="font-medium">{formatDate(ro.promisedDate)}</p>
                     </div>
                   )}
                   {ro.notes && (
@@ -856,8 +867,8 @@ export default function RepairOrderDetail() {
         <div className="grid">
           <div><div className="label">Technician</div><div className="value">{ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned"}</div></div>
           <div><div className="label">Mileage In</div><div className="value">{ro.mileageIn ? ro.mileageIn.toLocaleString() + " mi" : "—"}</div></div>
-          <div><div className="label">Created</div><div className="value">{new Date(ro.createdAt).toLocaleDateString()}</div></div>
-          <div><div className="label">Promised Date</div><div className="value">{ro.promisedDate ? new Date(ro.promisedDate).toLocaleDateString() : "—"}</div></div>
+          <div><div className="label">Created</div><div className="value">{formatDate(ro.createdAt)}</div></div>
+          <div><div className="label">Promised Date</div><div className="value">{ro.promisedDate ? formatDate(ro.promisedDate) : "—"}</div></div>
         </div>
         <h2>Customer Complaint</h2>
         <div className="box">{ro.complaint || "No complaint recorded."}</div>
