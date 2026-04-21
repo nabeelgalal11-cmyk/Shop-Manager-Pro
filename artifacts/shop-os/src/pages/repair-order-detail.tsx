@@ -203,7 +203,7 @@ export default function RepairOrderDetail() {
 
   // Vehicle from the repair order (for compatibility matching)
   const vehicle = ro
-    ? { make: ro.vehicle?.make ?? "", model: ro.vehicle?.model ?? "", year: ro.vehicle?.year ?? 0 }
+    ? { make: ro.vehicle?.make ?? "", model: ro.vehicle?.model ?? "", year: ro.vehicle?.year ?? 0, licensePlate: ro.vehicle?.licensePlate ?? null }
     : null;
 
   // Filter & sort inventory: compatible first, then universal, then incompatible (hidden by default)
