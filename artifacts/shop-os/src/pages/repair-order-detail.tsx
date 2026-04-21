@@ -492,7 +492,7 @@ export default function RepairOrderDetail() {
                     {vehicle?.make && (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 border rounded px-2 py-0.5">
                         <Car className="h-3 w-3" />
-                        {vehicle.year} {vehicle.make} {vehicle.model}
+                        {vehicle.year} {vehicle.make} {vehicle.model}{vehicle.licensePlate ? ` — ${vehicle.licensePlate}` : ""}
                       </span>
                     )}
                   </div>
