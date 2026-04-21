@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { employeesTable, timeEntriesTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and, or } from "drizzle-orm";
 
 const router: Router = Router();
 
@@ -9,13 +9,29 @@ router.get("/", async (req, res) => {
   const role = req.query.role as string | undefined;
   const active = req.query.active !== undefined ? req.query.active === "true" : undefined;
 
-  let query = db.select().from(employeesTable).$dynamic();
   const conditions: any[] = [];
-  if (role) conditions.push(eq(employeesTable.role, role));
+  if (role) {
+    conditions.push(
+      or(
+        sql`${role} = ANY(${employeesTable.roles})`,
+        and(
+          sql`coalesce(array_length(${employeesTable.roles}, 1), 0) = 0`,
+          eq(employeesTable.role, role),
+        ),
+      ),
+    );
+  }
   if (active !== undefined) conditions.push(eq(employeesTable.active, active));
 
-  const employees = await (conditions.length
-    ? db.select().from(employeesTable).where(conditions[0]).orderBy(desc(employeesTable.createdAt))
+  const where =
+    conditions.length === 0
+      ? undefined
+      : conditions.length === 1
+        ? conditions[0]
+        : and(...conditions);
+
+  const employees = await (where
+    ? db.select().from(employeesTable).where(where).orderBy(desc(employeesTable.createdAt))
     : db.select().from(employeesTable).orderBy(desc(employeesTable.createdAt)));
 
   res.json(employees);
