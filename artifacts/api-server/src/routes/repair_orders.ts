@@ -107,8 +107,8 @@ router.get("/", async (req, res) => {
   const offset = (page - 1) * limit;
 
   const orders = await (status
-    ? db.select().from(repairOrdersTable).where(eq(repairOrdersTable.status, status)).orderBy(desc(repairOrdersTable.createdAt)).limit(limit).offset(offset)
-    : db.select().from(repairOrdersTable).orderBy(desc(repairOrdersTable.createdAt)).limit(limit).offset(offset));
+    ? db.select().from(repairOrdersTable).where(eq(repairOrdersTable.status, status)).orderBy(desc(repairOrdersTable.createdAt), desc(repairOrdersTable.id)).limit(limit).offset(offset)
+    : db.select().from(repairOrdersTable).orderBy(desc(repairOrdersTable.createdAt), desc(repairOrdersTable.id)).limit(limit).offset(offset));
 
   const [countResult] = await (status
     ? db.select({ count: sql<number>`count(*)` }).from(repairOrdersTable).where(eq(repairOrdersTable.status, status))
@@ -139,13 +139,24 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { vehicleId, assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt, createdAt } = req.body;
+  const { orderNumber, vehicleId, assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt, createdAt } = req.body;
 
   // Fetch previous status to detect completion transition
   const [prev] = await db.select({ status: repairOrdersTable.status }).from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
 
   // Build update payload — only include fields explicitly present in the body so we don't overwrite with undefined
   const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (orderNumber !== undefined) {
+    const trimmed = String(orderNumber).trim();
+    if (!trimmed) return res.status(400).json({ error: "Order number cannot be empty" });
+    const [conflict] = await db
+      .select({ id: repairOrdersTable.id })
+      .from(repairOrdersTable)
+      .where(and(eq(repairOrdersTable.orderNumber, trimmed), sql`${repairOrdersTable.id} <> ${id}`))
+      .limit(1);
+    if (conflict) return res.status(409).json({ error: `Order number ${trimmed} is already in use` });
+    updates.orderNumber = trimmed;
+  }
   if (vehicleId !== undefined && vehicleId !== null && vehicleId !== "") updates.vehicleId = Number(vehicleId);
   if (assignedToId !== undefined) updates.assignedToId = assignedToId === null || assignedToId === "" ? null : Number(assignedToId);
   if (status !== undefined) updates.status = status;

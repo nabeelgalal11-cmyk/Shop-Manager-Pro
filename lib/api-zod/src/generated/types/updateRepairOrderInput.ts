@@ -10,6 +10,7 @@ import type { UpdateRepairOrderInputPriority } from "./updateRepairOrderInputPri
 import type { UpdateRepairOrderInputStatus } from "./updateRepairOrderInputStatus";
 
 export interface UpdateRepairOrderInput {
+  orderNumber?: string;
   vehicleId?: number;
   assignedToId?: number | null;
   status?: UpdateRepairOrderInputStatus;

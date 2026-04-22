@@ -85,6 +85,7 @@ export default function RepairOrderDetail() {
   // ── Edit Details mode ──────────────────────────────
   const [editingDetails, setEditingDetails] = useState(false);
   const [editForm, setEditForm] = useState<{
+    orderNumber: string;
     createdAt: string;
     vehicleId: string;
     priority: string;
@@ -147,6 +148,7 @@ export default function RepairOrderDetail() {
   const startEdit = () => {
     if (!ro) return;
     setEditForm({
+      orderNumber: ro.orderNumber || "",
       createdAt: toDateInput(ro.createdAt),
       vehicleId: ro.vehicleId ? String(ro.vehicleId) : "",
       priority: ro.priority || "normal",
@@ -202,8 +204,13 @@ export default function RepairOrderDetail() {
     if (!editForm.vehicleId) {
       return setEditError("Please select a vehicle");
     }
+    const trimmedOrderNumber = editForm.orderNumber.trim();
+    if (!trimmedOrderNumber) {
+      return setEditError("Order number cannot be empty");
+    }
 
     const payload: UpdateRepairOrderInput = {
+      orderNumber: trimmedOrderNumber,
       vehicleId: Number(editForm.vehicleId),
       priority: editForm.priority,
       assignedToId: editForm.assignedToId === "none" ? null : Number(editForm.assignedToId),
@@ -749,6 +756,14 @@ export default function RepairOrderDetail() {
 
               {editingDetails && editForm && (
                 <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Order Number</label>
+                    <Input
+                      value={editForm.orderNumber}
+                      onChange={(e) => setEditForm({ ...editForm, orderNumber: e.target.value })}
+                      placeholder="RO-1001"
+                    />
+                  </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Vehicle</label>
                     <Select value={editForm.vehicleId} onValueChange={(v) => setEditForm({ ...editForm, vehicleId: v })}>

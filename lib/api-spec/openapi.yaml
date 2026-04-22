@@ -2131,6 +2131,8 @@ components:
     UpdateRepairOrderInput:
       type: object
       properties:
+        orderNumber:
+          type: string
         vehicleId:
           type: integer
         assignedToId:
