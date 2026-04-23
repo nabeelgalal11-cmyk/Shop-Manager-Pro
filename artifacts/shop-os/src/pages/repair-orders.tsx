@@ -1,20 +1,29 @@
 import { useGetRepairOrders, getGetRepairOrdersQueryKey } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench } from "lucide-react";
+import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 
+const PAGE_SIZE = 50;
+
 export default function RepairOrders() {
   const [, setLocation] = useLocation();
-  
+  const [page, setPage] = useState(1);
+
   const { data, isLoading } = useGetRepairOrders(
-    { limit: 50 },
-    { query: { queryKey: getGetRepairOrdersQueryKey({ limit: 50 }) } }
+    { limit: PAGE_SIZE, page },
+    { query: { queryKey: getGetRepairOrdersQueryKey({ limit: PAGE_SIZE, page }) } }
   );
+
+  const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const startIdx = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const endIdx = Math.min(page * PAGE_SIZE, total);
 
   const getStatusBadge = (status: string) => {
     switch(status) {
@@ -135,6 +144,22 @@ export default function RepairOrders() {
             )}
           </TableBody>
         </Table>
+        {total > 0 && (
+          <div className="flex items-center justify-between gap-4 px-4 py-3 border-t bg-muted/10 text-sm">
+            <div className="text-muted-foreground">
+              Showing <span className="font-medium text-foreground">{startIdx}</span>–<span className="font-medium text-foreground">{endIdx}</span> of <span className="font-medium text-foreground">{total}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={page <= 1 || isLoading} onClick={() => setPage(p => Math.max(1, p - 1))}>
+                <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+              </Button>
+              <span className="text-muted-foreground">Page {page} of {totalPages}</span>
+              <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+                Next <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );
