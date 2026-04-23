@@ -307,7 +307,10 @@ export default function RepairOrders() {
                     />
                   </TableCell>
                   <TableCell className="font-mono font-medium text-sm">
-                    {ro.orderNumber}
+                    <div>{ro.orderNumber}</div>
+                    <div className="text-[11px] text-muted-foreground font-sans font-normal mt-0.5">
+                      {formatDate(ro.createdAt)}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="font-semibold text-foreground">
