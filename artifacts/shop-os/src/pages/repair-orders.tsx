@@ -1,19 +1,113 @@
-import { useGetRepairOrders, getGetRepairOrdersQueryKey } from "@workspace/api-client-react";
+import { useGetRepairOrders, getGetRepairOrdersQueryKey, getRepairOrder } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft, Printer } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 const PAGE_SIZE = 50;
 
+const escapeHtml = (s: any) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const formatDate = (v: any) => {
+  if (!v) return "—";
+  if (typeof v === "string") {
+    const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${Number(m[2])}/${Number(m[3])}/${m[1]}`;
+  }
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return "—";
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+};
+
+function buildOrderHtml(ro: any, isLast: boolean): string {
+  const parts: Array<{ name: string; partNumber?: string; quantity: number; unitPrice: number | string }> =
+    Array.isArray(ro.parts) ? ro.parts : [];
+  const partsTotal = parts.reduce(
+    (sum, p) => sum + Number(p.quantity || 0) * Number(p.unitPrice || 0),
+    0
+  );
+  const tech = ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned";
+  const customer = ro.customer ? `${ro.customer.firstName} ${ro.customer.lastName}` : "—";
+  const vehicle = ro.vehicle
+    ? `${ro.vehicle.year} ${ro.vehicle.make} ${ro.vehicle.model}${ro.vehicle.licensePlate ? ` — Plate ${ro.vehicle.licensePlate}` : ""}`
+    : "—";
+
+  const partsTable =
+    parts.length > 0
+      ? `
+      <h2>Parts Needed</h2>
+      <table>
+        <thead>
+          <tr><th>Part Name</th><th>Part #</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+          ${parts
+            .map(
+              (p) => `
+              <tr>
+                <td>${escapeHtml(p.name)}</td>
+                <td>${escapeHtml(p.partNumber || "—")}</td>
+                <td>${escapeHtml(p.quantity)}</td>
+                <td>$${Number(p.unitPrice).toFixed(2)}</td>
+                <td>$${(Number(p.quantity) * Number(p.unitPrice)).toFixed(2)}</td>
+              </tr>`
+            )
+            .join("")}
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="4" style="text-align:right">Parts Total</td>
+            <td>$${partsTotal.toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>`
+      : "";
+
+  return `
+    <section class="ro-page" ${isLast ? "" : 'style="page-break-after: always;"'}>
+      <h1>Repair Order: ${escapeHtml(ro.orderNumber)}</h1>
+      <p class="meta">
+        Customer: ${escapeHtml(customer)} &bull;
+        Vehicle: ${escapeHtml(vehicle)} &bull;
+        Status: ${escapeHtml(String(ro.status || "").replace("_", " "))} &bull;
+        Priority: ${escapeHtml(ro.priority)}
+      </p>
+      <div class="grid">
+        <div><div class="label">Technician</div><div class="value">${escapeHtml(tech)}</div></div>
+        <div><div class="label">Mileage In</div><div class="value">${
+          ro.mileageIn != null ? Number(ro.mileageIn).toLocaleString() + " mi" : "—"
+        }</div></div>
+        <div><div class="label">Created</div><div class="value">${formatDate(ro.createdAt)}</div></div>
+        <div><div class="label">Promised Date</div><div class="value">${formatDate(ro.promisedDate)}</div></div>
+      </div>
+      <h2>Customer Complaint</h2>
+      <div class="box">${escapeHtml(ro.complaint || "No complaint recorded.")}</div>
+      <h2>Technician Diagnosis</h2>
+      <div class="box">${escapeHtml(ro.diagnosis || "No diagnosis recorded.")}</div>
+      ${partsTable}
+    </section>
+  `;
+}
+
 export default function RepairOrders() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [printing, setPrinting] = useState(false);
 
   const { data, isLoading } = useGetRepairOrders(
     { limit: PAGE_SIZE, page },
@@ -24,6 +118,81 @@ export default function RepairOrders() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const startIdx = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const endIdx = Math.min(page * PAGE_SIZE, total);
+  const rows = data?.data ?? [];
+  const pageIds = rows.map((r) => r.id);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const someOnPageSelected = pageIds.some((id) => selected.has(id));
+
+  const toggleAllOnPage = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleOne = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const printIds = async (ids: number[]) => {
+    if (ids.length === 0) return;
+    setPrinting(true);
+    try {
+      const orders = await Promise.all(ids.map((id) => getRepairOrder(id)));
+      const sorted = ids.map((id) => orders.find((o: any) => o.id === id)).filter(Boolean);
+      const body = sorted.map((ro: any, i: number) => buildOrderHtml(ro, i === sorted.length - 1)).join("");
+
+      const w = window.open("", "_blank");
+      if (!w) {
+        toast({ title: "Pop-up blocked", description: "Allow pop-ups to print.", variant: "destructive" });
+        return;
+      }
+      w.document.write(`
+        <html>
+          <head>
+            <title>Repair Orders (${sorted.length})</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+              h1 { font-size: 22px; margin-bottom: 4px; }
+              h2 { font-size: 16px; margin: 16px 0 6px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+              .meta { color: #555; font-size: 13px; margin-bottom: 16px; }
+              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+              .label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
+              .value { font-size: 14px; }
+              table { width: 100%; border-collapse: collapse; font-size: 13px; }
+              th { background: #f0f0f0; text-align: left; padding: 6px 8px; font-size: 12px; }
+              td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+              .total-row td { font-weight: bold; border-top: 2px solid #ddd; }
+              .box { background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; padding: 12px; font-size: 13px; min-height: 60px; white-space: pre-wrap; }
+              .ro-page { padding-bottom: 16px; }
+              @media print { body { padding: 0; } }
+            </style>
+          </head>
+          <body>${body}</body>
+        </html>
+      `);
+      w.document.close();
+      w.focus();
+      setTimeout(() => { w.print(); }, 400);
+    } catch (err: any) {
+      toast({ title: "Failed to load orders for print", description: err?.message ?? "", variant: "destructive" });
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const printSelected = () => printIds(Array.from(selected));
+  const printAllOnPage = () => printIds(pageIds);
 
   const getStatusBadge = (status: string) => {
     switch(status) {
@@ -57,8 +226,8 @@ export default function RepairOrders() {
       </div>
 
       <Card className="shadow-sm border-border">
-        <div className="p-4 border-b flex items-center justify-between gap-4 bg-muted/20">
-          <div className="relative flex-1 max-w-md">
+        <div className="p-4 border-b flex items-center justify-between gap-4 bg-muted/20 flex-wrap">
+          <div className="relative flex-1 max-w-md min-w-[220px]">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
@@ -66,14 +235,42 @@ export default function RepairOrders() {
               className="pl-9 bg-background"
             />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">Kanban View</Button>
-            <Button variant="secondary" size="sm">List View</Button>
+          <div className="flex gap-2 items-center">
+            {selected.size > 0 && (
+              <span className="text-sm text-muted-foreground">{selected.size} selected</span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={selected.size === 0 || printing}
+              onClick={printSelected}
+            >
+              <Printer className="h-4 w-4 mr-1.5" />
+              {printing ? "Preparing…" : `Print Selected${selected.size > 0 ? ` (${selected.size})` : ""}`}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={rows.length === 0 || printing}
+              onClick={printAllOnPage}
+            >
+              <Printer className="h-4 w-4 mr-1.5" /> Print Page
+            </Button>
+            {selected.size > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Clear</Button>
+            )}
           </div>
         </div>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
+                  onCheckedChange={toggleAllOnPage}
+                  aria-label="Select all on this page"
+                />
+              </TableHead>
               <TableHead className="w-[100px]">RO #</TableHead>
               <TableHead>Customer / Vehicle</TableHead>
               <TableHead>Status</TableHead>
@@ -86,6 +283,7 @@ export default function RepairOrders() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-4" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-48" /></TableCell>
                   <TableCell><Skeleton className="h-6 w-24" /></TableCell>
@@ -94,13 +292,20 @@ export default function RepairOrders() {
                   <TableCell></TableCell>
                 </TableRow>
               ))
-            ) : data?.data && data.data.length > 0 ? (
-              data.data.map((ro) => (
-                <TableRow 
-                  key={ro.id} 
+            ) : rows.length > 0 ? (
+              rows.map((ro) => (
+                <TableRow
+                  key={ro.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => setLocation(`/repair-orders/${ro.id}`)}
                 >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selected.has(ro.id)}
+                      onCheckedChange={() => toggleOne(ro.id)}
+                      aria-label={`Select ${ro.orderNumber}`}
+                    />
+                  </TableCell>
                   <TableCell className="font-mono font-medium text-sm">
                     {ro.orderNumber}
                   </TableCell>
@@ -109,7 +314,7 @@ export default function RepairOrders() {
                       {ro.customer ? `${ro.customer.firstName} ${ro.customer.lastName}` : 'Unknown Customer'}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {ro.vehicle ? `${ro.vehicle.year} ${ro.vehicle.make} ${ro.vehicle.model}` : 'Unknown Vehicle'}
+                      {ro.vehicle ? `${ro.vehicle.year} ${ro.vehicle.make} ${ro.vehicle.model}${ro.vehicle.licensePlate ? ` — ${ro.vehicle.licensePlate}` : ""}` : 'Unknown Vehicle'}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -137,7 +342,7 @@ export default function RepairOrders() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                   No repair orders found.
                 </TableCell>
               </TableRow>
