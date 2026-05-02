@@ -93,7 +93,32 @@ export async function sendTemplatedEmail(
   const fromEmailRaw = tpl.fromEmail || process.env.SMTP_FROM || process.env.SMTP_USER || "onboarding@resend.dev";
   const from = `${fromName} <${fromEmailRaw}>`;
 
-  // Prefer SMTP (HostGator etc.) when configured
+  // Prefer Resend when configured (better Gmail deliverability than shared-host SMTP)
+  const apiKey = process.env.RESEND_API_KEY;
+  if (apiKey) {
+    try {
+      const resp = await fetch(RESEND_API, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from, to: [toEmail], subject, html, reply_to: fromEmailRaw }),
+      });
+      const data = (await resp.json()) as { id?: string; message?: string; name?: string };
+      if (!resp.ok) {
+        logger.error({ status: resp.status, data }, "Resend API error");
+        return { ok: false, error: data.message || `HTTP ${resp.status}`, provider: "resend" };
+      }
+      logger.info({ id: data.id, to: toEmail, template: templateKey, provider: "resend" }, "Email sent");
+      return { ok: true, id: data.id, provider: "resend" };
+    } catch (err: any) {
+      logger.error({ err }, "Failed to send email via Resend");
+      return { ok: false, error: err?.message || "Send failed", provider: "resend" };
+    }
+  }
+
+  // Fallback to SMTP (HostGator etc.) when Resend not configured
   const transporter = getSmtpTransporter();
   if (transporter) {
     try {
@@ -113,30 +138,6 @@ export async function sendTemplatedEmail(
     }
   }
 
-  // Fallback to Resend
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    logger.warn("No SMTP nor RESEND_API_KEY configured; skipping email send");
-    return { ok: false, error: "Email not configured" };
-  }
-  try {
-    const resp = await fetch(RESEND_API, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from, to: [toEmail], subject, html }),
-    });
-    const data = (await resp.json()) as { id?: string; message?: string; name?: string };
-    if (!resp.ok) {
-      logger.error({ status: resp.status, data }, "Resend API error");
-      return { ok: false, error: data.message || `HTTP ${resp.status}`, provider: "resend" };
-    }
-    logger.info({ id: data.id, to: toEmail, template: templateKey, provider: "resend" }, "Email sent");
-    return { ok: true, id: data.id, provider: "resend" };
-  } catch (err: any) {
-    logger.error({ err }, "Failed to send email");
-    return { ok: false, error: err?.message || "Send failed", provider: "resend" };
-  }
+  logger.warn("Neither RESEND_API_KEY nor SMTP_* configured; skipping email send");
+  return { ok: false, error: "Email not configured" };
 }
