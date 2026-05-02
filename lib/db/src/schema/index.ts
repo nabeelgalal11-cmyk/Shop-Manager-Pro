@@ -16,3 +16,4 @@ export * from "./time_entries";
 export * from "./expenses";
 export * from "./reminders";
 export * from "./njmvc";
+export * from "./permissions";

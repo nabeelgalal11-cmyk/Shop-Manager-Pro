@@ -7,6 +7,8 @@ import { fileURLToPath } from "url";
 
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
+import { sessionMiddleware, attachUser } from "./lib/auth.js";
+import { seedDefaultPermissions, bootstrapAdmin } from "./lib/permissions.js";
 
 const app: Express = express();
 
@@ -35,9 +37,15 @@ app.use(
   }),
 );
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(sessionMiddleware);
+app.use(attachUser);
+
+// Bootstrap permissions + admin user (best-effort, async fire-and-forget)
+seedDefaultPermissions().catch((err) => logger.error({ err }, "seedDefaultPermissions failed"));
+bootstrapAdmin().catch((err) => logger.error({ err }, "bootstrapAdmin failed"));
 
 // API routes
 app.use("/api", router);

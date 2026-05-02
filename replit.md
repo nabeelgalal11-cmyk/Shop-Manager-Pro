@@ -92,3 +92,13 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API client from OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push schema changes to database
+
+## Authentication & Permissions
+
+Cookie-session auth (express-session + bcrypt). Each user is an `employees` row with `username` + `passwordHash`. On startup the API auto-bootstraps an admin (`admin` / `admin123`) if no users exist — change this password immediately.
+
+- **Roles**: `admin`, `manager`, `technician`, `inspector`, `viewer` — a user can have multiple roles, effective permissions are their union.
+- **Resources × Actions matrix**: every page (dashboard, repair_orders, estimates, invoices, appointments, inspections, njmvc, njmvc_template, customers, vehicles, inventory, payments, used_cars, purchases, reports, employees, time_entries, expenses, reminders, customer_categories, users, permissions) × actions (view, create, edit, delete, print). Stored in `role_permissions` table, seeded with defaults on first boot.
+- **Backend**: `/api/auth/login|logout|me|change-password`, `/api/users` (admin), `/api/permissions` (admin). All other `/api/*` routes require `requireAuth`. Session ID is regenerated on login (anti-fixation). Cookie is `secure` in production. `SESSION_SECRET` is required in production.
+- **Frontend**: `AuthProvider` wraps the app; `<LoginPage />` shown until authenticated. Sidebar nav, action buttons, and admin pages (`/users`, `/permissions`) are gated client-side via `useAuth().can(resource, action)`. The admin Permissions page is a tabbed matrix of switches per role.
+- **Default role matrix highlights**: admin = all; manager = all business + view-only on users/permissions; technician = day-to-day repair/inspection workflow, no payments/reports; inspector = inspections + njmvc focus; viewer = read-only across business pages, no admin/financial access.

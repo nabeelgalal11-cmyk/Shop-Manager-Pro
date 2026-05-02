@@ -3,7 +3,8 @@ import React, { useState } from "react";
 import {
   LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
   Wrench, Package, ClipboardCheck, Calendar, CreditCard,
-  UserCircle, Clock, Receipt, Bell, Search, BarChart2, Tags, CarFront, ShoppingCart, Settings2
+  UserCircle, Clock, Receipt, Bell, Search, BarChart2, Tags, CarFront, ShoppingCart, Settings2,
+  LogOut, Shield, KeyRound,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -11,58 +12,67 @@ import {
   SidebarGroupLabel, SidebarGroupContent
 } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-const navGroups = [
-  { label: "Overview", items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard }] },
+interface NavItem { name: string; href: string; icon: any; resource?: string }
+interface NavGroup { label: string; items: NavItem[] }
+
+const navGroups: NavGroup[] = [
+  { label: "Overview", items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard, resource: "dashboard" }] },
   { label: "Service", items: [
-      { name: "Repair Orders", href: "/repair-orders", icon: Wrench },
-      { name: "Estimates", href: "/estimates", icon: FileText },
-      { name: "Invoices", href: "/invoices", icon: FileSpreadsheet },
-      { name: "Appointments", href: "/appointments", icon: Calendar },
-      { name: "Inspections", href: "/inspections", icon: ClipboardCheck },
+      { name: "Repair Orders", href: "/repair-orders", icon: Wrench, resource: "repair_orders" },
+      { name: "Estimates", href: "/estimates", icon: FileText, resource: "estimates" },
+      { name: "Invoices", href: "/invoices", icon: FileSpreadsheet, resource: "invoices" },
+      { name: "Appointments", href: "/appointments", icon: Calendar, resource: "appointments" },
+      { name: "Inspections", href: "/inspections", icon: ClipboardCheck, resource: "inspections" },
     ]
   },
   { label: "Management", items: [
-      { name: "Customers", href: "/customers", icon: Users },
-      { name: "Vehicles", href: "/vehicles", icon: Car },
-      { name: "Inventory", href: "/inventory", icon: Package },
-      { name: "Payments", href: "/payments", icon: CreditCard },
-      { name: "Used Cars", href: "/used-cars", icon: CarFront },
+      { name: "Customers", href: "/customers", icon: Users, resource: "customers" },
+      { name: "Vehicles", href: "/vehicles", icon: Car, resource: "vehicles" },
+      { name: "Inventory", href: "/inventory", icon: Package, resource: "inventory" },
+      { name: "Payments", href: "/payments", icon: CreditCard, resource: "payments" },
+      { name: "Used Cars", href: "/used-cars", icon: CarFront, resource: "used_cars" },
     ]
   },
   { label: "Reports", items: [
-      { name: "Purchases", href: "/purchases", icon: ShoppingCart },
-      { name: "Reports", href: "/reports", icon: BarChart2 },
+      { name: "Purchases", href: "/purchases", icon: ShoppingCart, resource: "purchases" },
+      { name: "Reports", href: "/reports", icon: BarChart2, resource: "reports" },
     ]
   },
   { label: "Compliance", items: [
-      { name: "NJMVC Quarterly", href: "/njmvc", icon: ClipboardCheck },
-      { name: "Template Editor", href: "/njmvc/template", icon: Settings2 },
+      { name: "NJMVC Quarterly", href: "/njmvc", icon: ClipboardCheck, resource: "njmvc" },
+      { name: "Template Editor", href: "/njmvc/template", icon: Settings2, resource: "njmvc_template" },
     ]
   },
   { label: "Admin", items: [
-      { name: "Employees", href: "/employees", icon: UserCircle },
-      { name: "Time Entries", href: "/time-entries", icon: Clock },
-      { name: "Expenses", href: "/expenses", icon: Receipt },
-      { name: "Reminders", href: "/reminders", icon: Bell },
-      { name: "Customer Categories", href: "/customer-categories", icon: Tags },
+      { name: "Employees", href: "/employees", icon: UserCircle, resource: "employees" },
+      { name: "Time Entries", href: "/time-entries", icon: Clock, resource: "time_entries" },
+      { name: "Expenses", href: "/expenses", icon: Receipt, resource: "expenses" },
+      { name: "Reminders", href: "/reminders", icon: Bell, resource: "reminders" },
+      { name: "Customer Categories", href: "/customer-categories", icon: Tags, resource: "customer_categories" },
+    ]
+  },
+  { label: "Security", items: [
+      { name: "Users", href: "/users", icon: KeyRound, resource: "users" },
+      { name: "Permissions", href: "/permissions", icon: Shield, resource: "permissions" },
     ]
   }
 ];
 
-// Controlled MenuLink
 function MenuLink({ href, icon: Icon, name, isActive, closeSidebar }: any) {
   const [, navigate] = useLocation();
-
   return (
     <SidebarMenuButton
       asChild
       isActive={isActive}
       tooltip={name}
-      onClick={() => {
-        navigate(href); // SPA navigation
-        closeSidebar(); // manually close the sidebar
-      }}
+      onClick={() => { navigate(href); closeSidebar(); }}
     >
       <button className="flex items-center gap-3">
         <Icon className="h-4 w-4" />
@@ -74,9 +84,21 @@ function MenuLink({ href, icon: Icon, name, isActive, closeSidebar }: any) {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true); // control sidebar open state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { user, logout, can, isAdmin } = useAuth();
 
   const closeSidebar = () => setSidebarOpen(false);
+  const initials = user
+    ? (user.firstName[0] || "") + (user.lastName[0] || "")
+    : "?";
+
+  // Filter nav items by view permission for current user's resource
+  const visibleGroups = navGroups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((i) => !i.resource || can(i.resource as any, "view")),
+    }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <SidebarProvider>
@@ -92,7 +114,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </SidebarHeader>
 
           <SidebarContent>
-            {navGroups.map((group) => (
+            {visibleGroups.map((group) => (
               <SidebarGroup key={group.label}>
                 <SidebarGroupLabel className="text-sidebar-foreground/60 uppercase tracking-wider text-xs font-semibold px-6 py-2">
                   {group.label}
@@ -110,7 +132,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                             icon={item.icon}
                             name={item.name}
                             isActive={isActive}
-                            closeSidebar={closeSidebar} // pass close function
+                            closeSidebar={closeSidebar}
                           />
                         </SidebarMenuItem>
                       );
@@ -135,12 +157,45 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <div className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center border border-border">
-                  JD
-                </div>
-              </div>
+            <div className="flex items-center gap-3">
+              {user && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 hover:bg-muted/50 rounded-md px-2 py-1 transition-colors">
+                      <div className="h-8 w-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center border border-border text-xs font-bold uppercase">
+                        {initials}
+                      </div>
+                      <div className="hidden md:flex flex-col items-start leading-tight">
+                        <span className="text-sm font-medium">{user.firstName} {user.lastName}</span>
+                        <span className="text-[10px] text-muted-foreground capitalize">
+                          {user.roles.join(", ")}
+                        </span>
+                      </div>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>
+                      <div className="font-semibold">{user.firstName} {user.lastName}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono">{user.username}</div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {isAdmin && (
+                      <>
+                        <DropdownMenuItem onClick={() => window.location.assign(import.meta.env.BASE_URL + "users")}>
+                          <KeyRound className="h-4 w-4 mr-2" /> Users
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.location.assign(import.meta.env.BASE_URL + "permissions")}>
+                          <Shield className="h-4 w-4 mr-2" /> Permissions
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    <DropdownMenuItem onClick={() => logout()} className="text-destructive">
+                      <LogOut className="h-4 w-4 mr-2" /> Sign out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </header>
           <div className="flex-1 overflow-auto bg-muted/20">{children}</div>

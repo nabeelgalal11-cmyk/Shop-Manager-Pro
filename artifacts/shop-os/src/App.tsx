@@ -4,6 +4,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import NotFound from "@/pages/not-found";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import LoginPage from "@/pages/login";
+import { Loader2 } from "lucide-react";
 
 import Dashboard from "@/pages/dashboard";
 import Customers from "@/pages/customers";
@@ -45,6 +48,8 @@ import NjmvcInspections from "@/pages/njmvc";
 import NjmvcNew from "@/pages/njmvc-new";
 import NjmvcPrint from "@/pages/njmvc-print";
 import NjmvcTemplate from "@/pages/njmvc-template";
+import UsersPage from "@/pages/users";
+import PermissionsPage from "@/pages/permissions";
 
 const queryClient = new QueryClient();
 
@@ -110,10 +115,27 @@ function Router() {
         <Route path="/njmvc/new" component={NjmvcNew} />
         <Route path="/njmvc/:id/print" component={NjmvcPrint} />
         <Route path="/njmvc/:id" component={NjmvcNew} />
+
+        <Route path="/users" component={UsersPage} />
+        <Route path="/permissions" component={PermissionsPage} />
+
         <Route component={NotFound} />
       </Switch>
     </Layout>
   );
+}
+
+function AuthGate() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!user) return <LoginPage />;
+  return <Router />;
 }
 
 function App() {
@@ -121,7 +143,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <AuthProvider>
+            <AuthGate />
+          </AuthProvider>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

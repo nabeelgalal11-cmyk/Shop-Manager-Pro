@@ -16,6 +16,9 @@ export const employeesTable = pgTable("employees", {
   hireDate: date("hire_date"),
   notes: text("notes"),
   clockedIn: boolean("clocked_in").notNull().default(false),
+  username: text("username").unique(),
+  passwordHash: text("password_hash"),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

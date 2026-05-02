@@ -22,11 +22,20 @@ import reportsRouter from "./reports.js";
 import storageRouter from "./storage.js";
 import purchasesRouter from "./purchases.js";
 import njmvcRouter from "./njmvc.js";
+import authRouter from "./auth.js";
+import usersRouter from "./users.js";
+import permissionsRouter from "./permissions.js";
+import { requireAuth } from "../lib/auth.js";
 
 const router: IRouter = Router();
 
-// register routes
+// PUBLIC routes (no auth required)
 router.use("/health", healthRouter);
+router.use("/auth", authRouter);
+
+// All routes below this point require authentication
+router.use(requireAuth);
+
 router.use("/customers", customersRouter);
 router.use("/vehicles", vehiclesRouter);
 router.use("/employees", employeesRouter);
@@ -48,5 +57,7 @@ router.use("/reports", reportsRouter);
 router.use(storageRouter);
 router.use("/purchases", purchasesRouter);
 router.use("/njmvc", njmvcRouter);
+router.use("/users", usersRouter);
+router.use("/permissions", permissionsRouter);
 
 export default router;
