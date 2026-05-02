@@ -97,7 +97,14 @@ export async function sendTemplatedEmail(
   const transporter = getSmtpTransporter();
   if (transporter) {
     try {
-      const info = await transporter.sendMail({ from, to: toEmail, subject, html });
+      const info = await transporter.sendMail({
+        from,
+        to: toEmail,
+        subject,
+        html,
+        replyTo: fromEmailRaw,
+        envelope: { from: fromEmailRaw, to: toEmail },
+      });
       logger.info({ id: info.messageId, to: toEmail, template: templateKey, provider: "smtp" }, "Email sent");
       return { ok: true, id: info.messageId, provider: "smtp" };
     } catch (err: any) {
