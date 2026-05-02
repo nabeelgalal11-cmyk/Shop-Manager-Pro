@@ -108,9 +108,51 @@ export default function NjmvcPrint() {
   }
 
   const resultMap: Record<number, ItemResult | null> = {};
+  const itemMap: Record<number, TemplateItem> = {};
   insp.template?.forEach(cat => {
-    cat.items?.forEach(item => { resultMap[item.id] = item.result; });
+    cat.items?.forEach(item => {
+      resultMap[item.id] = item.result;
+      itemMap[item.id] = item;
+    });
   });
+
+  function shortcodeValue(itemId: number): string {
+    const item = itemMap[itemId];
+    if (!item) return `[item-${itemId}: not found]`;
+    const r = resultMap[itemId];
+    const parts: string[] = [item.label];
+    const status = r?.status;
+    let statusText = "—";
+    if (status === "ok") statusText = "OK";
+    else if (status === "na") statusText = "N/A";
+    else if (status === "needs_repair") {
+      statusText = r?.repairedDate ? `Needs Repair (repaired ${r.repairedDate.slice(5)})` : "Needs Repair";
+    }
+    if (item.hasMeasurement && r?.measurementValue) {
+      parts.push(`${r.measurementValue}${item.measurementUnit || ""}`);
+    }
+    parts.push(statusText);
+    return parts.join(": ");
+  }
+
+  function renderNotesWithShortcodes(text: string): React.ReactNode[] {
+    const out: React.ReactNode[] = [];
+    const re = /\[item-(\d+)\]/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let key = 0;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) out.push(text.slice(last, m.index));
+      out.push(
+        <strong key={key++} style={{ fontWeight: "bold" }}>
+          {shortcodeValue(Number(m[1]))}
+        </strong>
+      );
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) out.push(text.slice(last));
+    return out;
+  }
 
   const activeCategories = (insp.template || []).filter(c => c.active);
   const allSections: PrintSection[] = activeCategories.map(cat => ({
@@ -349,6 +391,26 @@ export default function NjmvcPrint() {
             </tr>
           </tbody>
         </table>
+
+        {/* ── NOTES (with shortcode substitution) ── */}
+        {insp.notes && insp.notes.trim() && (
+          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4 }}>
+            <thead>
+              <tr>
+                <th style={{ background: CAT_BG, border: BORDER, padding: "2px 4px", textAlign: "left", fontSize: 7.5, fontWeight: "bold", textTransform: "uppercase", printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" } as React.CSSProperties}>
+                  Notes
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ border: BORDER, padding: "3px 5px", fontSize: 8, whiteSpace: "pre-wrap", lineHeight: 1.35 }}>
+                  {renderNotesWithShortcodes(insp.notes)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        )}
 
         {/* ── SUPPLEMENTAL ── */}
         {relatedRepairs.length > 0 && (

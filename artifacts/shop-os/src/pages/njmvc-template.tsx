@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Settings2, Plus, Trash2, ChevronDown, ChevronRight,
-  GripVertical, ClipboardCheck, Save, X, Check, Edit2
+  GripVertical, ClipboardCheck, Save, X, Check, Edit2, Copy, Code
 } from "lucide-react";
 
 const TEMPLATE_API = "/api/njmvc/template";
@@ -186,6 +186,13 @@ export default function NjmvcTemplate() {
         <span>Changes here affect all <strong>new</strong> inspections. Existing inspection records are not modified.</span>
       </div>
 
+      <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex items-start gap-2">
+        <Code className="h-4 w-4 mt-0.5 flex-shrink-0" />
+        <div>
+          <strong>Shortcodes:</strong> Each item below has a copyable shortcode like <code className="font-mono bg-white/60 px-1 rounded">[item-12]</code>. Paste it into the inspection's <em>Notes</em> field and it will be replaced on the printed report with the item's label and current status/measurement (e.g. <em>"Service Brakes: Needs Repair"</em>).
+        </div>
+      </div>
+
       {/* Categories */}
       <div className="space-y-2">
         {sorted.map((cat, catIdx) => {
@@ -227,7 +234,17 @@ export default function NjmvcTemplate() {
               {/* Items */}
               {isExpanded && (
                 <div className="divide-y divide-border">
-                  {sortedItems.map((item, itemIdx) => (
+                  {sortedItems.map((item, itemIdx) => {
+                    const shortcode = `[item-${item.id}]`;
+                    const copyShortcode = async () => {
+                      try {
+                        await navigator.clipboard.writeText(shortcode);
+                        toast({ title: "Shortcode copied", description: shortcode });
+                      } catch {
+                        toast({ title: "Copy failed", description: shortcode, variant: "destructive" });
+                      }
+                    };
+                    return (
                     <div key={item.id} className={`flex items-center gap-2 px-4 py-2 hover:bg-muted/10 ${!item.active ? "opacity-50" : ""}`}>
                       <div className="flex flex-col gap-0.5">
                         <Button size="icon" variant="ghost" className="h-4 w-4" disabled={itemIdx === 0} onClick={() => moveItem(item, sortedItems, -1)}>▲</Button>
@@ -238,6 +255,18 @@ export default function NjmvcTemplate() {
                         onSave={label => updateItem.mutate({ id: item.id, data: { ...item, label } })}
                         className="text-sm flex-1"
                       />
+
+                      {/* Shortcode chip */}
+                      <button
+                        type="button"
+                        onClick={copyShortcode}
+                        title={`Copy shortcode ${shortcode} — paste into report notes to insert this item's value`}
+                        className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-dashed border-border bg-muted/40 hover:bg-muted hover:border-primary/50 text-[10px] font-mono text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+                      >
+                        <Code className="h-3 w-3" />
+                        <span>{shortcode}</span>
+                        <Copy className="h-2.5 w-2.5 opacity-60" />
+                      </button>
 
                       {/* Measurement toggle */}
                       <div className="flex items-center gap-2">
@@ -274,7 +303,8 @@ export default function NjmvcTemplate() {
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Add Item Form */}
                   {isAddingItem ? (

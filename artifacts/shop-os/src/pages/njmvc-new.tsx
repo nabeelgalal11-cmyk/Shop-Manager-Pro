@@ -606,7 +606,7 @@ export default function NjmvcNew() {
             <CardHeader className="pb-3"><CardTitle className="text-base">Notes</CardTitle></CardHeader>
             <CardContent>
               <Textarea
-                placeholder="Additional notes..."
+                placeholder="Additional notes...  Tip: paste item shortcodes like [item-12] (from Template Editor) — they render the item label + status on the printed report."
                 value={header.notes}
                 onChange={e => setH("notes", e.target.value)}
                 rows={3}
