@@ -1,8 +1,26 @@
 import { db, emailTemplatesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
+import nodemailer, { type Transporter } from "nodemailer";
 
 const RESEND_API = "https://api.resend.com/emails";
+
+let smtpTransporter: Transporter | null = null;
+function getSmtpTransporter(): Transporter | null {
+  if (smtpTransporter) return smtpTransporter;
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD;
+  if (!host || !user || !pass) return null;
+  const port = Number(process.env.SMTP_PORT || "465");
+  smtpTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465, // true for 465 (SSL), false for 587 (STARTTLS)
+    auth: { user, pass },
+  });
+  return smtpTransporter;
+}
 
 const DEFAULT_TEMPLATES = [
   {
@@ -10,7 +28,7 @@ const DEFAULT_TEMPLATES = [
     name: "Appointment Confirmation",
     subject: "Your appointment is confirmed - {{shopName}}",
     fromName: "ShopOS",
-    fromEmail: "onboarding@resend.dev",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
     enabled: "true",
     bodyHtml: `<!DOCTYPE html>
 <html>
@@ -64,12 +82,7 @@ export async function sendTemplatedEmail(
   templateKey: string,
   toEmail: string,
   vars: Record<string, string>,
-): Promise<{ ok: boolean; error?: string; id?: string }> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    logger.warn("RESEND_API_KEY not configured; skipping email send");
-    return { ok: false, error: "Email not configured" };
-  }
+): Promise<{ ok: boolean; error?: string; id?: string; provider?: string }> {
   const [tpl] = await db.select().from(emailTemplatesTable).where(eq(emailTemplatesTable.key, templateKey));
   if (!tpl) return { ok: false, error: `Template ${templateKey} not found` };
   if (tpl.enabled !== "true") return { ok: false, error: "Template disabled" };
@@ -77,9 +90,28 @@ export async function sendTemplatedEmail(
   const subject = render(tpl.subject, vars);
   const html = render(tpl.bodyHtml, vars);
   const fromName = tpl.fromName || "ShopOS";
-  const fromEmail = tpl.fromEmail || "onboarding@resend.dev";
-  const from = `${fromName} <${fromEmail}>`;
+  const fromEmailRaw = tpl.fromEmail || process.env.SMTP_FROM || process.env.SMTP_USER || "onboarding@resend.dev";
+  const from = `${fromName} <${fromEmailRaw}>`;
 
+  // Prefer SMTP (HostGator etc.) when configured
+  const transporter = getSmtpTransporter();
+  if (transporter) {
+    try {
+      const info = await transporter.sendMail({ from, to: toEmail, subject, html });
+      logger.info({ id: info.messageId, to: toEmail, template: templateKey, provider: "smtp" }, "Email sent");
+      return { ok: true, id: info.messageId, provider: "smtp" };
+    } catch (err: any) {
+      logger.error({ err: err?.message, code: err?.code }, "SMTP send failed");
+      return { ok: false, error: err?.message || "SMTP send failed", provider: "smtp" };
+    }
+  }
+
+  // Fallback to Resend
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    logger.warn("No SMTP nor RESEND_API_KEY configured; skipping email send");
+    return { ok: false, error: "Email not configured" };
+  }
   try {
     const resp = await fetch(RESEND_API, {
       method: "POST",
@@ -92,12 +124,12 @@ export async function sendTemplatedEmail(
     const data = (await resp.json()) as { id?: string; message?: string; name?: string };
     if (!resp.ok) {
       logger.error({ status: resp.status, data }, "Resend API error");
-      return { ok: false, error: data.message || `HTTP ${resp.status}` };
+      return { ok: false, error: data.message || `HTTP ${resp.status}`, provider: "resend" };
     }
-    logger.info({ id: data.id, to: toEmail, template: templateKey }, "Email sent");
-    return { ok: true, id: data.id };
+    logger.info({ id: data.id, to: toEmail, template: templateKey, provider: "resend" }, "Email sent");
+    return { ok: true, id: data.id, provider: "resend" };
   } catch (err: any) {
     logger.error({ err }, "Failed to send email");
-    return { ok: false, error: err?.message || "Send failed" };
+    return { ok: false, error: err?.message || "Send failed", provider: "resend" };
   }
 }
