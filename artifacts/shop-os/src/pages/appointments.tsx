@@ -29,7 +29,14 @@ export default function Appointments() {
                 <TableCell className="font-medium">{new Date(apt.scheduledAt).toLocaleString()}</TableCell>
                 <TableCell>{apt.customer?.firstName} {apt.customer?.lastName}</TableCell>
                 <TableCell>{apt.serviceType}</TableCell>
-                <TableCell><Badge variant="outline" className="capitalize">{apt.status.replace('_', ' ')}</Badge></TableCell>
+                <TableCell>
+                  <Badge
+                    variant={apt.status === "pending" ? "default" : "outline"}
+                    className={`capitalize ${apt.status === "pending" ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                  >
+                    {apt.status === "pending" ? "🔔 Pending Web Request" : apt.status.replace('_', ' ')}
+                  </Badge>
+                </TableCell>
               </TableRow>
             ))}
             {items.length === 0 && !isLoading && (

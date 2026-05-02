@@ -26,12 +26,14 @@ import authRouter from "./auth.js";
 import usersRouter from "./users.js";
 import permissionsRouter from "./permissions.js";
 import { requireAuth } from "../lib/auth.js";
+import publicRouter from "./public.js";
 
 const router: IRouter = Router();
 
 // PUBLIC routes (no auth required)
 router.use("/health", healthRouter);
 router.use("/auth", authRouter);
+router.use("/public", publicRouter);
 
 // All routes below this point require authentication
 router.use(requireAuth);
