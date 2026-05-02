@@ -37,6 +37,10 @@ app.use(
   }),
 );
 
+// Trust the first proxy hop (Render, Replit, Heroku, etc.) so secure cookies
+// and req.ip work correctly behind a load balancer.
+app.set("trust proxy", 1);
+
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
