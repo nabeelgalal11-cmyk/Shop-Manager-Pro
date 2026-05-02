@@ -50,6 +50,9 @@ app.use(attachUser);
 // Bootstrap permissions + admin user (best-effort, async fire-and-forget)
 seedDefaultPermissions().catch((err) => logger.error({ err }, "seedDefaultPermissions failed"));
 bootstrapAdmin().catch((err) => logger.error({ err }, "bootstrapAdmin failed"));
+import("./lib/email.js").then(({ seedEmailTemplates }) =>
+  seedEmailTemplates().catch((err) => logger.error({ err }, "seedEmailTemplates failed")),
+);
 
 // API routes
 app.use("/api", router);

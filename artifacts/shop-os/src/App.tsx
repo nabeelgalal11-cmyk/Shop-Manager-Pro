@@ -50,6 +50,7 @@ import NjmvcPrint from "@/pages/njmvc-print";
 import NjmvcTemplate from "@/pages/njmvc-template";
 import UsersPage from "@/pages/users";
 import PermissionsPage from "@/pages/permissions";
+import EmailTemplates from "@/pages/email-templates";
 
 const queryClient = new QueryClient();
 
@@ -118,6 +119,7 @@ function Router() {
 
         <Route path="/users" component={UsersPage} />
         <Route path="/permissions" component={PermissionsPage} />
+        <Route path="/email-templates" component={EmailTemplates} />
 
         <Route component={NotFound} />
       </Switch>

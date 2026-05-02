@@ -2,8 +2,44 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { appointmentsTable, customersTable, vehiclesTable, employeesTable } from "@workspace/db";
 import { eq, sql, desc, gte, lte, and } from "drizzle-orm";
+import { sendTemplatedEmail } from "../lib/email.js";
 
 const router: Router = Router();
+
+const CONFIRMED_STATUSES = new Set(["scheduled", "confirmed"]);
+
+async function maybeSendConfirmation(prevStatus: string, appointment: any, req: any) {
+  try {
+    if (prevStatus !== "pending") return;
+    if (!CONFIRMED_STATUSES.has(appointment.status)) return;
+    const customer = appointment.customer;
+    if (!customer?.email) {
+      req.log?.info({ id: appointment.id }, "No customer email; skipping confirmation");
+      return;
+    }
+    const vehicle = appointment.vehicle;
+    const vehicleInfo = vehicle
+      ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") +
+        (vehicle.licensePlate ? ` (${vehicle.licensePlate})` : "")
+      : "Not specified";
+    const result = await sendTemplatedEmail("appointment_confirmed", customer.email, {
+      customerName: `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || "Customer",
+      customerEmail: customer.email,
+      shopName: process.env.SHOP_NAME || "Our Shop",
+      appointmentDateTime: appointment.scheduledAt
+        ? new Date(appointment.scheduledAt).toLocaleString()
+        : "TBD",
+      serviceType: appointment.serviceType || "Service",
+      vehicleInfo,
+      notes: appointment.notes || "",
+    });
+    if (!result.ok) {
+      req.log?.warn({ err: result.error, id: appointment.id }, "Confirmation email failed");
+    }
+  } catch (err) {
+    req.log?.error({ err }, "maybeSendConfirmation crashed");
+  }
+}
 async function enrichAppointment(appointment: any) {
   const [customer, vehicle, assignedTo] = await Promise.all([
     db.select().from(customersTable).where(eq(customersTable.id, appointment.customerId)).then(r => r[0]),
@@ -54,14 +90,17 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
+  const [prev] = await db.select().from(appointmentsTable).where(eq(appointmentsTable.id, id));
+  if (!prev) return res.status(404).json({ error: "Appointment not found" });
   const { customerId, vehicleId, assignedToId, status, serviceType, description, scheduledAt, estimatedDuration, notes } = req.body;
   const [appointment] = await db.update(appointmentsTable).set({
     customerId, vehicleId, assignedToId, status, serviceType, description,
     scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
     estimatedDuration, notes, updatedAt: new Date(),
   }).where(eq(appointmentsTable.id, id)).returning();
-  if (!appointment) return res.status(404).json({ error: "Appointment not found" });
-  res.json(await enrichAppointment(appointment));
+  const enriched = await enrichAppointment(appointment);
+  await maybeSendConfirmation(prev.status, enriched, req);
+  res.json(enriched);
 });
 
 router.delete("/:id", async (req, res) => {

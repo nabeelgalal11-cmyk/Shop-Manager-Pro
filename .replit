@@ -32,3 +32,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 APPOINTMENT_WEBHOOK_API_KEY = "bc86b46c718827a41a646bd43461c6e400e9e6fbdfda0413d83c2670c06d4009"
+RESEND_API_KEY = "re_bx9ZVTXv_MPXrv23wCxPYQnTMfGNkhPpP"

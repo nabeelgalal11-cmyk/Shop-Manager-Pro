@@ -93,6 +93,14 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API client from OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push schema changes to database
 
+## Email
+- **Provider:** Resend (REST). API key in `RESEND_API_KEY` secret.
+- **Templates:** stored in `email_templates` table (DB-backed, editable via `/email-templates` page).
+- **Variables:** `{{customerName}} {{customerEmail}} {{shopName}} {{appointmentDateTime}} {{serviceType}} {{vehicleInfo}} {{notes}}`. Render uses simple `{{var}}` substitution in `artifacts/api-server/src/lib/email.ts`.
+- **Trigger:** `appointment_confirmed` template fires when an appointment status changes from `pending` → `scheduled`/`confirmed` (see `routes/appointments.ts` `maybeSendConfirmation`). Errors are logged but never block the PUT response.
+- **Free-tier note:** Resend only sends to the account owner's email until a domain is verified at resend.com/domains. Default `from` is `onboarding@resend.dev`.
+- **Render deployment:** must also have `RESEND_API_KEY` set; apply migration `CREATE TABLE email_templates (...)`.
+
 ## Authentication & Permissions
 
 Cookie-session auth (express-session + bcrypt). Each user is an `employees` row with `username` + `passwordHash`. On startup the API auto-bootstraps an admin (`admin` / `admin123`) if no users exist — change this password immediately.

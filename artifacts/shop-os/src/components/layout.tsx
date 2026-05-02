@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
   Wrench, Package, ClipboardCheck, Calendar, CreditCard,
   UserCircle, Clock, Receipt, Bell, Search, BarChart2, Tags, CarFront, ShoppingCart, Settings2,
-  LogOut, Shield, KeyRound,
+  LogOut, Shield, KeyRound, Mail,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -61,6 +61,7 @@ const navGroups: NavGroup[] = [
   { label: "Security", items: [
       { name: "Users", href: "/users", icon: KeyRound, resource: "users" },
       { name: "Permissions", href: "/permissions", icon: Shield, resource: "permissions" },
+      { name: "Email Templates", href: "/email-templates", icon: Mail, resource: "permissions" },
     ]
   }
 ];

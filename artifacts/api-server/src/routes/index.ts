@@ -27,6 +27,7 @@ import usersRouter from "./users.js";
 import permissionsRouter from "./permissions.js";
 import { requireAuth } from "../lib/auth.js";
 import publicRouter from "./public.js";
+import emailTemplatesRouter from "./email_templates.js";
 
 const router: IRouter = Router();
 
@@ -61,5 +62,6 @@ router.use("/purchases", purchasesRouter);
 router.use("/njmvc", njmvcRouter);
 router.use("/users", usersRouter);
 router.use("/permissions", permissionsRouter);
+router.use("/email-templates", emailTemplatesRouter);
 
 export default router;
