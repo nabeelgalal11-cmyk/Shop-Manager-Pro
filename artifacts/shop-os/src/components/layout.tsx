@@ -18,6 +18,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationsBell } from "@/components/notifications-bell";
 
 interface NavItem { name: string; href: string; icon: any; resource?: string }
 interface NavGroup { label: string; items: NavItem[] }
@@ -159,6 +160,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {user && <NotificationsBell />}
               {user && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
