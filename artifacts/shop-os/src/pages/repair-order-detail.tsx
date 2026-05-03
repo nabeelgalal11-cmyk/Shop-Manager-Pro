@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AttachmentsPanel } from "@/components/attachments-panel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -908,6 +909,13 @@ export default function RepairOrderDetail() {
           </Card>
         </div>
       </div>
+
+      <AttachmentsPanel
+        ownerType="repair_order"
+        ownerId={ro.id}
+        title="Photos & Documents"
+        description="Before/after photos, photos of failed parts, customer signatures, supporting PDFs."
+      />
 
       {/* Print Template (hidden) */}
       <div ref={printRef} style={{ display: "none" }}>

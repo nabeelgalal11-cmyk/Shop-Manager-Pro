@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useUpload } from "@workspace/object-storage-web";
+import { AttachmentsPanel } from "@/components/attachments-panel";
 import {
   ArrowLeft, ShoppingCart, Plus, Trash2, FileText,
   Upload, Eye, Package, Car, AlertCircle, X
@@ -539,6 +540,15 @@ export default function PurchasesNew() {
           </Button>
         </div>
       </form>
+
+      {isEdit && id && (
+        <AttachmentsPanel
+          ownerType="purchase"
+          ownerId={Number(id)}
+          title="Supporting Documents"
+          description="Extra invoices, receipts, packing slips, photos of received parts."
+        />
+      )}
 
       {/* Invoice Preview Modal */}
       {showPreview && invoiceUrl && (

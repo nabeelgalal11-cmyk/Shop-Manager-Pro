@@ -30,6 +30,7 @@ import publicRouter from "./public.js";
 import emailTemplatesRouter from "./email_templates.js";
 import notificationsRouter from "./notifications.js";
 import searchRouter from "./search.js";
+import attachmentsRouter from "./attachments.js";
 
 const router: IRouter = Router();
 
@@ -67,5 +68,6 @@ router.use("/permissions", permissionsRouter);
 router.use("/email-templates", emailTemplatesRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/search", searchRouter);
+router.use("/attachments", attachmentsRouter);
 
 export default router;

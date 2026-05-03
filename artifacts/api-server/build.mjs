@@ -19,6 +19,7 @@ async function buildAll() {
     outExtension: { ".js": ".mjs" },
     sourcemap: "linked",
     logLevel: "info",
+    external: ["ssh2", "ssh2-sftp-client", "cpu-features"],
     banner: {
       js: "import { createRequire as __createRequire } from 'module'; const require = __createRequire(import.meta.url);",
     },

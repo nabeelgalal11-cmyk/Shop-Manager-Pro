@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useCreateInspection, useGetVehicles, getGetVehiclesQueryKey } from "@workspace/api-client-react";
+import { AttachmentsPanel } from "@/components/attachments-panel";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -27,6 +29,7 @@ const formSchema = z.object({
 export default function InspectionsNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [savedId, setSavedId] = useState<number | null>(null);
   
   const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
   
@@ -55,8 +58,8 @@ export default function InspectionsNew() {
       { data: values },
       {
         onSuccess: (data) => {
-          toast({ title: "Inspection created" });
-          setLocation(`/inspections/${data.id}`);
+          toast({ title: "Inspection saved", description: "You can now attach photos." });
+          setSavedId(data.id);
         }
       }
     );
@@ -140,13 +143,29 @@ export default function InspectionsNew() {
                 ))}
               </div>
 
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={createInspection.isPending}>Save Inspection</Button>
+              <div className="flex justify-end pt-4 gap-2">
+                {savedId && (
+                  <Button type="button" variant="outline" onClick={() => setLocation("/inspections")}>
+                    Done
+                  </Button>
+                )}
+                <Button type="submit" disabled={createInspection.isPending || savedId !== null}>
+                  {savedId ? "Saved ✓" : createInspection.isPending ? "Saving…" : "Save Inspection"}
+                </Button>
               </div>
             </form>
           </Form>
         </CardContent>
       </Card>
+
+      {savedId && (
+        <AttachmentsPanel
+          ownerType="inspection"
+          ownerId={savedId}
+          title="Inspection Photos"
+          description="Walk-around photos of the vehicle's condition (panels, dash, tires, undercarriage, damage)."
+        />
+      )}
     </div>
   );
 }
