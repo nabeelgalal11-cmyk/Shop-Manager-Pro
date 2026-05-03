@@ -1,15 +1,48 @@
 import SftpClient from "ssh2-sftp-client";
 import { Readable } from "stream";
 import path from "path";
+import crypto from "crypto";
 import { logger } from "./logger.js";
 
 const HOST = process.env.HOSTGATOR_SFTP_HOST;
 const PORT = Number(process.env.HOSTGATOR_SFTP_PORT || "2222");
 const USER = process.env.HOSTGATOR_SFTP_USER;
 const PASSWORD = process.env.HOSTGATOR_SFTP_PASSWORD;
-const PRIVATE_KEY = normalizePem(process.env.HOSTGATOR_SFTP_PRIVATE_KEY);
-const PRIVATE_KEY_PASSPHRASE = process.env.HOSTGATOR_SFTP_PRIVATE_KEY_PASSPHRASE;
+const PRIVATE_KEY = decryptPemIfNeeded(
+  normalizePem(process.env.HOSTGATOR_SFTP_PRIVATE_KEY),
+  process.env.HOSTGATOR_SFTP_PRIVATE_KEY_PASSPHRASE,
+);
 const ROOT_DIR = process.env.HOSTGATOR_UPLOAD_DIR;
+
+/**
+ * ssh2's built-in parser fails on some legacy encrypted PEM keys produced by
+ * HostGator's cPanel ("Malformed OpenSSH private key. Bad passphrase?" even
+ * when the passphrase is correct). Use Node's native crypto to decrypt the
+ * key once at startup and hand ssh2 an unencrypted PKCS#8 PEM, which it
+ * parses reliably.
+ */
+function decryptPemIfNeeded(pem: string | undefined, passphrase: string | undefined): string | undefined {
+  if (!pem) return pem;
+  // Only act on encrypted keys; plain keys pass straight through.
+  if (!/Proc-Type:\s*4,ENCRYPTED/i.test(pem) && !/ENCRYPTED PRIVATE KEY/.test(pem)) {
+    return pem;
+  }
+  if (!passphrase) {
+    logger.warn("[hostgatorStorage] private key is encrypted but no passphrase provided");
+    return pem;
+  }
+  try {
+    const keyObj = crypto.createPrivateKey({ key: pem, format: "pem", passphrase });
+    // ssh2 v1 accepts traditional PKCS#1 RSA (BEGIN RSA PRIVATE KEY) but not
+    // unencrypted PKCS#8 (BEGIN PRIVATE KEY) for RSA keys, so prefer pkcs1
+    // when possible. Fall back to pkcs8 for non-RSA keys (EC/Ed25519).
+    const exportType = keyObj.asymmetricKeyType === "rsa" ? "pkcs1" : "pkcs8";
+    return keyObj.export({ format: "pem", type: exportType as any }) as string;
+  } catch (err) {
+    logger.error({ err }, "[hostgatorStorage] failed to decrypt private key");
+    return pem;
+  }
+}
 
 /**
  * Re-format a PEM key that was pasted as one line (newlines stripped by the
@@ -78,7 +111,6 @@ async function connect(): Promise<SftpClient> {
     const authOpts: Record<string, unknown> = PRIVATE_KEY
       ? {
           privateKey: PRIVATE_KEY,
-          ...(PRIVATE_KEY_PASSPHRASE ? { passphrase: PRIVATE_KEY_PASSPHRASE } : {}),
           ...(PASSWORD ? { password: PASSWORD } : {}),
         }
       : { password: PASSWORD as string };
