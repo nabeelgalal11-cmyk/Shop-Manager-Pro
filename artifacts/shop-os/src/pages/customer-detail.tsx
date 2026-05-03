@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Trash2, Phone, Mail, MapPin, Car, FileText } from "lucide-react";
+import { ArrowLeft, Edit, Trash2, Phone, Mail, MapPin, Car, FileText, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -116,6 +116,51 @@ export default function CustomerDetail() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
 
+  const handlePrint = () => {
+    if (!customer) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const esc = (s: any) => String(s ?? "").replace(/</g, "&lt;");
+    const vehicleRows = (vehicles || [])
+      .map((v: any) => `<tr><td>${v.year ?? ""} ${esc(v.make)} ${esc(v.model)}</td><td>${esc(v.licensePlate)}</td><td>${esc(v.vin)}</td></tr>`)
+      .join("");
+    const stmt: any = statement || {};
+    const stmtRows = (stmt.invoices || [])
+      .map((i: any) => `<tr><td>${esc(i.invoiceNumber)}</td><td>${i.issuedAt ? new Date(i.issuedAt).toLocaleDateString() : ""}</td><td>${esc(i.status)}</td><td style="text-align:right">${formatCurrency(i.total ?? 0)}</td><td style="text-align:right">${formatCurrency(i.balance ?? 0)}</td></tr>`)
+      .join("");
+    w.document.write(`
+      <html><head><title>Customer ${esc(customer.firstName)} ${esc(customer.lastName)}</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:24px;color:#111}
+        h1{font-size:22px;margin:0 0 4px}
+        h2{font-size:15px;margin:18px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
+        .meta{color:#555;font-size:13px;margin-bottom:14px}
+        .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;margin-bottom:14px;font-size:13px}
+        .label{font-size:11px;color:#888;text-transform:uppercase}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th{background:#f0f0f0;text-align:left;padding:6px 8px;font-size:12px}
+        td{padding:6px 8px;border-bottom:1px solid #eee}
+        @media print{body{padding:0}}
+      </style></head><body>
+        <h1>${esc(customer.firstName)} ${esc(customer.lastName)}</h1>
+        <div class="meta">Customer ID: ${customer.id}${customerCategoryName ? ` &bull; ${esc(customerCategoryName)}` : ""}</div>
+        <h2>Contact</h2>
+        <div class="grid">
+          <div><div class="label">Phone</div>${esc(customer.phone) || "—"}</div>
+          <div><div class="label">Email</div>${esc(customer.email) || "—"}</div>
+          <div style="grid-column:1/-1"><div class="label">Address</div>${esc(customer.address) || "—"}${customer.city ? `, ${esc(customer.city)}` : ""}${customer.state ? ` ${esc(customer.state)}` : ""}${customer.zip ? ` ${esc(customer.zip)}` : ""}</div>
+          ${customer.notes ? `<div style="grid-column:1/-1"><div class="label">Notes</div>${esc(customer.notes)}</div>` : ""}
+        </div>
+        <h2>Vehicles</h2>
+        ${vehicleRows ? `<table><thead><tr><th>Vehicle</th><th>Plate</th><th>VIN</th></tr></thead><tbody>${vehicleRows}</tbody></table>` : `<div style="color:#888;font-size:13px">No vehicles.</div>`}
+        <h2>Account Statement</h2>
+        ${stmtRows ? `<table><thead><tr><th>Invoice #</th><th>Date</th><th>Status</th><th style="text-align:right">Total</th><th style="text-align:right">Balance</th></tr></thead><tbody>${stmtRows}</tbody></table>` : `<div style="color:#888;font-size:13px">No invoices.</div>`}
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
   if (isLoading) return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
   if (!customer) return <div className="p-8 text-center">Customer not found</div>;
 
@@ -132,6 +177,9 @@ export default function CustomerDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handlePrint}>
+            <Printer className="h-4 w-4 mr-2" /> Print
+          </Button>
           <Button variant="outline" onClick={openEdit}>
             <Edit className="h-4 w-4 mr-2" /> Edit
           </Button>

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Edit, Trash2, Wrench } from "lucide-react";
+import { ArrowLeft, Edit, Trash2, Wrench, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -85,6 +85,47 @@ export default function VehicleDetail() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
 
+  const handlePrint = () => {
+    if (!vehicle) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const rows = (history || [])
+      .map((h: any) => `<tr><td>${new Date(h.date).toLocaleDateString()}</td><td>${h.type ?? ""}</td><td>${(h.description ?? "").replace(/</g, "&lt;")}</td><td style="text-align:right">${h.total != null ? formatCurrency(h.total) : ""}</td></tr>`)
+      .join("");
+    w.document.write(`
+      <html><head><title>Vehicle ${vehicle.year} ${vehicle.make} ${vehicle.model}</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:24px;color:#111}
+        h1{font-size:22px;margin:0 0 4px}
+        h2{font-size:15px;margin:18px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
+        .meta{color:#555;font-size:13px;margin-bottom:14px}
+        .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;margin-bottom:14px;font-size:13px}
+        .label{font-size:11px;color:#888;text-transform:uppercase}
+        table{width:100%;border-collapse:collapse;font-size:13px}
+        th{background:#f0f0f0;text-align:left;padding:6px 8px;font-size:12px}
+        td{padding:6px 8px;border-bottom:1px solid #eee}
+        @media print{body{padding:0}}
+      </style></head><body>
+        <h1>${vehicle.year} ${vehicle.make} ${vehicle.model}</h1>
+        <div class="meta">${vehicle.customer ? `${vehicle.customer.firstName} ${vehicle.customer.lastName}` : "No Owner"}</div>
+        <h2>Vehicle Information</h2>
+        <div class="grid">
+          <div><div class="label">VIN</div>${vehicle.vin ?? "—"}</div>
+          <div><div class="label">License Plate</div>${vehicle.licensePlate ?? "—"}</div>
+          <div><div class="label">Fleet #</div>${vehicle.fleetNumber ?? "—"}</div>
+          <div><div class="label">Color</div>${vehicle.color ?? "—"}</div>
+          <div><div class="label">Mileage</div>${vehicle.mileage ?? "—"}</div>
+          <div><div class="label">Engine</div>${vehicle.engineType ?? "—"}</div>
+          <div><div class="label">Transmission</div>${vehicle.transmissionType ?? "—"}</div>
+        </div>
+        <h2>Service History</h2>
+        ${rows ? `<table><thead><tr><th>Date</th><th>Type</th><th>Description</th><th style="text-align:right">Total</th></tr></thead><tbody>${rows}</tbody></table>` : `<div style="color:#888;font-size:13px">No service history.</div>`}
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
   if (isLoading) return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
   if (!vehicle) return <div className="p-8 text-center">Vehicle not found</div>;
 
@@ -105,6 +146,9 @@ export default function VehicleDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handlePrint}>
+            <Printer className="h-4 w-4 mr-2" /> Print
+          </Button>
           <Button variant="outline" onClick={openEdit}>
             <Edit className="h-4 w-4 mr-2" /> Edit
           </Button>
