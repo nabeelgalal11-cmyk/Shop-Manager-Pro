@@ -6,9 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreateCustomerInput {
-  firstName: string;
-  lastName: string;
+export interface UpdateCustomerInput {
+  firstName?: string;
+  lastName?: string;
   email?: string;
   phone?: string;
   address?: string;

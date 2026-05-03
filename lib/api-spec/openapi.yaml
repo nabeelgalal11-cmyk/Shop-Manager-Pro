@@ -131,7 +131,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateCustomerInput"
+              $ref: "#/components/schemas/UpdateCustomerInput"
       responses:
         "200":
           description: Customer updated
@@ -1555,6 +1555,9 @@ components:
           type: string
         notes:
           type: string
+        categoryId:
+          type: integer
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1595,9 +1598,37 @@ components:
           type: string
         notes:
           type: string
+        categoryId:
+          type: integer
+          nullable: true
       required:
         - firstName
         - lastName
+
+    UpdateCustomerInput:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zip:
+          type: string
+        notes:
+          type: string
+        categoryId:
+          type: integer
+          nullable: true
 
     CustomerListResponse:
       type: object

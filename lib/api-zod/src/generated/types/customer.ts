@@ -17,6 +17,7 @@ export interface Customer {
   state?: string;
   zip?: string;
   notes?: string;
+  categoryId?: number | null;
   createdAt: Date;
   updatedAt: Date;
   vehicleCount?: number;

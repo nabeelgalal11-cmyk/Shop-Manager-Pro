@@ -92,6 +92,7 @@ export * from "./serviceHistoryEntry";
 export * from "./statusCount";
 export * from "./timeEntry";
 export * from "./timeEntryListResponse";
+export * from "./updateCustomerInput";
 export * from "./updateRepairOrderInput";
 export * from "./updateRepairOrderInputPartsItem";
 export * from "./updateRepairOrderInputPriority";

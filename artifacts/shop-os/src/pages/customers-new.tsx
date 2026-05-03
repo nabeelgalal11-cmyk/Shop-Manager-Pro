@@ -54,7 +54,7 @@ export default function CustomersNew() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     createCustomer.mutate(
-      { data: { ...values, categoryId: categoryId ? Number(categoryId) : null } as any },
+      { data: { ...values, categoryId: categoryId ? Number(categoryId) : null } },
       {
         onSuccess: (data) => {
           toast({

@@ -6,6 +6,7 @@ import {
   useGetCustomerVehicles, getGetCustomerVehiclesQueryKey,
   useGetCustomerStatement, getGetCustomerStatementQueryKey,
   useDeleteCustomer, useUpdateCustomer,
+  type UpdateCustomerInput,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,8 +33,20 @@ export default function CustomerDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  type EditForm = Omit<UpdateCustomerInput, "categoryId"> & { categoryId: string };
   const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState<any>({});
+  const [editForm, setEditForm] = useState<EditForm>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    notes: "",
+    categoryId: "none",
+  });
 
   const { data: customer, isLoading } = useGetCustomer(id, {
     query: { enabled: !!id, queryKey: getGetCustomerQueryKey(id) },
@@ -43,8 +56,8 @@ export default function CustomerDetail() {
     queryKey: ["/api/customer-categories"],
     queryFn: () => fetch("/api/customer-categories").then(r => r.json()),
   });
-  const customerCategoryName = (customer as any)?.categoryId
-    ? categories.find(c => c.id === (customer as any).categoryId)?.name
+  const customerCategoryName = customer?.categoryId
+    ? categories.find(c => c.id === customer.categoryId)?.name
     : null;
 
   const { data: vehicles } = useGetCustomerVehicles(id, {
@@ -78,18 +91,18 @@ export default function CustomerDetail() {
       state: customer?.state ?? "",
       zip: customer?.zip ?? "",
       notes: customer?.notes ?? "",
-      categoryId: (customer as any)?.categoryId ? String((customer as any).categoryId) : "none",
+      categoryId: customer?.categoryId ? String(customer.categoryId) : "none",
     });
     setEditOpen(true);
   };
 
   const handleSave = () => {
     const { categoryId, ...rest } = editForm;
-    const payload = {
+    const payload: UpdateCustomerInput = {
       ...rest,
       categoryId: categoryId && categoryId !== "none" ? Number(categoryId) : null,
     };
-    updateCustomer.mutate({ id, data: payload as any }, {
+    updateCustomer.mutate({ id, data: payload }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(id) });
         toast({ title: "Customer updated" });
@@ -284,43 +297,43 @@ export default function CustomerDetail() {
           <div className="grid grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label>First Name</Label>
-              <Input value={editForm.firstName || ""} onChange={e => setEditForm((f: any) => ({ ...f, firstName: e.target.value }))} />
+              <Input value={editForm.firstName || ""} onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label>Last Name</Label>
-              <Input value={editForm.lastName || ""} onChange={e => setEditForm((f: any) => ({ ...f, lastName: e.target.value }))} />
+              <Input value={editForm.lastName || ""} onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label>Email</Label>
-              <Input type="email" value={editForm.email || ""} onChange={e => setEditForm((f: any) => ({ ...f, email: e.target.value }))} />
+              <Input type="email" value={editForm.email || ""} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label>Phone</Label>
-              <Input value={editForm.phone || ""} onChange={e => setEditForm((f: any) => ({ ...f, phone: e.target.value }))} />
+              <Input value={editForm.phone || ""} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))} />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>Street Address</Label>
-              <Input value={editForm.address || ""} onChange={e => setEditForm((f: any) => ({ ...f, address: e.target.value }))} />
+              <Input value={editForm.address || ""} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label>City</Label>
-              <Input value={editForm.city || ""} onChange={e => setEditForm((f: any) => ({ ...f, city: e.target.value }))} />
+              <Input value={editForm.city || ""} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
                 <Label>State</Label>
-                <Input maxLength={2} value={editForm.state || ""} onChange={e => setEditForm((f: any) => ({ ...f, state: e.target.value }))} />
+                <Input maxLength={2} value={editForm.state || ""} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
                 <Label>ZIP</Label>
-                <Input value={editForm.zip || ""} onChange={e => setEditForm((f: any) => ({ ...f, zip: e.target.value }))} />
+                <Input value={editForm.zip || ""} onChange={e => setEditForm(f => ({ ...f, zip: e.target.value }))} />
               </div>
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>Pricing Category</Label>
               <Select
                 value={editForm.categoryId || "none"}
-                onValueChange={v => setEditForm((f: any) => ({ ...f, categoryId: v }))}
+                onValueChange={v => setEditForm(f => ({ ...f, categoryId: v }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a category..." />
@@ -338,7 +351,7 @@ export default function CustomerDetail() {
               <Textarea
                 rows={3}
                 value={editForm.notes || ""}
-                onChange={e => setEditForm((f: any) => ({ ...f, notes: e.target.value }))}
+                onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
               />
             </div>
           </div>

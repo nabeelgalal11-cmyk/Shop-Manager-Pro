@@ -75,6 +75,7 @@ import type {
   StatusCount,
   TimeEntry,
   TimeEntryListResponse,
+  UpdateCustomerInput,
   UpdateRepairOrderInput,
   Vehicle,
   VehicleListResponse,
@@ -440,14 +441,14 @@ export const getUpdateCustomerUrl = (id: number) => {
 
 export const updateCustomer = async (
   id: number,
-  createCustomerInput: CreateCustomerInput,
+  updateCustomerInput: UpdateCustomerInput,
   options?: RequestInit,
 ): Promise<Customer> => {
   return customFetch<Customer>(getUpdateCustomerUrl(id), {
     ...options,
     method: "PUT",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createCustomerInput),
+    body: JSON.stringify(updateCustomerInput),
   });
 };
 
@@ -458,14 +459,14 @@ export const getUpdateCustomerMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateCustomer>>,
     TError,
-    { id: number; data: BodyType<CreateCustomerInput> },
+    { id: number; data: BodyType<UpdateCustomerInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof updateCustomer>>,
   TError,
-  { id: number; data: BodyType<CreateCustomerInput> },
+  { id: number; data: BodyType<UpdateCustomerInput> },
   TContext
 > => {
   const mutationKey = ["updateCustomer"];
@@ -479,7 +480,7 @@ export const getUpdateCustomerMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof updateCustomer>>,
-    { id: number; data: BodyType<CreateCustomerInput> }
+    { id: number; data: BodyType<UpdateCustomerInput> }
   > = (props) => {
     const { id, data } = props ?? {};
 
@@ -492,7 +493,7 @@ export const getUpdateCustomerMutationOptions = <
 export type UpdateCustomerMutationResult = NonNullable<
   Awaited<ReturnType<typeof updateCustomer>>
 >;
-export type UpdateCustomerMutationBody = BodyType<CreateCustomerInput>;
+export type UpdateCustomerMutationBody = BodyType<UpdateCustomerInput>;
 export type UpdateCustomerMutationError = ErrorType<unknown>;
 
 /**
@@ -505,14 +506,14 @@ export const useUpdateCustomer = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof updateCustomer>>,
     TError,
-    { id: number; data: BodyType<CreateCustomerInput> },
+    { id: number; data: BodyType<UpdateCustomerInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof updateCustomer>>,
   TError,
-  { id: number; data: BodyType<CreateCustomerInput> },
+  { id: number; data: BodyType<UpdateCustomerInput> },
   TContext
 > => {
   return useMutation(getUpdateCustomerMutationOptions(options));

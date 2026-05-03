@@ -20,6 +20,7 @@ export interface Customer {
   state?: string;
   zip?: string;
   notes?: string;
+  categoryId?: number | null;
   createdAt: string;
   updatedAt: string;
   vehicleCount?: number;
@@ -37,6 +38,20 @@ export interface CreateCustomerInput {
   state?: string;
   zip?: string;
   notes?: string;
+  categoryId?: number | null;
+}
+
+export interface UpdateCustomerInput {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  notes?: string;
+  categoryId?: number | null;
 }
 
 export interface CustomerListResponse {
