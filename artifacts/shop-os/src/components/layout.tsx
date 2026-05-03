@@ -58,6 +58,7 @@ const navGroups: NavGroup[] = [
       { name: "Expenses", href: "/expenses", icon: Receipt, resource: "expenses" },
       { name: "Reminders", href: "/reminders", icon: Bell, resource: "reminders" },
       { name: "Customer Categories", href: "/customer-categories", icon: Tags, resource: "customer_categories" },
+      { name: "Canned Jobs", href: "/canned-jobs", icon: Wrench, resource: "canned_jobs" },
     ]
   },
   { label: "Security", items: [

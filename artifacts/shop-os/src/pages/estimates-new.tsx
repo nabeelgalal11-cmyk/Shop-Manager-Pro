@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Plus, Trash2, Bot } from "lucide-react";
+import { ArrowLeft, Save, Plus, Trash2, Bot, Wrench } from "lucide-react";
 import { AIEstimateModal } from "@/components/ai-estimate-modal";
+import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
 
 const lineItemSchema = z.object({
   type: z.enum(["labor", "part", "fee", "discount"]),
@@ -34,6 +35,7 @@ export default function EstimatesNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [cannedOpen, setCannedOpen] = useState(false);
   
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
   const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
@@ -67,6 +69,24 @@ export default function EstimatesNew() {
     }
   }
 
+  function handleCannedJob(job: CannedJob) {
+    const existing = form.getValues("lineItems");
+    const nonEmpty = existing.filter(i => i.description.trim() !== "" || i.unitPrice > 0);
+    const newItems = (job.items || []).map(it => ({
+      type: it.type,
+      description: it.description,
+      quantity: Number(it.quantity) || 1,
+      unitPrice: Number(it.unitPrice) || 0,
+    }));
+    const merged = [...nonEmpty, ...newItems];
+    form.setValue("lineItems", merged.length > 0 ? merged : newItems);
+    if (job.description) {
+      const cur = form.getValues("notes") ?? "";
+      form.setValue("notes", cur ? `${cur}\n${job.description}` : job.description);
+    }
+    toast({ title: `Added "${job.name}"`, description: `${newItems.length} line item${newItems.length === 1 ? "" : "s"} added.` });
+  }
+
   function onSubmit(values: z.infer<typeof formSchema>) {
     createEstimate.mutate(
       { data: values },
@@ -89,6 +109,9 @@ export default function EstimatesNew() {
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">New Estimate</h1>
         </div>
+        <Button type="button" variant="outline" onClick={() => setCannedOpen(true)}>
+          <Wrench className="h-4 w-4 mr-2" /> Canned Job
+        </Button>
         <Button type="button" variant="outline" onClick={() => setAiModalOpen(true)}>
           <Bot className="h-4 w-4 mr-2 text-blue-600" /> AI Assistant
         </Button>
@@ -223,6 +246,8 @@ export default function EstimatesNew() {
           </Form>
         </CardContent>
       </Card>
+
+      <CannedJobPicker open={cannedOpen} onClose={() => setCannedOpen(false)} onPick={handleCannedJob} />
 
       <AIEstimateModal
         open={aiModalOpen}

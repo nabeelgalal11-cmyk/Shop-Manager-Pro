@@ -53,6 +53,7 @@ import NjmvcTemplate from "@/pages/njmvc-template";
 import UsersPage from "@/pages/users";
 import PermissionsPage from "@/pages/permissions";
 import EmailTemplates from "@/pages/email-templates";
+import CannedJobs from "@/pages/canned-jobs";
 
 const queryClient = new QueryClient();
 
@@ -113,6 +114,8 @@ function Router() {
         <Route path="/purchases" component={Purchases} />
         <Route path="/purchases/new" component={PurchasesNew} />
         <Route path="/purchases/:id" component={PurchaseDetail} />
+
+        <Route path="/canned-jobs" component={CannedJobs} />
 
         <Route path="/njmvc" component={NjmvcInspections} />
         <Route path="/njmvc/template" component={NjmvcTemplate} />

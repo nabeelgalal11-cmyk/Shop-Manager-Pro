@@ -31,6 +31,8 @@ import emailTemplatesRouter from "./email_templates.js";
 import notificationsRouter from "./notifications.js";
 import searchRouter from "./search.js";
 import attachmentsRouter from "./attachments.js";
+import vinRouter from "./vin.js";
+import cannedJobsRouter from "./canned-jobs.js";
 
 const router: IRouter = Router();
 
@@ -69,5 +71,7 @@ router.use("/email-templates", emailTemplatesRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/search", searchRouter);
 router.use("/attachments", attachmentsRouter);
+router.use("/vin", vinRouter);
+router.use("/canned-jobs", cannedJobsRouter);
 
 export default router;

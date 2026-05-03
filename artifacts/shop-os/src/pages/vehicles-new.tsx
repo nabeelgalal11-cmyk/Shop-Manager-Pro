@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useCreateVehicle } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import { CustomerCombobox } from "@/components/customer-combobox";
 
 const formSchema = z.object({
@@ -43,6 +44,29 @@ export default function VehiclesNew() {
   });
 
   const createVehicle = useCreateVehicle();
+  const [decoding, setDecoding] = useState(false);
+
+  async function decodeVin() {
+    const vin = (form.getValues("vin") || "").trim();
+    if (vin.length < 11 || vin.length > 17) {
+      toast({ title: "Enter a VIN first", description: "VIN must be 11–17 characters.", variant: "destructive" });
+      return;
+    }
+    setDecoding(true);
+    try {
+      const r = await fetch(`/api/vin/${encodeURIComponent(vin)}`);
+      if (!r.ok) throw new Error((await r.json())?.error || "Decode failed");
+      const d = await r.json();
+      if (d.year) form.setValue("year", d.year, { shouldValidate: true });
+      if (d.make) form.setValue("make", d.make, { shouldValidate: true });
+      if (d.model) form.setValue("model", d.model, { shouldValidate: true });
+      toast({ title: "VIN decoded", description: [d.year, d.make, d.model, d.trim].filter(Boolean).join(" ") || "Filled what was available" });
+    } catch (e: any) {
+      toast({ title: "VIN decode failed", description: e.message, variant: "destructive" });
+    } finally {
+      setDecoding(false);
+    }
+  }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     createVehicle.mutate(
@@ -103,7 +127,17 @@ export default function VehiclesNew() {
                   <FormItem><FormLabel>License Plate</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="vin" render={({ field }) => (
-                  <FormItem><FormLabel>VIN</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                  <FormItem>
+                    <FormLabel>VIN</FormLabel>
+                    <div className="flex gap-2">
+                      <FormControl><Input placeholder="Paste VIN to auto-fill year/make/model" {...field} /></FormControl>
+                      <Button type="button" variant="outline" onClick={decodeVin} disabled={decoding}>
+                        {decoding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                        <span className="ml-1 hidden sm:inline">Decode</span>
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
                 )} />
                 <FormField control={form.control} name="fleetNumber" render={({ field }) => (
                   <FormItem><FormLabel>Fleet # <span className="text-xs text-muted-foreground font-normal">(leave blank if not a fleet vehicle)</span></FormLabel><FormControl><Input placeholder="e.g. 042" {...field} /></FormControl><FormMessage /></FormItem>
