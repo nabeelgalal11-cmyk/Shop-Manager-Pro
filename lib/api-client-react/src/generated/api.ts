@@ -20,6 +20,7 @@ import type {
   ActivityItem,
   Appointment,
   AppointmentListResponse,
+  BoardPreference,
   CreateAppointmentInput,
   CreateCustomerInput,
   CreateEmployeeInput,
@@ -79,6 +80,7 @@ import type {
   StockMovementListResponse,
   TimeEntry,
   TimeEntryListResponse,
+  UpdateBoardPreferenceInput,
   UpdateCustomerInput,
   UpdateRepairOrderInput,
   UsedCarProfitabilityReport,
@@ -6686,3 +6688,180 @@ export function useGetTopServices<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get the current user's saved board layout preference
+ */
+export const getGetBoardPreferenceUrl = (boardKey: string) => {
+  return `/api/user-preferences/boards/${boardKey}`;
+};
+
+export const getBoardPreference = async (
+  boardKey: string,
+  options?: RequestInit,
+): Promise<BoardPreference> => {
+  return customFetch<BoardPreference>(getGetBoardPreferenceUrl(boardKey), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBoardPreferenceQueryKey = (boardKey: string) => {
+  return [`/api/user-preferences/boards/${boardKey}`] as const;
+};
+
+export const getGetBoardPreferenceQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBoardPreference>>,
+  TError = ErrorType<unknown>,
+>(
+  boardKey: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBoardPreference>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetBoardPreferenceQueryKey(boardKey);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getBoardPreference>>
+  > = ({ signal }) =>
+    getBoardPreference(boardKey, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!boardKey,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBoardPreference>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBoardPreferenceQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBoardPreference>>
+>;
+export type GetBoardPreferenceQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the current user's saved board layout preference
+ */
+
+export function useGetBoardPreference<
+  TData = Awaited<ReturnType<typeof getBoardPreference>>,
+  TError = ErrorType<unknown>,
+>(
+  boardKey: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBoardPreference>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBoardPreferenceQueryOptions(boardKey, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save the current user's board layout preference
+ */
+export const getUpdateBoardPreferenceUrl = (boardKey: string) => {
+  return `/api/user-preferences/boards/${boardKey}`;
+};
+
+export const updateBoardPreference = async (
+  boardKey: string,
+  updateBoardPreferenceInput: UpdateBoardPreferenceInput,
+  options?: RequestInit,
+): Promise<BoardPreference> => {
+  return customFetch<BoardPreference>(getUpdateBoardPreferenceUrl(boardKey), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateBoardPreferenceInput),
+  });
+};
+
+export const getUpdateBoardPreferenceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBoardPreference>>,
+    TError,
+    { boardKey: string; data: BodyType<UpdateBoardPreferenceInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateBoardPreference>>,
+  TError,
+  { boardKey: string; data: BodyType<UpdateBoardPreferenceInput> },
+  TContext
+> => {
+  const mutationKey = ["updateBoardPreference"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateBoardPreference>>,
+    { boardKey: string; data: BodyType<UpdateBoardPreferenceInput> }
+  > = (props) => {
+    const { boardKey, data } = props ?? {};
+
+    return updateBoardPreference(boardKey, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateBoardPreferenceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateBoardPreference>>
+>;
+export type UpdateBoardPreferenceMutationBody =
+  BodyType<UpdateBoardPreferenceInput>;
+export type UpdateBoardPreferenceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save the current user's board layout preference
+ */
+export const useUpdateBoardPreference = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateBoardPreference>>,
+    TError,
+    { boardKey: string; data: BodyType<UpdateBoardPreferenceInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateBoardPreference>>,
+  TError,
+  { boardKey: string; data: BodyType<UpdateBoardPreferenceInput> },
+  TContext
+> => {
+  return useMutation(getUpdateBoardPreferenceMutationOptions(options));
+};

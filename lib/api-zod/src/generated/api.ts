@@ -3948,3 +3948,34 @@ export const GetTopServicesResponseItem = zod.object({
   revenue: zod.number(),
 });
 export const GetTopServicesResponse = zod.array(GetTopServicesResponseItem);
+
+/**
+ * @summary Get the current user's saved board layout preference
+ */
+export const GetBoardPreferenceParams = zod.object({
+  boardKey: zod.coerce.string(),
+});
+
+export const GetBoardPreferenceResponse = zod.object({
+  boardKey: zod.string(),
+  columnOrder: zod.array(zod.string()),
+  hiddenColumns: zod.array(zod.string()),
+});
+
+/**
+ * @summary Save the current user's board layout preference
+ */
+export const UpdateBoardPreferenceParams = zod.object({
+  boardKey: zod.coerce.string(),
+});
+
+export const UpdateBoardPreferenceBody = zod.object({
+  columnOrder: zod.array(zod.string()),
+  hiddenColumns: zod.array(zod.string()),
+});
+
+export const UpdateBoardPreferenceResponse = zod.object({
+  boardKey: zod.string(),
+  columnOrder: zod.array(zod.string()),
+  hiddenColumns: zod.array(zod.string()),
+});

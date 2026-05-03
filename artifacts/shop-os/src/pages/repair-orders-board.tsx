@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import {
   useGetRepairOrders,
@@ -6,6 +6,9 @@ import {
   useUpdateRepairOrder,
   useGetEmployees,
   getGetEmployeesQueryKey,
+  useGetBoardPreference,
+  useUpdateBoardPreference,
+  getGetBoardPreferenceQueryKey,
   type UpdateRepairOrderInput,
   type UpdateRepairOrderInputStatus,
   type RepairOrder,
@@ -16,7 +19,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, AlertTriangle, Clock, Wrench, CheckCircle2, ThumbsUp, List, LayoutGrid, Users, UserX } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Plus, AlertTriangle, Clock, Wrench, CheckCircle2, ThumbsUp, List, LayoutGrid, Users, UserX, Settings2, GripVertical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -40,7 +49,9 @@ type Lane = {
   total: number;
 };
 
-const COLUMNS: Array<{ key: Status; title: string; icon: React.ReactNode; tone: string }> = [
+type ColumnDef = { key: Status; title: string; icon: React.ReactNode; tone: string };
+
+const ALL_COLUMNS: ColumnDef[] = [
   { key: "pending",            title: "Pending",            icon: <Clock className="h-3.5 w-3.5" />,         tone: "border-t-muted-foreground/40" },
   { key: "in_progress",        title: "In Progress",        icon: <Wrench className="h-3.5 w-3.5" />,        tone: "border-t-primary" },
   { key: "waiting_parts",      title: "Awaiting Parts",     icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: "border-t-orange-500" },
@@ -48,7 +59,36 @@ const COLUMNS: Array<{ key: Status; title: string; icon: React.ReactNode; tone: 
   { key: "completed",          title: "Completed",          icon: <CheckCircle2 className="h-3.5 w-3.5" />,  tone: "border-t-green-600" },
 ];
 
+const ALL_KEYS = ALL_COLUMNS.map(c => c.key);
+const COLUMN_BY_KEY: Record<Status, ColumnDef> = ALL_COLUMNS.reduce(
+  (acc, c) => { acc[c.key] = c; return acc; },
+  {} as Record<Status, ColumnDef>,
+);
+const BOARD_KEY = "repair-orders";
+
 const UNASSIGNED_KEY = "unassigned";
+
+function isStatus(s: string): s is Status {
+  return (ALL_KEYS as string[]).includes(s);
+}
+
+// Merge a saved order with the canonical key list so newly-added columns
+// always appear (at the end) even if a user saved a preference before they
+// existed. Filters out any unknown keys defensively.
+function reconcileOrder(saved: string[]): Status[] {
+  const seen = new Set<Status>();
+  const out: Status[] = [];
+  for (const k of saved) {
+    if (isStatus(k) && !seen.has(k)) {
+      out.push(k);
+      seen.add(k);
+    }
+  }
+  for (const k of ALL_KEYS) {
+    if (!seen.has(k)) out.push(k);
+  }
+  return out;
+}
 
 const formatDate = (v: any) => {
   if (!v) return "—";
@@ -81,6 +121,102 @@ export default function RepairOrdersBoard() {
   const [dragOver, setDragOver] = useState<{ status: Status; tech: string | null } | null>(null);
   // Optimistic overrides keyed by RO id (cleared once the server response refetches).
   const [optimistic, setOptimistic] = useState<Record<number, { status?: Status; assignedToId?: number | null }>>({});
+
+  // Column drag-reorder state (header drags only).
+  const [columnDragOverKey, setColumnDragOverKey] = useState<Status | null>(null);
+  const draggingColumnRef = useRef<Status | null>(null);
+
+  // ---- Per-user column preferences (order + hidden) ----
+  const { data: prefData } = useGetBoardPreference(BOARD_KEY, {
+    query: { queryKey: getGetBoardPreferenceQueryKey(BOARD_KEY) },
+  });
+  const updatePref = useUpdateBoardPreference();
+
+  const [columnOrder, setColumnOrder] = useState<Status[]>(ALL_KEYS);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<Status>>(new Set());
+  // Hydrate from server only until the user makes a local edit; otherwise a
+  // late-arriving GET could clobber an in-flight reorder/toggle. After the
+  // first local edit (or first successful save) we treat local state as the
+  // source of truth.
+  const prefHydratedRef = useRef(false);
+  const userEditedRef = useRef(false);
+
+  useEffect(() => {
+    if (!prefData || prefHydratedRef.current || userEditedRef.current) return;
+    prefHydratedRef.current = true;
+    setColumnOrder(reconcileOrder(prefData.columnOrder ?? []));
+    setHiddenColumns(
+      new Set((prefData.hiddenColumns ?? []).filter(isStatus)),
+    );
+  }, [prefData]);
+
+  function savePref(nextOrder: Status[], nextHidden: Set<Status>) {
+    userEditedRef.current = true;
+    updatePref.mutate(
+      {
+        boardKey: BOARD_KEY,
+        data: {
+          columnOrder: nextOrder,
+          hiddenColumns: Array.from(nextHidden),
+        },
+      },
+      {
+        onError: () => {
+          toast({ title: "Failed to save board layout", variant: "destructive" });
+        },
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: getGetBoardPreferenceQueryKey(BOARD_KEY) });
+        },
+      },
+    );
+  }
+
+  const visibleColumns = useMemo<ColumnDef[]>(() => {
+    return columnOrder
+      .filter(k => !hiddenColumns.has(k))
+      .map(k => COLUMN_BY_KEY[k]);
+  }, [columnOrder, hiddenColumns]);
+
+  function toggleColumnVisibility(key: Status, visible: boolean) {
+    setHiddenColumns(prev => {
+      const next = new Set(prev);
+      if (visible) next.delete(key);
+      else next.add(key);
+      savePref(columnOrder, next);
+      return next;
+    });
+  }
+
+  function onColumnHeaderDragStart(e: React.DragEvent, key: Status) {
+    draggingColumnRef.current = key;
+    e.dataTransfer.setData("text/board-col", key);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function onColumnHeaderDragOver(e: React.DragEvent, key: Status) {
+    if (!draggingColumnRef.current) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (columnDragOverKey !== key) setColumnDragOverKey(key);
+  }
+
+  function onColumnHeaderDrop(e: React.DragEvent, targetKey: Status) {
+    e.preventDefault();
+    e.stopPropagation();
+    const fromKey = draggingColumnRef.current ?? (e.dataTransfer.getData("text/board-col") as Status);
+    draggingColumnRef.current = null;
+    setColumnDragOverKey(null);
+    if (!fromKey || !isStatus(fromKey) || fromKey === targetKey) return;
+
+    setColumnOrder(prev => {
+      const next = prev.filter(k => k !== fromKey);
+      const targetIdx = next.indexOf(targetKey);
+      if (targetIdx === -1) next.push(fromKey);
+      else next.splice(targetIdx, 0, fromKey);
+      savePref(next, hiddenColumns);
+      return next;
+    });
+  }
 
   // Pull a generous page so the board is useful for typical shops; not a full virtualized board.
   const { data, isLoading } = useGetRepairOrders(
@@ -334,27 +470,76 @@ export default function RepairOrdersBoard() {
               <LayoutGrid className="h-4 w-4 mr-1.5" /> Board
             </Button>
           </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 px-2" data-testid="button-customize-columns">
+                <Settings2 className="h-4 w-4 mr-1.5" /> Columns
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="end">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
+                Show / hide columns
+              </div>
+              <div className="space-y-2">
+                {ALL_COLUMNS.map(col => {
+                  const visible = !hiddenColumns.has(col.key);
+                  return (
+                    <label key={col.key} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={visible}
+                        onCheckedChange={(v) => toggleColumnVisibility(col.key, !!v)}
+                        data-testid={`toggle-col-${col.key}`}
+                      />
+                      <span className="flex items-center gap-1.5">{col.icon}{col.title}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-3 leading-snug">
+                Drag a column header on the board to reorder. Your layout is saved per user.
+              </div>
+            </PopoverContent>
+          </Popover>
           <Button onClick={() => setLocation("/repair-orders/new")} className="shadow-sm font-medium">
             <Plus className="mr-2 h-4 w-4" /> New Repair Order
           </Button>
         </div>
       </div>
 
-      {groupMode === "status" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {COLUMNS.map(col => {
+      {visibleColumns.length === 0 ? (
+        <div className="rounded-lg border bg-muted/20 p-10 text-center text-sm text-muted-foreground">
+          All columns are hidden. Use the Columns menu to show one.
+        </div>
+      ) : groupMode === "status" ? (
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: `repeat(${visibleColumns.length}, minmax(220px, 1fr))` }}
+          data-testid="board-columns"
+        >
+          {visibleColumns.map(col => {
             const items = groupedByStatus[col.key];
             const isOver = dragOver?.status === col.key && dragOver?.tech === null;
+            const isColDragOver = columnDragOverKey === col.key;
             return (
               <div
                 key={col.key}
                 onDragOver={(e) => onDragOverCell(e, col.key, null)}
                 onDragLeave={() => setDragOver(prev => (prev && prev.status === col.key && prev.tech === null ? null : prev))}
                 onDrop={(e) => onDrop(e, col.key, null)}
-                className={`rounded-lg border-t-4 ${col.tone} bg-muted/20 flex flex-col min-h-[200px] transition-colors ${isOver ? "bg-primary/5 ring-2 ring-primary/30" : ""}`}
+                className={`rounded-lg border-t-4 ${col.tone} bg-muted/20 flex flex-col min-h-[200px] transition-colors ${isOver ? "bg-primary/5 ring-2 ring-primary/30" : ""} ${isColDragOver ? "ring-2 ring-primary" : ""}`}
+                data-testid={`board-column-${col.key}`}
               >
-                <div className="px-3 py-2.5 flex items-center justify-between border-b bg-background/40 rounded-t-md">
+                <div
+                  className="px-3 py-2.5 flex items-center justify-between border-b bg-background/40 rounded-t-md cursor-grab active:cursor-grabbing select-none"
+                  draggable
+                  onDragStart={(e) => onColumnHeaderDragStart(e, col.key)}
+                  onDragEnd={() => { draggingColumnRef.current = null; setColumnDragOverKey(null); }}
+                  onDragOver={(e) => onColumnHeaderDragOver(e, col.key)}
+                  onDrop={(e) => onColumnHeaderDrop(e, col.key)}
+                  data-testid={`board-column-header-${col.key}`}
+                >
                   <div className="flex items-center gap-1.5 font-semibold text-sm">
+                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60" />
                     {col.icon} {col.title}
                   </div>
                   <Badge variant="secondary" className="h-5 px-1.5 text-xs">{items.length}</Badge>
@@ -379,21 +564,34 @@ export default function RepairOrdersBoard() {
         <div className="overflow-x-auto">
           <div className="min-w-[1100px] space-y-3">
             {/* Column header strip */}
-            <div className="grid gap-3" style={{ gridTemplateColumns: "180px repeat(5, minmax(0, 1fr))" }}>
+            <div className="grid gap-3" style={{ gridTemplateColumns: `180px repeat(${visibleColumns.length}, minmax(0, 1fr))` }}>
               <div />
-              {COLUMNS.map(col => (
-                <div key={col.key} className={`rounded-md border-t-4 ${col.tone} bg-background/40 px-3 py-2 flex items-center gap-1.5 font-semibold text-sm`}>
-                  {col.icon} {col.title}
-                </div>
-              ))}
+              {visibleColumns.map(col => {
+                const isColDragOver = columnDragOverKey === col.key;
+                return (
+                  <div
+                    key={col.key}
+                    className={`rounded-md border-t-4 ${col.tone} bg-background/40 px-3 py-2 flex items-center gap-1.5 font-semibold text-sm cursor-grab active:cursor-grabbing select-none ${isColDragOver ? "ring-2 ring-primary" : ""}`}
+                    draggable
+                    onDragStart={(e) => onColumnHeaderDragStart(e, col.key)}
+                    onDragEnd={() => { draggingColumnRef.current = null; setColumnDragOverKey(null); }}
+                    onDragOver={(e) => onColumnHeaderDragOver(e, col.key)}
+                    onDrop={(e) => onColumnHeaderDrop(e, col.key)}
+                    data-testid={`board-column-header-${col.key}`}
+                  >
+                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60" />
+                    {col.icon} {col.title}
+                  </div>
+                );
+              })}
             </div>
 
             {isLoading ? (
               <div className="space-y-3">
                 {[0, 1, 2].map(i => (
-                  <div key={i} className="grid gap-3" style={{ gridTemplateColumns: "180px repeat(5, minmax(0, 1fr))" }}>
+                  <div key={i} className="grid gap-3" style={{ gridTemplateColumns: `180px repeat(${visibleColumns.length}, minmax(0, 1fr))` }}>
                     <Skeleton className="h-24 w-full" />
-                    {COLUMNS.map(c => <Skeleton key={c.key} className="h-24 w-full" />)}
+                    {visibleColumns.map(c => <Skeleton key={c.key} className="h-24 w-full" />)}
                   </div>
                 ))}
               </div>
@@ -402,7 +600,7 @@ export default function RepairOrdersBoard() {
                 <div
                   key={lane.key}
                   className="grid gap-3"
-                  style={{ gridTemplateColumns: "180px repeat(5, minmax(0, 1fr))" }}
+                  style={{ gridTemplateColumns: `180px repeat(${visibleColumns.length}, minmax(0, 1fr))` }}
                   data-testid={`lane-${lane.key}`}
                 >
                   {/* Lane label */}
@@ -422,7 +620,7 @@ export default function RepairOrdersBoard() {
                     <Badge variant="secondary" className="h-5 px-1.5 text-xs self-start mt-2">{lane.total}</Badge>
                   </div>
 
-                  {COLUMNS.map(col => {
+                  {visibleColumns.map(col => {
                     const items = lane.cells[col.key];
                     const isOver = dragOver?.status === col.key && dragOver?.tech === lane.key;
                     return (

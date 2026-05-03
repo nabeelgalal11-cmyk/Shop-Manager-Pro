@@ -1022,6 +1022,17 @@ export interface StatusCount {
   label: string;
 }
 
+export interface BoardPreference {
+  boardKey: string;
+  columnOrder: string[];
+  hiddenColumns: string[];
+}
+
+export interface UpdateBoardPreferenceInput {
+  columnOrder: string[];
+  hiddenColumns: string[];
+}
+
 export interface ServiceCount {
   service: string;
   count: number;

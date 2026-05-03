@@ -41,6 +41,8 @@ tags:
     description: Used-car inventory
   - name: reports
     description: Business reports
+  - name: user-preferences
+    description: Per-user UI preferences
 
 paths:
   /healthz:
@@ -1613,6 +1615,49 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ServiceCount"
+
+  # ---- USER PREFERENCES ----
+  /user-preferences/boards/{boardKey}:
+    get:
+      operationId: getBoardPreference
+      tags: [user-preferences]
+      summary: Get the current user's saved board layout preference
+      parameters:
+        - name: boardKey
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Board preference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardPreference"
+    put:
+      operationId: updateBoardPreference
+      tags: [user-preferences]
+      summary: Save the current user's board layout preference
+      parameters:
+        - name: boardKey
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBoardPreferenceInput"
+      responses:
+        "200":
+          description: Updated board preference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardPreference"
 
 components:
   schemas:
@@ -3454,6 +3499,39 @@ components:
         - status
         - count
         - label
+
+    BoardPreference:
+      type: object
+      properties:
+        boardKey:
+          type: string
+        columnOrder:
+          type: array
+          items:
+            type: string
+        hiddenColumns:
+          type: array
+          items:
+            type: string
+      required:
+        - boardKey
+        - columnOrder
+        - hiddenColumns
+
+    UpdateBoardPreferenceInput:
+      type: object
+      properties:
+        columnOrder:
+          type: array
+          items:
+            type: string
+        hiddenColumns:
+          type: array
+          items:
+            type: string
+      required:
+        - columnOrder
+        - hiddenColumns
 
     ServiceCount:
       type: object

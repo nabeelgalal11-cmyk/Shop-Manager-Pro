@@ -34,6 +34,7 @@ import attachmentsRouter from "./attachments.js";
 import vinRouter from "./vin.js";
 import cannedJobsRouter from "./canned-jobs.js";
 import settingsRouter from "./settings.js";
+import userPreferencesRouter from "./user_preferences.js";
 
 const router: IRouter = Router();
 
@@ -75,5 +76,6 @@ router.use("/attachments", attachmentsRouter);
 router.use("/vin", vinRouter);
 router.use("/canned-jobs", cannedJobsRouter);
 router.use("/settings", settingsRouter);
+router.use("/user-preferences", userPreferencesRouter);
 
 export default router;
