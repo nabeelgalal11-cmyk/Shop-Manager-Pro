@@ -1,0 +1,50 @@
+2026-05-03T04:44:18.090896327Z > vite build --config vite.config.ts
+2026-05-03T04:44:18.090900507Z 
+2026-05-03T04:44:18.413968747Z vite v7.3.1 building client environment for production...
+2026-05-03T04:44:18.483347325Z transforming...
+2026-05-03T04:44:24.063225332Z ✓ 2726 modules transformed.
+2026-05-03T04:44:24.709328511Z rendering chunks...
+2026-05-03T04:44:24.722770328Z computing gzip size...
+2026-05-03T04:44:24.753146853Z dist/public/index.html                     0.75 kB │ gzip:   0.42 kB
+2026-05-03T04:44:24.753161264Z dist/public/assets/index-Do_-ifh1.css    179.76 kB │ gzip:  28.92 kB
+2026-05-03T04:44:24.753265339Z dist/public/assets/index-DDeWsv4f.js   1,322.99 kB │ gzip: 354.36 kB
+2026-05-03T04:44:24.753468229Z 
+2026-05-03T04:44:24.753475359Z (!) Some chunks are larger than 500 kB after minification. Consider:
+2026-05-03T04:44:24.753479979Z - Using dynamic import() to code-split the application
+2026-05-03T04:44:24.75348485Z - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2026-05-03T04:44:24.75348897Z - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+2026-05-03T04:44:24.753771604Z ✓ built in 6.30s
+2026-05-03T04:44:39.380448426Z ==> Uploading build...
+2026-05-03T04:44:49.804845194Z ==> Uploaded in 4.5s. Compression took 5.9s
+2026-05-03T04:44:49.842170253Z ==> Build successful 🎉
+2026-05-03T04:44:52.510144435Z ==> Deploying...
+2026-05-03T04:44:52.619115793Z ==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+2026-05-03T04:45:17.785938084Z ==> Running 'pnpm --filter @workspace/api-server start'
+2026-05-03T04:45:18.792308822Z ! Corepack is about to download https://registry.npmjs.org/pnpm/-/pnpm-10.33.2.tgz
+2026-05-03T04:45:29.489734554Z 
+2026-05-03T04:45:29.489754804Z > @workspace/api-server@0.0.0 start /opt/render/project/src/artifacts/api-server
+2026-05-03T04:45:29.489761554Z > node --enable-source-maps dist/index.mjs
+2026-05-03T04:45:29.489765824Z 
+2026-05-03T04:45:33.382779806Z ◇ injecting env (0) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+2026-05-03T04:45:33.383056711Z [boot] secret file /etc/secrets/.env: missing; HOSTGATOR_STORAGE_TOKEN: MISSING; HOSTGATOR_PUBLIC_BASE_URL: set
+2026-05-03T04:45:33.383224795Z [boot] /etc/secrets contents: ..2026_05_03_04_44_52.1094595155, ..data
+2026-05-03T04:45:33.488829837Z (node:81) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-05-03T04:45:33.488850597Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-05-03T04:45:33.490026121Z (node:81) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+2026-05-03T04:45:33.490040341Z In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+2026-05-03T04:45:33.490045291Z 
+2026-05-03T04:45:33.490050571Z To prepare for this change:
+2026-05-03T04:45:33.490055442Z - If you want the current behavior, explicitly use 'sslmode=verify-full'
+2026-05-03T04:45:33.490060082Z - If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+2026-05-03T04:45:33.490064322Z 
+2026-05-03T04:45:33.490084662Z See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+2026-05-03T04:45:33.490435329Z {"level":30,"time":1777783533489,"pid":81,"hostname":"srv-d77cgq7pm1nc73c0j8ng-hibernate-765564568c-hnfcc","port":1000,"msg":"Server listening"}
+2026-05-03T04:45:34.206126373Z {"level":30,"time":1777783534204,"pid":81,"hostname":"srv-d77cgq7pm1nc73c0j8ng-hibernate-765564568c-hnfcc","req":{"id":1,"method":"HEAD","url":"/"},"res":{"statusCode":200},"responseTime":6,"msg":"request completed"}
+2026-05-03T04:45:34.892282637Z {"level":30,"time":1777783534891,"pid":81,"hostname":"srv-d77cgq7pm1nc73c0j8ng-hibernate-765564568c-hnfcc","msg":"role_permissions already seeded; skipping defaults"}
+2026-05-03T04:45:43.717253898Z ==> Your service is live 🎉
+2026-05-03T04:45:43.851165543Z ==> 
+2026-05-03T04:45:43.853969169Z ==> ///////////////////////////////////////////////////////////
+2026-05-03T04:45:43.856724555Z ==> 
+2026-05-03T04:45:43.859391619Z ==> Available at your primary URL https://shop-manager-pro-19.onrender.com
+2026-05-03T04:45:43.862315038Z ==> 
+2026-05-03T04:45:43.865165215Z ==> ///////////////////////////////////////////////////////////
