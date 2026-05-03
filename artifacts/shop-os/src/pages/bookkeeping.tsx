@@ -35,11 +35,16 @@ function ExportButton({ icon, title, description, href }: ExportButtonProps) {
 
 export default function Bookkeeping() {
   const today = new Date();
+  // Default to last calendar month — the typical bookkeeping cadence:
+  // owners reconcile the prior month after it closes.
+  const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
   const yearStart = new Date(today.getFullYear(), 0, 1);
-  const toISO = (d: Date) => d.toISOString().slice(0, 10);
+  const toISO = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  const [from, setFrom] = useState<string>(toISO(yearStart));
-  const [to, setTo] = useState<string>(toISO(today));
+  const [from, setFrom] = useState<string>(toISO(lastMonthStart));
+  const [to, setTo] = useState<string>(toISO(lastMonthEnd));
 
   const qs = new URLSearchParams();
   if (from) qs.set("from", from);
@@ -85,6 +90,13 @@ export default function Bookkeeping() {
               data-testid="input-to"
             />
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setFrom(toISO(lastMonthStart)); setTo(toISO(lastMonthEnd)); }}
+          >
+            Last month
+          </Button>
           <Button
             variant="outline"
             size="sm"
