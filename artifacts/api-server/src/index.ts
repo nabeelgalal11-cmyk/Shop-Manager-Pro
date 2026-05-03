@@ -1,5 +1,6 @@
 // artifacts/api-server/src/index.ts
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 // recreate __dirname
@@ -7,7 +8,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import dotenv from "dotenv";
 
-// 1️⃣ Load environment variables from .env in api-server
+// 1️⃣ Load environment variables.
+//    - On Render, Secret Files mount at /etc/secrets/<filename>.
+//    - Locally, fall back to a .env in the working directory.
+const renderSecretEnv = "/etc/secrets/.env";
+if (fs.existsSync(renderSecretEnv)) {
+  dotenv.config({ path: renderSecretEnv });
+}
 dotenv.config();
 // 2️⃣ Import your app and logger
 import app from "./app.js";
