@@ -77,6 +77,9 @@ router.get("/", async (req, res) => {
     conditions.push(lt(activityEventsTable.id, beforeId));
   }
 
+  // Over-fetch a bit to absorb post-filter drops from authz on mirrored rows
+  // without making a second round trip in the common case.
+  const fetchLimit = limit * 2 + 1;
   const rows = await db
     .select({
       id: activityEventsTable.id,
@@ -93,13 +96,28 @@ router.get("/", async (req, res) => {
     .leftJoin(employeesTable, eq(activityEventsTable.actorId, employeesTable.id))
     .where(and(...conditions))
     .orderBy(desc(activityEventsTable.id))
-    .limit(limit + 1);
+    .limit(fetchLimit);
 
-  const hasMore = rows.length > limit;
-  const data = hasMore ? rows.slice(0, limit) : rows;
-  const nextBeforeId = hasMore ? data[data.length - 1]?.id ?? null : null;
+  // Per-row authorization: rows mirrored from a different source entity (e.g.
+  // an invoice/payment/estimate event mirrored onto the customer timeline)
+  // must additionally pass the source entity's `view` permission. Without
+  // this check, a user with `customers:view` but without `invoices:view`
+  // could read invoice activity (amounts, statuses, failure reasons) via
+  // the customer timeline.
+  const filtered = rows.filter((row) => {
+    const meta = (row.meta ?? null) as { mirrorOf?: { entityType?: string } } | null;
+    const sourceType = meta?.mirrorOf?.entityType;
+    if (!sourceType) return true;
+    if (!ALLOWED_ENTITY_TYPES.has(sourceType)) return false;
+    const sourceResource = ENTITY_PERMISSIONS[sourceType as ActivityEntityType];
+    return hasPermission(perms, sourceResource, "view");
+  });
 
-  res.json({ data, hasMore, nextBeforeId });
+  const hasMore = filtered.length > limit || rows.length > fetchLimit - 1;
+  const data = filtered.slice(0, limit);
+  const nextBeforeId = data.length > 0 && hasMore ? data[data.length - 1]?.id ?? null : null;
+
+  res.json({ data, hasMore: !!nextBeforeId, nextBeforeId });
 });
 
 export default router;

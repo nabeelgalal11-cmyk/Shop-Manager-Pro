@@ -64,8 +64,9 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
     referenceNumber: string;
     eventId: string;
     note: string;
-  }): Promise<{ duplicate: boolean }> {
+  }): Promise<{ status: "recorded_success" | "duplicate" | "already_paid" | "overpayment_rejected"; rejectionReason?: string }> {
     const { invoiceId, amountCents, paymentIntentId, referenceNumber, eventId, note } = opts;
+    let outcome: { status: "recorded_success" | "duplicate" | "already_paid" | "overpayment_rejected"; rejectionReason?: string } = { status: "recorded_success" };
     try {
       await db.transaction(async (tx) => {
       // Lock the invoice row for the duration of the transaction so two
@@ -83,6 +84,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       // duplicate charge sits in Stripe and can be refunded manually.
       const currentBalance = Number(invoice.balance);
       if (invoice.status === "paid" || currentBalance <= 0) {
+        outcome = { status: "already_paid" };
         return;
       }
 
@@ -94,18 +96,20 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
       // unique) so Stripe stops retrying.
       const incomingDollars = amountCents / 100;
       if (incomingDollars - currentBalance > 0.005) {
+        const reason = `Stripe charge ${incomingDollars.toFixed(2)} exceeds outstanding balance ${currentBalance.toFixed(2)} — refund manually`;
         await tx.insert(paymentsTable).values({
           invoiceId,
           amount: "0",
           method: "stripe",
           status: "failed",
-          failureReason: `Stripe charge ${incomingDollars.toFixed(2)} exceeds outstanding balance ${currentBalance.toFixed(2)} — refund manually`,
+          failureReason: reason,
           referenceNumber,
           stripeEventId: eventId,
           stripePaymentIntentId: paymentIntentId,
           notes: "Overpayment rejected (likely stale session after invoice edit)",
           paidAt: new Date(),
         });
+        outcome = { status: "overpayment_rejected", rejectionReason: reason };
         return;
       }
 
@@ -117,7 +121,10 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
           eq(paymentsTable.stripePaymentIntentId, paymentIntentId),
           eq(paymentsTable.status, "succeeded"),
         ));
-        if (dup.length > 0) return;
+        if (dup.length > 0) {
+          outcome = { status: "duplicate" };
+          return;
+        }
       }
 
       await tx.insert(paymentsTable).values({
@@ -154,13 +161,13 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         await applyConsumptionIfNeeded(invoiceId, tx);
       }
       });
-      return { duplicate: false };
+      return outcome;
     } catch (err: any) {
       // Concurrency safety net: the partial unique index on
       // (stripe_payment_intent_id) WHERE status='succeeded' rejects a second
       // succeeded row when two webhook deliveries race past the in-tx check.
       const code = err?.cause?.code ?? err?.code;
-      if (code === "23505") return { duplicate: true };
+      if (code === "23505") return { status: "duplicate" };
       throw err;
     }
   }
@@ -197,13 +204,24 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         note: "Online payment via Stripe Checkout",
       });
 
-      if (!checkoutResult.duplicate) {
+      if (checkoutResult.status === "recorded_success") {
         const [inv] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
         await recordActivity({
           entityType: "invoice",
           entityId: invoiceId,
           eventType: "payment_received",
           meta: { source: "stripe_checkout", amount: (session.amount_total ?? 0) / 100, sessionId: session.id, paymentIntentId },
+          actorId: null,
+          actorLabel: "stripe",
+          customerId: inv?.customerId ?? null,
+        });
+      } else if (checkoutResult.status === "overpayment_rejected") {
+        const [inv] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+        await recordActivity({
+          entityType: "invoice",
+          entityId: invoiceId,
+          eventType: "payment_failed",
+          meta: { source: "stripe_checkout", reason: checkoutResult.rejectionReason, sessionId: session.id, paymentIntentId },
           actorId: null,
           actorLabel: "stripe",
           customerId: inv?.customerId ?? null,
@@ -237,13 +255,24 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         note: "Online payment via Stripe (payment_intent.succeeded)",
       });
 
-      if (!intentResult.duplicate) {
+      if (intentResult.status === "recorded_success") {
         const [inv] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
         await recordActivity({
           entityType: "invoice",
           entityId: invoiceId,
           eventType: "payment_received",
           meta: { source: "stripe_payment_intent", amount: (intent.amount_received ?? intent.amount ?? 0) / 100, paymentIntentId: intent.id },
+          actorId: null,
+          actorLabel: "stripe",
+          customerId: inv?.customerId ?? null,
+        });
+      } else if (intentResult.status === "overpayment_rejected") {
+        const [inv] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+        await recordActivity({
+          entityType: "invoice",
+          entityId: invoiceId,
+          eventType: "payment_failed",
+          meta: { source: "stripe_payment_intent", reason: intentResult.rejectionReason, paymentIntentId: intent.id },
           actorId: null,
           actorLabel: "stripe",
           customerId: inv?.customerId ?? null,

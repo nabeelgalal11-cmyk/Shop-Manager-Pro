@@ -104,9 +104,23 @@ router.delete("/:id", async (req, res) => {
     await db.delete(paymentsTable).where(eq(paymentsTable.id, payment.id));
     const remaining = await db.select().from(paymentsTable).where(eq(paymentsTable.invoiceId, payment.invoiceId));
     const amountPaid = remaining.reduce((sum, p) => sum + Number(p.amount), 0);
-    const [invoice] = await db.select({ total: invoicesTable.total }).from(invoicesTable).where(eq(invoicesTable.id, payment.invoiceId));
+    const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, payment.invoiceId));
     const balance = Number(invoice.total) - amountPaid;
     await db.update(invoicesTable).set({ amountPaid: amountPaid.toString(), balance: balance.toString(), status: balance <= 0 ? "paid" : "sent", updatedAt: new Date() }).where(eq(invoicesTable.id, payment.invoiceId));
+    await recordActivity({
+      entityType: "invoice",
+      entityId: payment.invoiceId,
+      eventType: "deleted",
+      meta: {
+        target: "payment",
+        paymentId: payment.id,
+        amount: Number(payment.amount),
+        method: payment.method,
+        remainingBalance: Math.max(0, balance),
+      },
+      customerId: invoice?.customerId ?? null,
+      req,
+    });
   }
   res.status(204).send();
 });
