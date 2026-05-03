@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, FileCheck } from "lucide-react";
+import { ArrowLeft, Printer, FileCheck, Send } from "lucide-react";
+import { CustomerMessageThread } from "@/components/customer-message-thread";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 
@@ -27,6 +28,29 @@ export default function EstimateDetail() {
   });
 
   const convertToInvoice = useConvertEstimateToInvoice();
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    setSending(true);
+    try {
+      const r = await fetch(`/api/estimates/${id}/send`, { method: "POST" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.error || "Failed to send estimate");
+      const parts = [];
+      if (data.emailed) parts.push("email");
+      if (data.smsed) parts.push("SMS");
+      if (parts.length === 0) {
+        toast({ title: "Estimate not sent", description: (data.errors || []).join("; ") || "No channels available", variant: "destructive" });
+      } else {
+        toast({ title: `Estimate sent via ${parts.join(" + ")}` });
+        queryClient.invalidateQueries({ queryKey: getGetEstimateQueryKey(id) });
+      }
+    } catch (err: any) {
+      toast({ title: err.message, variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
@@ -91,6 +115,11 @@ export default function EstimateDetail() {
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" /> Print
           </Button>
+          {estimate.status !== "converted" && (
+            <Button variant="outline" onClick={handleSend} disabled={sending}>
+              <Send className="h-4 w-4 mr-2" /> {sending ? "Sending…" : "Send to customer"}
+            </Button>
+          )}
           {estimate.status !== "converted" && (
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
@@ -175,6 +204,14 @@ export default function EstimateDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {estimate.customerId ? (
+        <CustomerMessageThread
+          customerId={estimate.customerId}
+          estimateId={estimate.id}
+          title="Messages on this Estimate"
+        />
+      ) : null}
 
       <div ref={printRef} style={{ display: "none" }}>
         <h1>Estimate: {estimate.estimateNumber}</h1>

@@ -88,6 +88,25 @@ const DEFAULT_TEMPLATES = [
     </p>`),
   },
   {
+    key: "estimate_sent",
+    name: "Estimate Sent",
+    subject: "Estimate {{estimateNumber}} from {{shopName}}",
+    fromName: "ShopOS",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
+    enabled: "true",
+    bodyHtml: cardWrap("#7c3aed", "Estimate Ready for Review", `
+    <p>Hi {{customerName}},</p>
+    <p>Your estimate from <strong>{{shopName}}</strong> is ready for your review.</p>
+    <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
+      <tr><td style="padding: 8px 0; color: #6b7280;">Estimate #</td><td style="padding: 8px 0; font-weight: bold;">{{estimateNumber}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Total</td><td style="padding: 8px 0; font-weight: bold;">{{total}}</td></tr>
+    </table>
+    <p>Reply to this email to approve or with any questions.</p>
+    <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      Thank you for choosing {{shopName}}!
+    </p>`),
+  },
+  {
     key: "repair_order_completed",
     name: "Repair Order Completed",
     subject: "Your vehicle is ready for pickup - {{shopName}}",

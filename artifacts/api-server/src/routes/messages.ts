@@ -54,10 +54,17 @@ router.get("/", async (req, res) => {
   if (!Number.isFinite(customerId) || customerId <= 0) {
     return res.status(400).json({ error: "customerId is required" });
   }
+  const repairOrderId = req.query.repairOrderId ? Number(req.query.repairOrderId) : null;
+  const estimateId = req.query.estimateId ? Number(req.query.estimateId) : null;
+  const invoiceId = req.query.invoiceId ? Number(req.query.invoiceId) : null;
+  const filters = [eq(messagesTable.customerId, customerId)];
+  if (repairOrderId) filters.push(eq(messagesTable.repairOrderId, repairOrderId));
+  if (estimateId) filters.push(eq(messagesTable.estimateId, estimateId));
+  if (invoiceId) filters.push(eq(messagesTable.invoiceId, invoiceId));
   const rows = await db
     .select()
     .from(messagesTable)
-    .where(eq(messagesTable.customerId, customerId))
+    .where(and(...filters))
     .orderBy(messagesTable.createdAt);
   res.json({ messages: rows });
 });

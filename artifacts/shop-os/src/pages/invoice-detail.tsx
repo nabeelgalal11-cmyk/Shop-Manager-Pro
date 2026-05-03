@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Printer, CreditCard, Link as LinkIcon, ExternalLink, MessageSquare } from "lucide-react";
+import { CustomerMessageThread } from "@/components/customer-message-thread";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -358,6 +359,14 @@ export default function InvoiceDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {invoice.customerId ? (
+        <CustomerMessageThread
+          customerId={invoice.customerId}
+          invoiceId={invoice.id}
+          title="Messages on this Invoice"
+        />
+      ) : null}
 
       <div ref={printRef} style={{ display: "none" }}>
         <h1>Invoice: {invoice.invoiceNumber}</h1>

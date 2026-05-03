@@ -24,26 +24,45 @@ function fmtTime(iso: string) {
   });
 }
 
-export function CustomerMessageThread({ customerId }: { customerId: number }) {
+interface ThreadProps {
+  customerId: number;
+  /** Optional: filter to messages linked to a specific record. */
+  repairOrderId?: number;
+  estimateId?: number;
+  invoiceId?: number;
+  /** Override card title (default "Text Messages"). */
+  title?: string;
+}
+
+export function CustomerMessageThread({ customerId, repairOrderId, estimateId, invoiceId, title }: ThreadProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const filterParams = [
+    `customerId=${customerId}`,
+    repairOrderId ? `repairOrderId=${repairOrderId}` : "",
+    estimateId ? `estimateId=${estimateId}` : "",
+    invoiceId ? `invoiceId=${invoiceId}` : "",
+  ].filter(Boolean).join("&");
+
   const { data, isLoading } = useQuery<ThreadResponse>({
-    queryKey: ["/api/messages", customerId],
-    queryFn: () => fetch(`/api/messages?customerId=${customerId}`).then((r) => r.json()),
+    queryKey: ["/api/messages", customerId, repairOrderId ?? null, estimateId ?? null, invoiceId ?? null],
+    queryFn: () => fetch(`/api/messages?${filterParams}`).then((r) => r.json()),
     refetchInterval: 15_000,
   });
 
   // Mark thread read on open + whenever new inbound messages appear.
+  // Only mark-read on the unfiltered (full customer) thread to avoid
+  // accidentally clearing unread state from a record-scoped panel.
   useEffect(() => {
-    if (!data) return;
+    if (!data || repairOrderId || estimateId || invoiceId) return;
     fetch(`/api/messages/${customerId}/read`, { method: "POST" })
       .then(() => qc.invalidateQueries({ queryKey: ["/api/messages/unread-count"] }))
       .catch(() => { /* best-effort */ });
-  }, [data, customerId, qc]);
+  }, [data, customerId, repairOrderId, estimateId, invoiceId, qc]);
 
   // Auto-scroll to newest message.
   useEffect(() => {
@@ -58,14 +77,14 @@ export function CustomerMessageThread({ customerId }: { customerId: number }) {
       const r = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerId, body }),
+        body: JSON.stringify({ customerId, body, repairOrderId, estimateId, invoiceId }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
         throw new Error(err.error || "Failed to send");
       }
       setDraft("");
-      qc.invalidateQueries({ queryKey: ["/api/messages", customerId] });
+      qc.invalidateQueries({ queryKey: ["/api/messages", customerId, repairOrderId ?? null, estimateId ?? null, invoiceId ?? null] });
       qc.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
     } catch (err: any) {
       toast({ title: err.message, variant: "destructive" });
@@ -80,9 +99,13 @@ export function CustomerMessageThread({ customerId }: { customerId: number }) {
     <Card className="shadow-sm border-border">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4" /> Text Messages
+          <MessageSquare className="h-4 w-4" /> {title ?? "Text Messages"}
         </CardTitle>
-        <CardDescription>SMS conversation with this customer.</CardDescription>
+        <CardDescription>
+          {repairOrderId || estimateId || invoiceId
+            ? "Messages linked to this record."
+            : "SMS conversation with this customer."}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div

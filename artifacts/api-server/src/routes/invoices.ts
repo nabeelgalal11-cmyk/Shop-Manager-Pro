@@ -64,12 +64,12 @@ async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, re
     if (invoice.status !== "sent") return;
     if (prevStatus === "sent") return;
     const customer = invoice.customer;
-    if (!customer?.email) {
-      req.log?.info({ id: invoice.id }, "No customer email; skipping invoice email");
-      return;
-    }
+    const channel = (customer?.preferredChannel as "email" | "sms" | "both") ?? "email";
+    const wantsEmail = channel === "email" || channel === "both";
+    const wantsSms = channel === "sms" || channel === "both";
 
-    let payLinkSection = "";
+    // Build pay link once for both channels.
+    let payUrl: string | null = null;
     try {
       const balance = Number(invoice.balance);
       if (Number.isFinite(balance) && balance > 0) {
@@ -79,15 +79,31 @@ async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, re
           const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "")
             || (req.headers?.["x-forwarded-host"] && `${req.protocol}://${req.headers["x-forwarded-host"]}`)
             || `${req.protocol}://${req.get?.("host")}`;
-          const payUrl = `${base}/pay/${token}`;
-          payLinkSection = `<div style="text-align: center; margin: 24px 0;">
-              <a href="${payUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Pay online</a>
-              <p style="color: #6b7280; font-size: 13px; margin-top: 8px;">Or paste this link into your browser:<br><span style="word-break: break-all;">${payUrl}</span></p>
-            </div>`;
+          payUrl = `${base}/pay/${token}`;
         }
       }
     } catch (err) {
-      req.log?.warn({ err, id: invoice.id }, "Failed to build pay link section; sending email without it");
+      req.log?.warn({ err, id: invoice.id }, "Failed to build pay link");
+    }
+
+    if (wantsSms) {
+      const smsBody = `${process.env.SHOP_NAME || "Our Shop"}: Invoice ${invoice.invoiceNumber} for $${Number(invoice.total).toFixed(2)} is ready.${payUrl ? ` Pay: ${payUrl}` : ""} Reply STOP to opt out.`;
+      const { sendSms } = await import("../lib/sms.js");
+      await sendSms({ customerId: invoice.customerId, body: smsBody, invoiceId: invoice.id });
+    }
+
+    if (!wantsEmail) return;
+    if (!customer?.email) {
+      req.log?.info({ id: invoice.id }, "No customer email; skipping invoice email");
+      return;
+    }
+
+    let payLinkSection = "";
+    if (payUrl) {
+      payLinkSection = `<div style="text-align: center; margin: 24px 0;">
+          <a href="${payUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Pay online</a>
+          <p style="color: #6b7280; font-size: 13px; margin-top: 8px;">Or paste this link into your browser:<br><span style="word-break: break-all;">${payUrl}</span></p>
+        </div>`;
     }
 
     const result = await sendTemplatedEmail("invoice_sent", customer.email, {

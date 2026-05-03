@@ -2,6 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { estimatesTable, lineItemsTable, customersTable, vehiclesTable, invoicesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
+import { sendSms } from "../lib/sms.js";
+import { sendTemplatedEmail } from "../lib/email.js";
 
 const router: Router = Router();
 
@@ -112,6 +114,52 @@ router.delete("/:id", async (req, res) => {
   await db.delete(lineItemsTable).where(eq(lineItemsTable.estimateId, id));
   await db.delete(estimatesTable).where(eq(estimatesTable.id, id));
   res.status(204).send();
+});
+
+/**
+ * Send the estimate to the customer over their preferred channel(s).
+ * Marks status -> "sent" on success of at least one channel.
+ */
+router.post("/:id/send", async (req, res) => {
+  const id = Number(req.params.id);
+  const [estimate] = await db.select().from(estimatesTable).where(eq(estimatesTable.id, id));
+  if (!estimate) return res.status(404).json({ error: "Estimate not found" });
+  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, estimate.customerId));
+  if (!customer) return res.status(404).json({ error: "Customer not found" });
+
+  const channel = (customer.preferredChannel as "email" | "sms" | "both") ?? "email";
+  const wantsEmail = channel === "email" || channel === "both";
+  const wantsSms = channel === "sms" || channel === "both";
+  const total = `$${Number(estimate.total).toFixed(2)}`;
+  const shop = process.env.SHOP_NAME || "Our Shop";
+
+  let emailed = false, smsed = false, errors: string[] = [];
+
+  if (wantsEmail) {
+    if (!customer.email) errors.push("no email on file");
+    else {
+      const r = await sendTemplatedEmail("estimate_sent", customer.email, {
+        customerName: `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || "Customer",
+        customerEmail: customer.email,
+        shopName: shop,
+        estimateNumber: estimate.estimateNumber,
+        total,
+      });
+      emailed = !!r.ok;
+      if (!r.ok) errors.push(`email: ${r.error || "failed"}`);
+    }
+  }
+  if (wantsSms) {
+    const smsBody = `${shop}: Estimate ${estimate.estimateNumber} for ${total} is ready for your review. Reply STOP to opt out.`;
+    const r = await sendSms({ customerId: customer.id, body: smsBody, estimateId: estimate.id });
+    smsed = r.ok;
+    if (!r.ok) errors.push(`sms: ${r.error || r.reason || "failed"}`);
+  }
+
+  if (emailed || smsed) {
+    await db.update(estimatesTable).set({ status: "sent", updatedAt: new Date() }).where(eq(estimatesTable.id, id));
+  }
+  res.json({ emailed, smsed, channel, errors });
 });
 
 router.post("/:id/convert", async (req, res) => {

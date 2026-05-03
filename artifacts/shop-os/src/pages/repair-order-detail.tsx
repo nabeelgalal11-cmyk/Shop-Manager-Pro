@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AttachmentsPanel } from "@/components/attachments-panel";
+import { CustomerMessageThread } from "@/components/customer-message-thread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
@@ -998,6 +999,14 @@ export default function RepairOrderDetail() {
           </Card>
         </div>
       </div>
+
+      {ro.customerId ? (
+        <CustomerMessageThread
+          customerId={ro.customerId}
+          repairOrderId={ro.id}
+          title="Messages on this Repair Order"
+        />
+      ) : null}
 
       <AttachmentsPanel
         ownerType="repair_order"

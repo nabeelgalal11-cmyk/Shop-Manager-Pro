@@ -174,6 +174,39 @@ export async function applyOptOutKeyword(customerId: number, body: string): Prom
   return null;
 }
 
+/**
+ * Send a transactional notification respecting the customer's preferredChannel.
+ * Caller provides BOTH a renderEmail() callback (returns ok=true if sent) AND
+ * a renderSms() body. Either or both may fire depending on preferredChannel
+ * ("email" | "sms" | "both"). Always best-effort; never throws.
+ */
+export async function notifyCustomer(opts: {
+  customerId: number;
+  smsBody: string;
+  sendEmail?: () => Promise<{ ok: boolean }>;
+  repairOrderId?: number | null;
+  estimateId?: number | null;
+  invoiceId?: number | null;
+}): Promise<{ emailed: boolean; smsed: boolean }> {
+  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, opts.customerId));
+  const channel = (customer?.preferredChannel as "email" | "sms" | "both") ?? "email";
+  let emailed = false, smsed = false;
+  if ((channel === "email" || channel === "both") && opts.sendEmail) {
+    try { const r = await opts.sendEmail(); emailed = !!r?.ok; } catch (err) { logger.warn({ err }, "notifyCustomer email failed"); }
+  }
+  if (channel === "sms" || channel === "both") {
+    const r = await sendSms({
+      customerId: opts.customerId,
+      body: opts.smsBody,
+      repairOrderId: opts.repairOrderId ?? null,
+      estimateId: opts.estimateId ?? null,
+      invoiceId: opts.invoiceId ?? null,
+    });
+    smsed = r.ok;
+  }
+  return { emailed, smsed };
+}
+
 /** Mark an entire customer's inbound thread as read. */
 export async function markCustomerThreadRead(customerId: number): Promise<void> {
   await db
