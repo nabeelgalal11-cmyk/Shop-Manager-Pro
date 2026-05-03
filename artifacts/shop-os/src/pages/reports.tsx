@@ -105,9 +105,39 @@ export default function Reports() {
   if (profitTo) profitabilityQs.set("to", profitTo);
   const profitabilityUrl = `/api/reports/used-car-profitability?${profitabilityQs.toString()}`;
 
-  const { data: profitability } = useQuery<any>({
+  interface ProfitabilityRow {
+    id: number;
+    vehicle: string;
+    status: string;
+    saleDate: string | null;
+    purchasePrice: number;
+    sellingPrice: number;
+    reconParts: number;
+    reconLabor: number;
+    reconTotal: number;
+    totalCost: number;
+    grossMargin: number;
+    netProfit: number;
+    marginPct: number;
+    hours: number;
+  }
+  interface ProfitabilitySummary {
+    soldCount: number;
+    totalRevenue: number;
+    totalCost: number;
+    totalRecon: number;
+    netProfit: number;
+  }
+  interface ProfitabilityResponse {
+    data: ProfitabilityRow[];
+    laborRate: number;
+    range: { from: string | null; to: string | null };
+    summary: ProfitabilitySummary;
+  }
+
+  const { data: profitability } = useQuery<ProfitabilityResponse>({
     queryKey: ["/api/reports/used-car-profitability", profitFrom, profitTo],
-    queryFn: () => apiFetch(profitabilityUrl),
+    queryFn: () => apiFetch(profitabilityUrl) as Promise<ProfitabilityResponse>,
   });
 
   const totalRevenue = overview?.totalRevenue ?? 0;
@@ -415,8 +445,8 @@ export default function Reports() {
             </TableHeader>
             <TableBody>
               {!profitability?.data?.length ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground pl-6">No vehicles tracked yet.</TableCell></TableRow>
-              ) : profitability.data.map((c: any) => (
+                <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground pl-6">No sold vehicles in this range.</TableCell></TableRow>
+              ) : profitability.data.map((c) => (
                 <TableRow key={c.id} className="hover:bg-muted/50">
                   <TableCell className="pl-6 font-medium">{c.vehicle}</TableCell>
                   <TableCell><Badge variant="secondary" className="capitalize">{c.status}</Badge></TableCell>

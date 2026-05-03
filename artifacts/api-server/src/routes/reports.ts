@@ -237,11 +237,17 @@ router.get("/used-car-profitability", async (req, res) => {
     ORDER BY c.created_at DESC
   `);
 
-  const data = rows.map((r: any) => {
+  type ProfitRow = {
+    id: number; year: number | null; make: string | null; model: string | null; trim: string | null;
+    status: string; purchase_price: number | string; selling_price: number | string; sale_date: string | Date | null;
+    purchase_parts: number | string | null; ro_parts: number | string | null; labor_cost: number | string | null; hours: number | string | null;
+  };
+
+  const allRows = (rows as ProfitRow[]).map(r => {
     const purchasePrice = Number(r.purchase_price);
     const sellingPrice = Number(r.selling_price);
-    const reconParts = Number(r.purchase_parts) + Number(r.ro_parts);
-    const reconLabor = Number(r.labor_cost);
+    const reconParts = Number(r.purchase_parts ?? 0) + Number(r.ro_parts ?? 0);
+    const reconLabor = Number(r.labor_cost ?? 0);
     const reconTotal = reconParts + reconLabor;
     const totalCost = purchasePrice + reconTotal;
     const grossMargin = sellingPrice - purchasePrice;
@@ -251,26 +257,19 @@ router.get("/used-car-profitability", async (req, res) => {
       id: r.id,
       vehicle: [r.year, r.make, r.model, r.trim].filter(Boolean).join(" "),
       status: r.status,
-      saleDate: r.sale_date,
-      purchasePrice,
-      sellingPrice,
-      reconParts,
-      reconLabor,
-      reconTotal,
-      totalCost,
-      grossMargin,
-      netProfit,
-      marginPct,
-      hours: Number(r.hours),
+      saleDate: r.sale_date ? String(r.sale_date).slice(0, 10) : null,
+      purchasePrice, sellingPrice, reconParts, reconLabor, reconTotal,
+      totalCost, grossMargin, netProfit, marginPct,
+      hours: Number(r.hours ?? 0),
     };
   });
 
-  // Sold-in-range scoping for the summary; the full table stays visible for context.
-  const sold = data.filter(c => {
+  // Per-task spec: report scope = SOLD cars within [from, to]. Both `data` and
+  // `summary` reflect the same filtered set so the table and totals agree.
+  const data = allRows.filter(c => {
     if (c.status !== "sold") return false;
-    const sd = c.saleDate ? String(c.saleDate).slice(0, 10) : null;
-    if (from && (!sd || sd < from)) return false;
-    if (to && (!sd || sd > to)) return false;
+    if (from && (!c.saleDate || c.saleDate < from)) return false;
+    if (to && (!c.saleDate || c.saleDate > to)) return false;
     return true;
   });
 
@@ -279,11 +278,11 @@ router.get("/used-car-profitability", async (req, res) => {
     laborRate,
     range: { from: from ?? null, to: to ?? null },
     summary: {
-      soldCount: sold.length,
-      totalRevenue: sold.reduce((s, c) => s + c.sellingPrice, 0),
-      totalCost: sold.reduce((s, c) => s + c.totalCost, 0),
-      totalRecon: sold.reduce((s, c) => s + c.reconTotal, 0),
-      netProfit: sold.reduce((s, c) => s + c.netProfit, 0),
+      soldCount: data.length,
+      totalRevenue: data.reduce((s, c) => s + c.sellingPrice, 0),
+      totalCost: data.reduce((s, c) => s + c.totalCost, 0),
+      totalRecon: data.reduce((s, c) => s + c.reconTotal, 0),
+      netProfit: data.reduce((s, c) => s + c.netProfit, 0),
     },
   });
 });

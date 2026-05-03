@@ -4,6 +4,7 @@ import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remin
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { requirePermission } from "../lib/auth.js";
+import type { Action } from "../lib/permissions.js";
 
 async function maybeSendCompletionEmail(order: any, req: any) {
   try {
@@ -35,12 +36,12 @@ async function maybeSendCompletionEmail(order: any, req: any) {
 const router: Router = Router();
 
 router.use((req, res, next) => {
-  const action =
+  const action: Action =
     req.method === "GET" ? "view" :
     req.method === "POST" ? "create" :
     req.method === "DELETE" ? "delete" :
     "edit";
-  return requirePermission("repair_orders", action as any)(req, res, next);
+  return requirePermission("repair_orders", action)(req, res, next);
 });
 
 // ── Service keyword → reminder interval ────────────────────────────────────

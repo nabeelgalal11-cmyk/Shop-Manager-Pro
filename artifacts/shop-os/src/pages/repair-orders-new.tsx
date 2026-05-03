@@ -67,8 +67,24 @@ export default function RepairOrdersNew() {
   const internal = form.watch("internal");
   const createRepairOrder = useCreateRepairOrder();
 
+  // Local payload type — the OpenAPI spec hasn't yet been regenerated to model
+  // `internal`/`usedCarId` and nullable customer/vehicle (tracked as a follow-up).
+  type RepairOrderPayload = {
+    internal: boolean;
+    assignedToId: number | null | undefined;
+    status: string;
+    priority: string;
+    complaint: string;
+    estimatedHours: number | null | undefined;
+    mileageIn: number | null | undefined;
+    usedCarId?: number;
+    customerId?: number;
+    vehicleId?: number;
+    promisedDate?: string;
+  };
+
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const payload: any = {
+    const payload: RepairOrderPayload = {
       internal: values.internal,
       assignedToId: values.assignedToId,
       status: values.status,
@@ -85,7 +101,8 @@ export default function RepairOrdersNew() {
     }
     if (values.promisedDate) payload.promisedDate = new Date(values.promisedDate).toISOString();
     createRepairOrder.mutate(
-      { data: payload },
+      // Cast at the boundary to the generated client; see RepairOrderPayload note above.
+      { data: payload as unknown as Parameters<typeof createRepairOrder.mutate>[0]["data"] },
       {
         onSuccess: (data) => {
           toast({ title: "Repair order created" });

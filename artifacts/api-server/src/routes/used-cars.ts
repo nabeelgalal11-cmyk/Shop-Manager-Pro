@@ -223,8 +223,9 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
       GROUP BY ro.used_car_id
     ) labor ON labor.used_car_id = c.id
   `);
+  type ReconRow = { car_id: number | string; purchase_parts: number | string | null; ro_parts: number | string | null; labor_cost: number | string | null };
   const reconMap = new Map<number, number>();
-  for (const r of reconRows.rows as any[]) {
+  for (const r of reconRows.rows as ReconRow[]) {
     const total = Number(r.purchase_parts ?? 0) + Number(r.ro_parts ?? 0) + Number(r.labor_cost ?? 0);
     reconMap.set(Number(r.car_id), total);
   }
