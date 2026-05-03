@@ -5,6 +5,7 @@ export interface StripeSettings {
   publishableKey: string | null;
   secretKey: string | null;
   webhookSecret: string | null;
+  achEnabled: boolean;
 }
 
 export async function getStripeSettings(): Promise<StripeSettings> {
@@ -13,6 +14,7 @@ export async function getStripeSettings(): Promise<StripeSettings> {
     publishableKey: row?.stripePublishableKey ?? null,
     secretKey: row?.stripeSecretKey ?? null,
     webhookSecret: row?.stripeWebhookSecret ?? null,
+    achEnabled: row?.stripeAchEnabled ?? false,
   };
 }
 

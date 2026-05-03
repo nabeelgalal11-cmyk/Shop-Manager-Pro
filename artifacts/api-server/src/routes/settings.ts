@@ -20,17 +20,19 @@ router.get("/payments", requirePermission("permissions", "view"), async (_req, r
     // Mask secret values; UI should show whether they are set, not the value.
     secretKeySet: !!row.stripeSecretKey,
     webhookSecretSet: !!row.stripeWebhookSecret,
+    achEnabled: !!row.stripeAchEnabled,
   });
 });
 
 router.put("/payments", requirePermission("permissions", "edit"), async (req, res) => {
-  const { publishableKey, secretKey, webhookSecret } = req.body ?? {};
+  const { publishableKey, secretKey, webhookSecret, achEnabled } = req.body ?? {};
   const row = await ensureSettingsRow();
   const update: Record<string, unknown> = { updatedAt: new Date() };
   if (typeof publishableKey === "string") update.stripePublishableKey = publishableKey.trim() || null;
   // Only update secrets if provided AND non-empty (empty string means "leave alone").
   if (typeof secretKey === "string" && secretKey.trim()) update.stripeSecretKey = secretKey.trim();
   if (typeof webhookSecret === "string" && webhookSecret.trim()) update.stripeWebhookSecret = webhookSecret.trim();
+  if (typeof achEnabled === "boolean") update.stripeAchEnabled = achEnabled;
   // Allow explicit clearing via {clear:true} flags
   if (req.body?.clearSecretKey) update.stripeSecretKey = null;
   if (req.body?.clearWebhookSecret) update.stripeWebhookSecret = null;

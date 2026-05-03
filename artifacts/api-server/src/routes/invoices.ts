@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { randomBytes } from "crypto";
+import type Stripe from "stripe";
 import { db } from "@workspace/db";
 import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
@@ -296,12 +297,20 @@ export async function createCheckoutSessionForInvoice(invoiceId: number, baseUrl
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, invoice.customerId));
   // Refuse to start a checkout without a webhook secret — otherwise Stripe
   // could collect the payment and we'd never auto-mark the invoice paid.
-  const { webhookSecret } = await getStripeSettings();
+  const { webhookSecret, achEnabled } = await getStripeSettings();
   if (!webhookSecret) {
     throw Object.assign(new Error("Stripe webhook signing secret not configured. Add it in Settings → Payments."), { status: 503 });
   }
   const stripe = await getStripeClient();
   const amountCents = Math.round(balance * 100);
+  // Card covers Apple Pay/Google Pay automatically in Stripe Checkout when
+  // those are enabled in the Stripe dashboard. Link is included so returning
+  // customers get one-click pay. ACH (us_bank_account) is opt-in per shop
+  // because it has multi-day settlement and the shop may not want to wait
+  // for funds to clear before releasing a vehicle.
+  type PaymentMethodType = NonNullable<Stripe.Checkout.SessionCreateParams["payment_method_types"]>[number];
+  const paymentMethodTypes: PaymentMethodType[] = ["card", "link"];
+  if (achEnabled) paymentMethodTypes.push("us_bank_account");
 
   // Single-charge enforcement: if we've already created a Checkout Session
   // for this invoice and it's still open with the same amount, hand the
@@ -344,7 +353,7 @@ export async function createCheckoutSessionForInvoice(invoiceId: number, baseUrl
   const idempotencyKey = `shopos:invoice:${invoiceId}:${amountCents}${nonce}`;
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
-    payment_method_types: ["card"],
+    payment_method_types: paymentMethodTypes,
     customer_email: customer?.email ?? undefined,
     line_items: [{
       quantity: 1,

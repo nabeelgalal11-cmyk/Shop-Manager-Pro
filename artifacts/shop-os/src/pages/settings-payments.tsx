@@ -5,13 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, ExternalLink, Webhook } from "lucide-react";
+import { CreditCard, ExternalLink, Webhook, Landmark } from "lucide-react";
 
 interface PaymentSettings {
   publishableKey: string;
   secretKeySet: boolean;
   webhookSecretSet: boolean;
+  achEnabled: boolean;
 }
 
 export default function SettingsPayments() {
@@ -22,6 +24,8 @@ export default function SettingsPayments() {
   const [publishable, setPublishable] = useState("");
   const [secret, setSecret] = useState("");
   const [webhook, setWebhook] = useState("");
+  const [achEnabled, setAchEnabled] = useState(false);
+  const [savingAch, setSavingAch] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -31,6 +35,7 @@ export default function SettingsPayments() {
       const d = (await r.json()) as PaymentSettings;
       setData(d);
       setPublishable(d.publishableKey);
+      setAchEnabled(d.achEnabled);
     } catch (err: any) {
       toast({ title: err.message, variant: "destructive" });
     } finally {
@@ -63,6 +68,29 @@ export default function SettingsPayments() {
       toast({ title: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleAch = async (next: boolean) => {
+    setSavingAch(true);
+    setAchEnabled(next);
+    try {
+      const r = await fetch("/api/settings/payments", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ achEnabled: next }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error ?? "Save failed");
+      }
+      toast({ title: next ? "Bank transfer (ACH) enabled" : "Bank transfer (ACH) disabled" });
+      load();
+    } catch (err: any) {
+      setAchEnabled(!next);
+      toast({ title: err.message, variant: "destructive" });
+    } finally {
+      setSavingAch(false);
     }
   };
 
@@ -127,6 +155,30 @@ export default function SettingsPayments() {
                 {saving ? "Saving…" : "Save changes"}
               </Button>
             </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Landmark className="h-4 w-4" /> Payment methods</CardTitle>
+          <CardDescription>
+            Card payments (including Apple Pay, Google Pay, and Link) are always offered on the customer pay page when those are enabled in your Stripe dashboard. Bank transfer (ACH) is opt-in because it has a 3–5 day settlement delay.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : (
+            <div className="flex items-start justify-between gap-4 rounded-md border p-4">
+              <div className="space-y-1">
+                <Label htmlFor="ach" className="text-base">Accept bank transfer (ACH)</Label>
+                <p className="text-sm text-muted-foreground">
+                  Lower fees than card, but funds take 3–5 business days to clear. Disable if you need to release vehicles immediately on payment.
+                </p>
+              </div>
+              <Switch id="ach" checked={achEnabled} disabled={savingAch} onCheckedChange={toggleAch} />
+            </div>
           )}
         </CardContent>
       </Card>
