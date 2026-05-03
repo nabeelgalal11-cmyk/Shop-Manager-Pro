@@ -51,9 +51,17 @@ set_exception_handler(function ($e) {
  */
 
 // =====================================================================
-// CONFIG — replace this token with the value of HOSTGATOR_STORAGE_TOKEN
+// CONFIG — paste the value of HOSTGATOR_STORAGE_TOKEN from your Replit
+// Secrets here. NEVER commit this file with a real token.
 // =====================================================================
-const AUTH_TOKEN = 'c194d8f9c15ccf303bf58fb809a8b2f1358d8ba829dd3144b25ce287e6136c01';
+const AUTH_TOKEN = 'PASTE_HOSTGATOR_STORAGE_TOKEN_HERE';
+
+// Maximum upload size (bytes). 25 MB matches the Node-side multer limit.
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+// MIME types accepted by the gateway. Mirrors the Node-side allowlist.
+$ALLOWED_MIME_PREFIXES = ['image/'];
+$ALLOWED_MIME_EXACT    = ['application/pdf'];
 
 // Storage root: walk up from this script's directory until we leave
 // public_html, so the storage folder is never web-accessible regardless of
@@ -146,6 +154,7 @@ $action = $_GET['action'] ?? '';
 // UPLOAD
 // =====================================================================
 if ($action === 'upload') {
+    global $ALLOWED_MIME_PREFIXES, $ALLOWED_MIME_EXACT;
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'POST required');
     if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         fail(400, 'file missing or upload error: ' . ($_FILES['file']['error'] ?? 'no file'));
@@ -153,6 +162,32 @@ if ($action === 'upload') {
     $ownerType = sanitize_segment($_POST['ownerType'] ?? '');
     $ownerId   = sanitize_segment($_POST['ownerId'] ?? '');
     if ($ownerType === '' || $ownerId === '') fail(400, 'ownerType and ownerId required');
+
+    // Enforce maximum upload size (defence in depth alongside Node-side limit).
+    if ($_FILES['file']['size'] > MAX_UPLOAD_BYTES) {
+        fail(413, 'file too large');
+    }
+
+    // Detect the real MIME from file contents (do NOT trust the client header).
+    $detectedMime = null;
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo !== false) {
+            $detectedMime = finfo_file($finfo, $_FILES['file']['tmp_name']) ?: null;
+            finfo_close($finfo);
+        }
+    }
+    if ($detectedMime === null) {
+        // Fallback to the client-supplied type if finfo isn't available.
+        $detectedMime = $_FILES['file']['type'] ?? '';
+    }
+    $mimeOk = in_array($detectedMime, $ALLOWED_MIME_EXACT, true);
+    if (!$mimeOk) {
+        foreach ($ALLOWED_MIME_PREFIXES as $prefix) {
+            if (strpos($detectedMime, $prefix) === 0) { $mimeOk = true; break; }
+        }
+    }
+    if (!$mimeOk) fail(415, 'mime type not allowed: ' . $detectedMime);
 
     $orig = sanitize_segment(basename($_FILES['file']['name']));
     if (strlen($orig) > 180) $orig = substr($orig, -180);
