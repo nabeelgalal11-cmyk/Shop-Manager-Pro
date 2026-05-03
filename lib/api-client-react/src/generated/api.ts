@@ -55,6 +55,7 @@ import type {
   GetRepairOrdersParams,
   GetTimeEntriesParams,
   GetTopServicesParams,
+  GetUsedCarProfitabilityReportParams,
   GetVehiclesParams,
   HealthStatus,
   Inspection,
@@ -77,6 +78,8 @@ import type {
   TimeEntryListResponse,
   UpdateCustomerInput,
   UpdateRepairOrderInput,
+  UsedCarProfitabilityReport,
+  UsedCarReconResponse,
   Vehicle,
   VehicleListResponse,
 } from "./api.schemas";
@@ -2705,6 +2708,202 @@ export const useDeleteRepairOrder = <
 > => {
   return useMutation(getDeleteRepairOrderMutationOptions(options));
 };
+
+/**
+ * @summary Get reconditioning cost breakdown for a used car
+ */
+export const getGetUsedCarReconUrl = (id: number) => {
+  return `/api/used-cars/${id}/recon`;
+};
+
+export const getUsedCarRecon = async (
+  id: number,
+  options?: RequestInit,
+): Promise<UsedCarReconResponse> => {
+  return customFetch<UsedCarReconResponse>(getGetUsedCarReconUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUsedCarReconQueryKey = (id: number) => {
+  return [`/api/used-cars/${id}/recon`] as const;
+};
+
+export const getGetUsedCarReconQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUsedCarRecon>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUsedCarRecon>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetUsedCarReconQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsedCarRecon>>> = ({
+    signal,
+  }) => getUsedCarRecon(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUsedCarRecon>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUsedCarReconQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUsedCarRecon>>
+>;
+export type GetUsedCarReconQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get reconditioning cost breakdown for a used car
+ */
+
+export function useGetUsedCarRecon<
+  TData = Awaited<ReturnType<typeof getUsedCarRecon>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUsedCarRecon>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUsedCarReconQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Per-car used-car profitability report (sold cars)
+ */
+export const getGetUsedCarProfitabilityReportUrl = (
+  params?: GetUsedCarProfitabilityReportParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reports/used-car-profitability?${stringifiedParams}`
+    : `/api/reports/used-car-profitability`;
+};
+
+export const getUsedCarProfitabilityReport = async (
+  params?: GetUsedCarProfitabilityReportParams,
+  options?: RequestInit,
+): Promise<UsedCarProfitabilityReport> => {
+  return customFetch<UsedCarProfitabilityReport>(
+    getGetUsedCarProfitabilityReportUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetUsedCarProfitabilityReportQueryKey = (
+  params?: GetUsedCarProfitabilityReportParams,
+) => {
+  return [
+    `/api/reports/used-car-profitability`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetUsedCarProfitabilityReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUsedCarProfitabilityReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetUsedCarProfitabilityReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUsedCarProfitabilityReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUsedCarProfitabilityReportQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUsedCarProfitabilityReport>>
+  > = ({ signal }) =>
+    getUsedCarProfitabilityReport(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUsedCarProfitabilityReport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUsedCarProfitabilityReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUsedCarProfitabilityReport>>
+>;
+export type GetUsedCarProfitabilityReportQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Per-car used-car profitability report (sold cars)
+ */
+
+export function useGetUsedCarProfitabilityReport<
+  TData = Awaited<ReturnType<typeof getUsedCarProfitabilityReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetUsedCarProfitabilityReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUsedCarProfitabilityReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUsedCarProfitabilityReportQueryOptions(
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List inventory items

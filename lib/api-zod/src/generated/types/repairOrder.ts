@@ -14,8 +14,10 @@ import type { Vehicle } from "./vehicle";
 export interface RepairOrder {
   id: number;
   orderNumber: string;
-  customerId: number;
-  vehicleId: number;
+  internal?: boolean;
+  customerId?: number | null;
+  vehicleId?: number | null;
+  usedCarId?: number | null;
   assignedToId?: number;
   status: RepairOrderStatus;
   priority: RepairOrderPriority;

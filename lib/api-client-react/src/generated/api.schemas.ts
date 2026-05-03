@@ -377,8 +377,10 @@ export interface Employee {
 export interface RepairOrder {
   id: number;
   orderNumber: string;
-  customerId: number;
-  vehicleId: number;
+  internal?: boolean;
+  customerId?: number | null;
+  vehicleId?: number | null;
+  usedCarId?: number | null;
   assignedToId?: number;
   status: RepairOrderStatus;
   priority: RepairOrderPriority;
@@ -421,16 +423,18 @@ export const CreateRepairOrderInputPriority = {
 } as const;
 
 export interface CreateRepairOrderInput {
-  customerId: number;
-  vehicleId: number;
-  assignedToId?: number;
+  internal?: boolean;
+  customerId?: number | null;
+  vehicleId?: number | null;
+  usedCarId?: number | null;
+  assignedToId?: number | null;
   status?: CreateRepairOrderInputStatus;
   priority?: CreateRepairOrderInputPriority;
   complaint?: string;
   diagnosis?: string;
   notes?: string;
-  estimatedHours?: number;
-  mileageIn?: number;
+  estimatedHours?: number | null;
+  mileageIn?: number | null;
   promisedDate?: string;
 }
 
@@ -481,6 +485,70 @@ export interface UpdateRepairOrderInput {
   promisedDate?: string | null;
   completedAt?: string | null;
   createdAt?: string;
+}
+
+export type UsedCarReconResponseCar = { [key: string]: unknown };
+
+export type UsedCarReconResponsePartsFromPurchasesItem = {
+  [key: string]: unknown;
+};
+
+export type UsedCarReconResponseRepairOrdersItem = { [key: string]: unknown };
+
+export type UsedCarReconResponseTimeEntriesItem = { [key: string]: unknown };
+
+export interface UsedCarReconResponse {
+  car: UsedCarReconResponseCar;
+  laborRate: number;
+  partsFromPurchases?: UsedCarReconResponsePartsFromPurchasesItem[];
+  partsFromPurchasesTotal?: number;
+  repairOrders?: UsedCarReconResponseRepairOrdersItem[];
+  repairOrderPartsTotal?: number;
+  timeEntries?: UsedCarReconResponseTimeEntriesItem[];
+  laborHours?: number;
+  laborTotal?: number;
+  reconTotal: number;
+  grossMargin?: number;
+  actualProfit?: number;
+  marginPct?: number;
+  [key: string]: unknown;
+}
+
+export interface UsedCarProfitabilityReportRow {
+  id: number;
+  vehicle: string;
+  status: string;
+  saleDate?: string | null;
+  purchasePrice: number;
+  sellingPrice: number;
+  reconParts: number;
+  reconLabor: number;
+  reconTotal: number;
+  totalCost: number;
+  grossMargin: number;
+  netProfit: number;
+  marginPct: number;
+  hours: number;
+}
+
+export type UsedCarProfitabilityReportRange = {
+  from: string | null;
+  to: string | null;
+};
+
+export type UsedCarProfitabilityReportSummary = {
+  soldCount: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalRecon: number;
+  netProfit: number;
+};
+
+export interface UsedCarProfitabilityReport {
+  data: UsedCarProfitabilityReportRow[];
+  laborRate: number;
+  range: UsedCarProfitabilityReportRange;
+  summary: UsedCarProfitabilityReportSummary;
 }
 
 export interface RepairOrderListResponse {
@@ -912,6 +980,11 @@ export const GetRepairOrdersStatus = {
   delivered: "delivered",
   cancelled: "cancelled",
 } as const;
+
+export type GetUsedCarProfitabilityReportParams = {
+  from?: string;
+  to?: string;
+};
 
 export type GetInventoryParams = {
   search?: string;

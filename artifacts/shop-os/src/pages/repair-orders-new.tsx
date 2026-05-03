@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useCreateRepairOrder, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetEmployees, getGetEmployeesQueryKey } from "@workspace/api-client-react";
+import { useCreateRepairOrder, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetEmployees, getGetEmployeesQueryKey, type CreateRepairOrderInput } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -67,24 +67,8 @@ export default function RepairOrdersNew() {
   const internal = form.watch("internal");
   const createRepairOrder = useCreateRepairOrder();
 
-  // Local payload type — the OpenAPI spec hasn't yet been regenerated to model
-  // `internal`/`usedCarId` and nullable customer/vehicle (tracked as a follow-up).
-  type RepairOrderPayload = {
-    internal: boolean;
-    assignedToId: number | null | undefined;
-    status: string;
-    priority: string;
-    complaint: string;
-    estimatedHours: number | null | undefined;
-    mileageIn: number | null | undefined;
-    usedCarId?: number;
-    customerId?: number;
-    vehicleId?: number;
-    promisedDate?: string;
-  };
-
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const payload: RepairOrderPayload = {
+    const payload: CreateRepairOrderInput = {
       internal: values.internal,
       assignedToId: values.assignedToId,
       status: values.status,
@@ -101,8 +85,7 @@ export default function RepairOrdersNew() {
     }
     if (values.promisedDate) payload.promisedDate = new Date(values.promisedDate).toISOString();
     createRepairOrder.mutate(
-      // Cast at the boundary to the generated client; see RepairOrderPayload note above.
-      { data: payload as unknown as Parameters<typeof createRepairOrder.mutate>[0]["data"] },
+      { data: payload },
       {
         onSuccess: (data) => {
           toast({ title: "Repair order created" });

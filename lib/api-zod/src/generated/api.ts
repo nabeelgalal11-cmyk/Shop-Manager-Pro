@@ -1387,8 +1387,10 @@ export const GetRepairOrdersResponse = zod.object({
     zod.object({
       id: zod.number(),
       orderNumber: zod.string(),
-      customerId: zod.number(),
-      vehicleId: zod.number(),
+      internal: zod.boolean().optional(),
+      customerId: zod.number().nullish(),
+      vehicleId: zod.number().nullish(),
+      usedCarId: zod.number().nullish(),
       assignedToId: zod.number().optional(),
       status: zod.enum([
         "pending",
@@ -1519,9 +1521,11 @@ export const GetRepairOrdersResponse = zod.object({
  * @summary Create a repair order
  */
 export const CreateRepairOrderBody = zod.object({
-  customerId: zod.number(),
-  vehicleId: zod.number(),
-  assignedToId: zod.number().optional(),
+  internal: zod.boolean().optional(),
+  customerId: zod.number().nullish(),
+  vehicleId: zod.number().nullish(),
+  usedCarId: zod.number().nullish(),
+  assignedToId: zod.number().nullish(),
   status: zod
     .enum([
       "pending",
@@ -1536,8 +1540,8 @@ export const CreateRepairOrderBody = zod.object({
   complaint: zod.string().optional(),
   diagnosis: zod.string().optional(),
   notes: zod.string().optional(),
-  estimatedHours: zod.number().optional(),
-  mileageIn: zod.number().optional(),
+  estimatedHours: zod.number().nullish(),
+  mileageIn: zod.number().nullish(),
   promisedDate: zod.coerce.date().optional(),
 });
 
@@ -1551,8 +1555,10 @@ export const GetRepairOrderParams = zod.object({
 export const GetRepairOrderResponse = zod.object({
   id: zod.number(),
   orderNumber: zod.string(),
-  customerId: zod.number(),
-  vehicleId: zod.number(),
+  internal: zod.boolean().optional(),
+  customerId: zod.number().nullish(),
+  vehicleId: zod.number().nullish(),
+  usedCarId: zod.number().nullish(),
   assignedToId: zod.number().optional(),
   status: zod.enum([
     "pending",
@@ -1722,8 +1728,10 @@ export const UpdateRepairOrderBody = zod.object({
 export const UpdateRepairOrderResponse = zod.object({
   id: zod.number(),
   orderNumber: zod.string(),
-  customerId: zod.number(),
-  vehicleId: zod.number(),
+  internal: zod.boolean().optional(),
+  customerId: zod.number().nullish(),
+  vehicleId: zod.number().nullish(),
+  usedCarId: zod.number().nullish(),
   assignedToId: zod.number().optional(),
   status: zod.enum([
     "pending",
@@ -1850,6 +1858,72 @@ export const UpdateRepairOrderResponse = zod.object({
  */
 export const DeleteRepairOrderParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Get reconditioning cost breakdown for a used car
+ */
+export const GetUsedCarReconParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetUsedCarReconResponse = zod.object({
+  car: zod.record(zod.string(), zod.unknown()),
+  laborRate: zod.number(),
+  partsFromPurchases: zod
+    .array(zod.record(zod.string(), zod.unknown()))
+    .optional(),
+  partsFromPurchasesTotal: zod.number().optional(),
+  repairOrders: zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  repairOrderPartsTotal: zod.number().optional(),
+  timeEntries: zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  laborHours: zod.number().optional(),
+  laborTotal: zod.number().optional(),
+  reconTotal: zod.number(),
+  grossMargin: zod.number().optional(),
+  actualProfit: zod.number().optional(),
+  marginPct: zod.number().optional(),
+});
+
+/**
+ * @summary Per-car used-car profitability report (sold cars)
+ */
+export const GetUsedCarProfitabilityReportQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+export const GetUsedCarProfitabilityReportResponse = zod.object({
+  data: zod.array(
+    zod.object({
+      id: zod.number(),
+      vehicle: zod.string(),
+      status: zod.string(),
+      saleDate: zod.string().nullish(),
+      purchasePrice: zod.number(),
+      sellingPrice: zod.number(),
+      reconParts: zod.number(),
+      reconLabor: zod.number(),
+      reconTotal: zod.number(),
+      totalCost: zod.number(),
+      grossMargin: zod.number(),
+      netProfit: zod.number(),
+      marginPct: zod.number(),
+      hours: zod.number(),
+    }),
+  ),
+  laborRate: zod.number(),
+  range: zod.object({
+    from: zod.string().nullable(),
+    to: zod.string().nullable(),
+  }),
+  summary: zod.object({
+    soldCount: zod.number(),
+    totalRevenue: zod.number(),
+    totalCost: zod.number(),
+    totalRecon: zod.number(),
+    netProfit: zod.number(),
+  }),
 });
 
 /**

@@ -37,6 +37,10 @@ tags:
     description: Dashboard analytics
   - name: reminders
     description: Service reminders
+  - name: used-cars
+    description: Used-car inventory
+  - name: reports
+    description: Business reports
 
 paths:
   /healthz:
@@ -655,6 +659,51 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  # ---- USED CARS ----
+  /used-cars/{id}/recon:
+    get:
+      operationId: getUsedCarRecon
+      tags: [used-cars]
+      summary: Get reconditioning cost breakdown for a used car
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reconditioning breakdown for the car
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsedCarReconResponse"
+
+  # ---- REPORTS ----
+  /reports/used-car-profitability:
+    get:
+      operationId: getUsedCarProfitabilityReport
+      tags: [reports]
+      summary: Per-car used-car profitability report (sold cars)
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Used-car profitability report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsedCarProfitabilityReport"
 
   # ---- INVENTORY ----
   /inventory:
@@ -2073,10 +2122,17 @@ components:
           type: integer
         orderNumber:
           type: string
+        internal:
+          type: boolean
         customerId:
           type: integer
+          nullable: true
         vehicleId:
           type: integer
+          nullable: true
+        usedCarId:
+          type: integer
+          nullable: true
         assignedToId:
           type: integer
         status:
@@ -2120,8 +2176,6 @@ components:
       required:
         - id
         - orderNumber
-        - customerId
-        - vehicleId
         - status
         - priority
         - createdAt
@@ -2130,12 +2184,20 @@ components:
     CreateRepairOrderInput:
       type: object
       properties:
+        internal:
+          type: boolean
         customerId:
           type: integer
+          nullable: true
         vehicleId:
           type: integer
+          nullable: true
+        usedCarId:
+          type: integer
+          nullable: true
         assignedToId:
           type: integer
+          nullable: true
         status:
           type: string
           enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
@@ -2150,14 +2212,13 @@ components:
           type: string
         estimatedHours:
           type: number
+          nullable: true
         mileageIn:
           type: integer
+          nullable: true
         promisedDate:
           type: string
           format: date-time
-      required:
-        - customerId
-        - vehicleId
 
     UpdateRepairOrderInput:
       type: object
@@ -2220,6 +2281,137 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    UsedCarReconResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        car:
+          type: object
+          additionalProperties: true
+        laborRate:
+          type: number
+        partsFromPurchases:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        partsFromPurchasesTotal:
+          type: number
+        repairOrders:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        repairOrderPartsTotal:
+          type: number
+        timeEntries:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        laborHours:
+          type: number
+        laborTotal:
+          type: number
+        reconTotal:
+          type: number
+        grossMargin:
+          type: number
+        actualProfit:
+          type: number
+        marginPct:
+          type: number
+      required:
+        - car
+        - laborRate
+        - reconTotal
+
+    UsedCarProfitabilityReportRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        vehicle:
+          type: string
+        status:
+          type: string
+        saleDate:
+          type: string
+          nullable: true
+        purchasePrice:
+          type: number
+        sellingPrice:
+          type: number
+        reconParts:
+          type: number
+        reconLabor:
+          type: number
+        reconTotal:
+          type: number
+        totalCost:
+          type: number
+        grossMargin:
+          type: number
+        netProfit:
+          type: number
+        marginPct:
+          type: number
+        hours:
+          type: number
+      required:
+        - id
+        - vehicle
+        - status
+        - purchasePrice
+        - sellingPrice
+        - reconParts
+        - reconLabor
+        - reconTotal
+        - totalCost
+        - grossMargin
+        - netProfit
+        - marginPct
+        - hours
+
+    UsedCarProfitabilityReport:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsedCarProfitabilityReportRow"
+        laborRate:
+          type: number
+        range:
+          type: object
+          properties:
+            from:
+              type: string
+              nullable: true
+            to:
+              type: string
+              nullable: true
+          required: [from, to]
+        summary:
+          type: object
+          properties:
+            soldCount:
+              type: integer
+            totalRevenue:
+              type: number
+            totalCost:
+              type: number
+            totalRecon:
+              type: number
+            netProfit:
+              type: number
+          required: [soldCount, totalRevenue, totalCost, totalRecon, netProfit]
+      required:
+        - data
+        - laborRate
+        - range
+        - summary
 
     RepairOrderListResponse:
       type: object

@@ -9,15 +9,17 @@ import type { CreateRepairOrderInputPriority } from "./createRepairOrderInputPri
 import type { CreateRepairOrderInputStatus } from "./createRepairOrderInputStatus";
 
 export interface CreateRepairOrderInput {
-  customerId: number;
-  vehicleId: number;
-  assignedToId?: number;
+  internal?: boolean;
+  customerId?: number | null;
+  vehicleId?: number | null;
+  usedCarId?: number | null;
+  assignedToId?: number | null;
   status?: CreateRepairOrderInputStatus;
   priority?: CreateRepairOrderInputPriority;
   complaint?: string;
   diagnosis?: string;
   notes?: string;
-  estimatedHours?: number;
-  mileageIn?: number;
+  estimatedHours?: number | null;
+  mileageIn?: number | null;
   promisedDate?: Date;
 }
