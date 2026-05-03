@@ -1,15 +1,18 @@
-import { pgTable, serial, text, numeric, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
 import { vehiclesTable } from "./vehicles";
 import { employeesTable } from "./employees";
+import { usedCarsTable } from "./used_cars";
 
 export const repairOrdersTable = pgTable("repair_orders", {
   id: serial("id").primaryKey(),
   orderNumber: text("order_number").notNull().unique(),
-  customerId: integer("customer_id").notNull().references(() => customersTable.id),
-  vehicleId: integer("vehicle_id").notNull().references(() => vehiclesTable.id),
+  customerId: integer("customer_id").references(() => customersTable.id),
+  vehicleId: integer("vehicle_id").references(() => vehiclesTable.id),
+  usedCarId: integer("used_car_id").references(() => usedCarsTable.id),
+  internal: boolean("internal").notNull().default(false),
   assignedToId: integer("assigned_to_id").references(() => employeesTable.id),
   status: text("status").notNull().default("pending"),
   priority: text("priority").notNull().default("normal"),

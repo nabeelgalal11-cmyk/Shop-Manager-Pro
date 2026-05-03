@@ -171,4 +171,81 @@ router.get("/used-cars", async (_req, res) => {
   });
 });
 
+// Per-car used-car profitability (purchase + recon parts + labor)
+router.get("/used-car-profitability", async (_req, res) => {
+  const settings = await q(sql`SELECT labor_rate FROM shop_settings LIMIT 1`);
+  const laborRate = Number((settings[0] as any)?.labor_rate ?? 95);
+
+  const rows = await q(sql`
+    SELECT
+      c.id,
+      c.year, c.make, c.model, c.trim,
+      c.status,
+      c.purchase_price::numeric  AS purchase_price,
+      c.selling_price::numeric   AS selling_price,
+      c.sale_date,
+      COALESCE(pli.parts_total, 0)::numeric AS purchase_parts,
+      COALESCE(ro.ro_parts_total, 0)::numeric AS ro_parts,
+      COALESCE(ro.total_hours, 0)::numeric AS hours
+    FROM used_cars c
+    LEFT JOIN (
+      SELECT used_car_id, SUM(quantity::numeric * unit_cost::numeric) AS parts_total
+      FROM purchase_line_items
+      WHERE used_car_id IS NOT NULL
+      GROUP BY used_car_id
+    ) pli ON pli.used_car_id = c.id
+    LEFT JOIN (
+      SELECT used_car_id,
+        SUM(COALESCE(actual_hours, estimated_hours, 0)::numeric) AS total_hours,
+        SUM(COALESCE((
+          SELECT SUM((p->>'quantity')::numeric * (p->>'unitPrice')::numeric)
+          FROM jsonb_array_elements(COALESCE(parts, '[]'::jsonb)) p
+        ), 0)) AS ro_parts_total
+      FROM repair_orders
+      WHERE internal = true AND used_car_id IS NOT NULL
+      GROUP BY used_car_id
+    ) ro ON ro.used_car_id = c.id
+    ORDER BY c.created_at DESC
+  `);
+
+  const data = rows.map((r: any) => {
+    const purchasePrice = Number(r.purchase_price);
+    const sellingPrice = Number(r.selling_price);
+    const reconParts = Number(r.purchase_parts) + Number(r.ro_parts);
+    const reconLabor = Number(r.hours) * laborRate;
+    const reconTotal = reconParts + reconLabor;
+    const totalCost = purchasePrice + reconTotal;
+    const grossMargin = sellingPrice - purchasePrice;
+    const netProfit = sellingPrice - totalCost;
+    return {
+      id: r.id,
+      vehicle: [r.year, r.make, r.model, r.trim].filter(Boolean).join(" "),
+      status: r.status,
+      saleDate: r.sale_date,
+      purchasePrice,
+      sellingPrice,
+      reconParts,
+      reconLabor,
+      reconTotal,
+      totalCost,
+      grossMargin,
+      netProfit,
+      hours: Number(r.hours),
+    };
+  });
+
+  const sold = data.filter(c => c.status === "sold");
+  res.json({
+    data,
+    laborRate,
+    summary: {
+      soldCount: sold.length,
+      totalRevenue: sold.reduce((s, c) => s + c.sellingPrice, 0),
+      totalCost: sold.reduce((s, c) => s + c.totalCost, 0),
+      totalRecon: sold.reduce((s, c) => s + c.reconTotal, 0),
+      netProfit: sold.reduce((s, c) => s + c.netProfit, 0),
+    },
+  });
+});
+
 export default router;

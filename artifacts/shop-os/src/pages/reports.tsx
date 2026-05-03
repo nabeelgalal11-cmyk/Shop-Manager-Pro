@@ -88,6 +88,11 @@ export default function Reports() {
     queryFn: () => apiFetch("/api/reports/used-cars"),
   });
 
+  const { data: profitability } = useQuery<any>({
+    queryKey: ["/api/reports/used-car-profitability"],
+    queryFn: () => apiFetch("/api/reports/used-car-profitability"),
+  });
+
   const totalRevenue = overview?.totalRevenue ?? 0;
   const totalExpenses = overview?.totalExpenses ?? 0;
   const usedCarProfit = overview?.usedCarProfit ?? 0;
@@ -346,6 +351,58 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Used Car Profitability (Recon-aware) */}
+      <Card className="border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+            <Car className="h-4 w-4" /> Used Car Profitability (incl. Reconditioning)
+          </CardTitle>
+          {profitability?.summary && (
+            <p className="text-xs text-muted-foreground">
+              {profitability.summary.soldCount} sold · Revenue {fmt(profitability.summary.totalRevenue)} · Cost {fmt(profitability.summary.totalCost)} · Recon {fmt(profitability.summary.totalRecon)} · <span className={profitability.summary.netProfit >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>Net {fmt(profitability.summary.netProfit)}</span>
+            </p>
+          )}
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Vehicle</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Purchase</TableHead>
+                <TableHead>Recon</TableHead>
+                <TableHead>Total Cost</TableHead>
+                <TableHead>Sold/Asking</TableHead>
+                <TableHead>Net Profit</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {!profitability?.data?.length ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground pl-6">No vehicles tracked yet.</TableCell></TableRow>
+              ) : profitability.data.map((c: any) => (
+                <TableRow key={c.id} className="hover:bg-muted/50">
+                  <TableCell className="pl-6 font-medium">{c.vehicle}</TableCell>
+                  <TableCell><Badge variant="secondary" className="capitalize">{c.status}</Badge></TableCell>
+                  <TableCell>{fmt(c.purchasePrice)}</TableCell>
+                  <TableCell>
+                    <span className={c.reconTotal > 0 ? "text-orange-700" : "text-muted-foreground"}>
+                      {c.reconTotal > 0 ? fmt(c.reconTotal) : "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-medium">{fmt(c.totalCost)}</TableCell>
+                  <TableCell>{fmt(c.sellingPrice)}</TableCell>
+                  <TableCell>
+                    <span className={c.netProfit >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
+                      {c.netProfit >= 0 ? "+" : ""}{fmt(c.netProfit)}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remindersTable } from "@workspace/db";
+import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remindersTable, usedCarsTable } from "@workspace/db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 
@@ -118,12 +118,13 @@ async function autoCreateReminders(order: any) {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 async function enrichOrder(order: any) {
-  const [customer, vehicle, assignedTo] = await Promise.all([
-    db.select().from(customersTable).where(eq(customersTable.id, order.customerId)).then(r => r[0]),
-    db.select().from(vehiclesTable).where(eq(vehiclesTable.id, order.vehicleId)).then(r => r[0]),
+  const [customer, vehicle, assignedTo, usedCar] = await Promise.all([
+    order.customerId ? db.select().from(customersTable).where(eq(customersTable.id, order.customerId)).then(r => r[0]) : Promise.resolve(null),
+    order.vehicleId ? db.select().from(vehiclesTable).where(eq(vehiclesTable.id, order.vehicleId)).then(r => r[0]) : Promise.resolve(null),
     order.assignedToId ? db.select().from(employeesTable).where(eq(employeesTable.id, order.assignedToId)).then(r => r[0]) : Promise.resolve(null),
+    order.usedCarId ? db.select().from(usedCarsTable).where(eq(usedCarsTable.id, order.usedCarId)).then(r => r[0]) : Promise.resolve(null),
   ]);
-  return { ...order, customer, vehicle, assignedTo };
+  return { ...order, customer, vehicle, assignedTo, usedCar };
 }
 
 // ── Routes ──────────────────────────────────────────────────────────────────
@@ -151,9 +152,21 @@ router.post("/", async (req, res) => {
   const nextNum = lastOrder ? Number(lastOrder.orderNumber.replace("RO-", "")) + 1 : 1001;
   const orderNumber = `RO-${nextNum}`;
 
-  const { customerId, vehicleId, assignedToId, status, priority, complaint, diagnosis, notes, estimatedHours, mileageIn, promisedDate } = req.body;
+  const { customerId, vehicleId, usedCarId, internal, assignedToId, status, priority, complaint, diagnosis, notes, estimatedHours, mileageIn, promisedDate } = req.body;
+  const isInternal = Boolean(internal) || (usedCarId != null && !customerId);
+  if (!isInternal && (!customerId || !vehicleId)) {
+    return res.status(400).json({ error: "Customer and vehicle are required for non-internal repair orders" });
+  }
+  if (isInternal && !usedCarId) {
+    return res.status(400).json({ error: "Used car is required for internal repair orders" });
+  }
   const [order] = await db.insert(repairOrdersTable).values({
-    orderNumber, customerId, vehicleId, assignedToId, status: status || "pending", priority: priority || "normal",
+    orderNumber,
+    customerId: customerId || null,
+    vehicleId: vehicleId || null,
+    usedCarId: usedCarId || null,
+    internal: isInternal,
+    assignedToId, status: status || "pending", priority: priority || "normal",
     complaint, diagnosis, notes, estimatedHours, mileageIn, promisedDate: promisedDate ? new Date(promisedDate) : null,
   }).returning();
   res.status(201).json(await enrichOrder(order));
@@ -213,8 +226,9 @@ router.put("/:id", async (req, res) => {
 
   const enriched = await enrichOrder(order);
 
-  // Auto-create reminders + send completion email when transitioning to completed
-  if (status === "completed" && prev?.status !== "completed") {
+  // Auto-create reminders + send completion email when transitioning to completed.
+  // Skip for internal (used-car reconditioning) repair orders — no customer to notify.
+  if (status === "completed" && prev?.status !== "completed" && !order.internal) {
     await autoCreateReminders(order).catch(() => {});
     await maybeSendCompletionEmail(enriched, req);
   }

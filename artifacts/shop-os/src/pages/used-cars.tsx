@@ -149,6 +149,8 @@ export default function UsedCars() {
               <TableHead>Purchase</TableHead>
               <TableHead>Asking</TableHead>
               <TableHead>Margin</TableHead>
+              <TableHead>Recon</TableHead>
+              <TableHead>Net Profit</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Buyer</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -156,11 +158,13 @@ export default function UsedCars() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : cars.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No vehicles found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No vehicles found.</TableCell></TableRow>
             ) : cars.map(car => {
               const margin = Number(car.sellingPrice) - Number(car.purchasePrice);
+              const recon = Number(car.reconTotal ?? 0);
+              const net = margin - recon;
               return (
                 <TableRow key={car.id} className="hover:bg-muted/50">
                   <TableCell className="font-medium">
@@ -177,6 +181,16 @@ export default function UsedCars() {
                   <TableCell>
                     <span className={margin >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
                       {margin >= 0 ? "+" : ""}{fmt(margin)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className={recon > 0 ? "text-orange-700" : "text-muted-foreground"}>
+                      {recon > 0 ? fmt(recon) : "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className={net >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
+                      {net >= 0 ? "+" : ""}{fmt(net)}
                     </span>
                   </TableCell>
                   <TableCell>

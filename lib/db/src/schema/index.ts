@@ -20,3 +20,4 @@ export * from "./permissions";
 export * from "./email_templates";
 export * from "./attachments";
 export * from "./canned_jobs";
+export * from "./shop_settings";

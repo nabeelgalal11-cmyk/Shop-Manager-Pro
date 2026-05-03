@@ -7,8 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Car, DollarSign } from "lucide-react";
+import { ArrowLeft, Car, DollarSign, Wrench, TrendingUp, Plus } from "lucide-react";
 import { useGetCustomers } from "@workspace/api-client-react";
+
+function fmt(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+}
 
 const API = "/api/used-cars";
 
@@ -35,6 +39,12 @@ export default function UsedCarsNew() {
   const { data: existing } = useQuery({
     queryKey: [API, id],
     queryFn: () => apiFetch(`${API}/${id}`),
+    enabled: isEdit,
+  });
+
+  const { data: recon } = useQuery<any>({
+    queryKey: [API, id, "recon"],
+    queryFn: () => apiFetch(`${API}/${id}/recon`),
     enabled: isEdit,
   });
 
@@ -238,6 +248,120 @@ export default function UsedCarsNew() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Reconditioning + Profitability — edit mode only */}
+        {isEdit && recon && (
+          <>
+            <Card className="border-border">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Wrench className="h-4 w-4" /> Reconditioning Costs
+                </CardTitle>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setLocation(`/repair-orders/new?usedCarId=${id}`)}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" /> New Recon Job
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground">Parts (purchased)</div>
+                    <div className="font-semibold">{fmt(recon.partsFromPurchasesTotal)}</div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground">Parts (recon ROs)</div>
+                    <div className="font-semibold">{fmt(recon.repairOrderPartsTotal)}</div>
+                  </div>
+                  <div className="rounded-md border p-3">
+                    <div className="text-xs text-muted-foreground">Labor ({recon.laborHours}h × ${recon.laborRate})</div>
+                    <div className="font-semibold">{fmt(recon.laborTotal)}</div>
+                  </div>
+                  <div className="rounded-md border p-3 bg-orange-50 border-orange-200">
+                    <div className="text-xs text-orange-700">Total Recon</div>
+                    <div className="font-bold text-orange-700">{fmt(recon.reconTotal)}</div>
+                  </div>
+                </div>
+
+                {recon.repairOrders.length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-2">Recon Repair Orders</div>
+                    <div className="space-y-1">
+                      {recon.repairOrders.map((ro: any) => (
+                        <div
+                          key={ro.id}
+                          className="flex items-center justify-between text-sm p-2 rounded-md border hover:bg-muted/50 cursor-pointer"
+                          onClick={() => setLocation(`/repair-orders/${ro.id}`)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs">{ro.orderNumber}</span>
+                            <span className="text-xs text-muted-foreground">{ro.status}</span>
+                            {ro.diagnosis || ro.complaint ? (
+                              <span className="text-muted-foreground truncate max-w-md">— {ro.diagnosis || ro.complaint}</span>
+                            ) : null}
+                          </div>
+                          <div className="font-medium">{fmt(ro.totalCost)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {recon.partsFromPurchases.length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground mb-2">Parts from Purchases</div>
+                    <div className="space-y-1">
+                      {recon.partsFromPurchases.map((p: any) => (
+                        <div key={p.id} className="flex items-center justify-between text-sm p-2 rounded-md border">
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{p.supplier}</span>
+                            <span>—</span>
+                            <span>{p.description}</span>
+                            <span className="text-xs text-muted-foreground">×{p.quantity}</span>
+                          </div>
+                          <div className="font-medium">{fmt(p.lineTotal)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <TrendingUp className="h-4 w-4" /> Profitability
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">Purchase</div>
+                  <div className="font-semibold">{fmt(Number(form.purchasePrice || 0))}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">Asking / Sold</div>
+                  <div className="font-semibold">{fmt(Number(form.sellingPrice || 0))}</div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="text-xs text-muted-foreground">Total Cost</div>
+                  <div className="font-semibold">{fmt(Number(form.purchasePrice || 0) + recon.reconTotal)}</div>
+                </div>
+                <div className={`rounded-md border p-3 ${recon.actualProfit >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                  <div className={`text-xs ${recon.actualProfit >= 0 ? "text-green-700" : "text-red-700"}`}>
+                    Net Profit {form.status === "sold" ? "(realized)" : "(projected)"}
+                  </div>
+                  <div className={`font-bold ${recon.actualProfit >= 0 ? "text-green-700" : "text-red-700"}`}>
+                    {recon.actualProfit >= 0 ? "+" : ""}{fmt(recon.actualProfit)}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
 
         {/* Notes */}
         <Card className="border-border">
