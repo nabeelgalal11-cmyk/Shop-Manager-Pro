@@ -31,8 +31,26 @@
 // =====================================================================
 const AUTH_TOKEN = 'c194d8f9c15ccf303bf58fb809a8b2f1358d8ba829dd3144b25ce287e6136c01';
 
-// Storage root: one level above public_html (so it's not web-accessible).
-$STORAGE_ROOT = realpath(__DIR__ . '/..') . '/shopos-files';
+// Storage root: walk up from this script's directory until we leave
+// public_html, so the storage folder is never web-accessible regardless of
+// whether the script lives in public_html/ or in a subfolder like
+// public_html/<addondomain>/.
+function compute_storage_root() {
+    $dir = __DIR__;
+    // Walk up until the parent path no longer contains 'public_html'.
+    for ($i = 0; $i < 8; $i++) {
+        $parent = dirname($dir);
+        if ($parent === $dir || $parent === '/' || $parent === '') break;
+        if (strpos($parent, 'public_html') === false) {
+            // $parent is now /home/<cpanel-user> (outside public_html).
+            return $parent . '/shopos-files';
+        }
+        $dir = $parent;
+    }
+    // Fallback: two levels up from the script.
+    return realpath(__DIR__ . '/../..') . '/shopos-files';
+}
+$STORAGE_ROOT = compute_storage_root();
 
 // =====================================================================
 // Helpers
