@@ -1,5 +1,4 @@
 import { pgTable, serial, integer, text, numeric, timestamp, index } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 import { inventoryTable } from "./inventory";
 
 export const stockMovementReasons = [
@@ -33,12 +32,14 @@ export const stockMovementsTable = pgTable("stock_movements", {
   // to count applies vs reverses for the same source. NOT unique — apply
   // rows may legitimately repeat after a compensating reverse (e.g. an
   // RO toggled completed -> incomplete -> completed must write fresh
-  // ro_consumed rows on each completion).
+  // ro_consumed rows on each completion). Indexed on plain columns;
+  // count queries that wrap referenceLineId in COALESCE still benefit
+  // from the leading 4-column prefix and post-filter the small remainder.
   sourceIdx: index("stock_movements_source_idx").on(
     t.inventoryId,
     t.referenceTable,
     t.referenceId,
-    sql`coalesce(${t.referenceLineId}, 0)`,
+    t.referenceLineId,
     t.reason,
   ),
 }));

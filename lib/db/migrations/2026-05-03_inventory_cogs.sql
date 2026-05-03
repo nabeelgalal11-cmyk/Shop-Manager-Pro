@@ -27,13 +27,14 @@ CREATE INDEX IF NOT EXISTS stock_movements_reference_idx
 -- legitimate re-application after a compensating reversal (e.g. RO completed
 -- -> incomplete -> completed must re-write a fresh ro_consumed row).
 -- Idempotency is now enforced in application code by counting applies vs
--- reverses for the same source key. Drop any prior unique variant first so
--- environments that ran an earlier version of this migration converge.
+-- reverses for the same source key. Drop any prior variant first (unique,
+-- or non-unique with a COALESCE expression that confused drizzle-kit's
+-- opclass inference) so environments converge on plain column form.
 DROP INDEX IF EXISTS stock_movements_unique_source_idx;
+DROP INDEX IF EXISTS stock_movements_source_idx;
 CREATE INDEX IF NOT EXISTS stock_movements_source_idx
   ON stock_movements (
-    inventory_id, reference_table, reference_id,
-    COALESCE(reference_line_id, 0), reason
+    inventory_id, reference_table, reference_id, reference_line_id, reason
   );
 
 -- 2) line_items: capture unit_cost at time of consumption for COGS
