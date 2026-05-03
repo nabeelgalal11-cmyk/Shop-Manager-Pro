@@ -758,17 +758,33 @@ router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
   }
 
   // Atomic: only the first signer wins; later writers see 0 affected rows.
-  const updated = await db.update(estimatesTable).set({
-    status: "approved",
-    customerSignerName: signerName,
-    customerSignatureUrl: signatureUrl,
-    customerSignedAt: now,
-    customerIp: clientIp(req),
-    updatedAt: now,
-  }).where(and(
-    eq(estimatesTable.id, estimate.id),
-    isNull(estimatesTable.customerSignedAt),
-  )).returning({ id: estimatesTable.id });
+  // In the same tx we normalize line decisions so that whole-document
+  // approval is enough — any line still `pending` becomes `approved`,
+  // while explicit `declined` choices the customer made are preserved.
+  const updated = await db.transaction(async (tx) => {
+    const rows = await tx.update(estimatesTable).set({
+      status: "approved",
+      customerSignerName: signerName,
+      customerSignatureUrl: signatureUrl,
+      customerSignedAt: now,
+      customerIp: clientIp(req),
+      updatedAt: now,
+    }).where(and(
+      eq(estimatesTable.id, estimate.id),
+      isNull(estimatesTable.customerSignedAt),
+    )).returning({ id: estimatesTable.id });
+
+    if (rows.length > 0) {
+      await tx.update(lineItemsTable).set({
+        customerDecision: "approved",
+        decidedAt: now,
+      }).where(and(
+        eq(lineItemsTable.estimateId, estimate.id),
+        eq(lineItemsTable.customerDecision, "pending"),
+      ));
+    }
+    return rows;
+  });
 
   if (updated.length === 0) {
     // Lost the race after upload. Log the orphan so it can be reaped offline;
