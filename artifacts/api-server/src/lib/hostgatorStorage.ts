@@ -7,6 +7,8 @@ const HOST = process.env.HOSTGATOR_SFTP_HOST;
 const PORT = Number(process.env.HOSTGATOR_SFTP_PORT || "2222");
 const USER = process.env.HOSTGATOR_SFTP_USER;
 const PASSWORD = process.env.HOSTGATOR_SFTP_PASSWORD;
+const PRIVATE_KEY = process.env.HOSTGATOR_SFTP_PRIVATE_KEY;
+const PRIVATE_KEY_PASSPHRASE = process.env.HOSTGATOR_SFTP_PRIVATE_KEY_PASSPHRASE;
 const ROOT_DIR = process.env.HOSTGATOR_UPLOAD_DIR;
 
 export class HostgatorStorageError extends Error {
@@ -17,7 +19,7 @@ export class HostgatorStorageError extends Error {
 }
 
 export function isConfigured(): boolean {
-  return Boolean(HOST && USER && PASSWORD && ROOT_DIR);
+  return Boolean(HOST && USER && (PASSWORD || PRIVATE_KEY) && ROOT_DIR);
 }
 
 function assertConfigured(): void {
@@ -32,11 +34,18 @@ async function connect(): Promise<SftpClient> {
   assertConfigured();
   const sftp = new SftpClient();
   try {
+    const authOpts: Record<string, unknown> = PRIVATE_KEY
+      ? {
+          privateKey: PRIVATE_KEY,
+          ...(PRIVATE_KEY_PASSPHRASE ? { passphrase: PRIVATE_KEY_PASSPHRASE } : {}),
+          ...(PASSWORD ? { password: PASSWORD } : {}),
+        }
+      : { password: PASSWORD as string };
     await sftp.connect({
       host: HOST as string,
       port: PORT,
       username: USER as string,
-      password: PASSWORD as string,
+      ...authOpts,
       readyTimeout: 30000,
       // HostGator uses older OpenSSH versions; allow legacy algorithms
       algorithms: {
