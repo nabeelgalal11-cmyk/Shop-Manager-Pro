@@ -65,10 +65,13 @@ export function AttachmentsPanel({ ownerType, ownerId, title = "Attachments", de
 
   const remove = useMutation({
     mutationFn: async (id: number) => {
-      const r = await fetch(`/api/attachments/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const r = await fetch(
+        `/api/attachments/${id}?ownerType=${encodeURIComponent(ownerType)}&ownerId=${ownerId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
       if (!r.ok && r.status !== 204) throw new Error(await r.text());
     },
     onSuccess: () => qc.invalidateQueries({ queryKey }),
@@ -181,7 +184,7 @@ export function AttachmentsPanel({ ownerType, ownerId, title = "Attachments", de
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {items.map((a) => {
               const isImage = a.mimeType.startsWith("image/");
-              const url = `/api/attachments/${a.id}/download`;
+              const url = `/api/attachments/${a.id}/download?ownerType=${encodeURIComponent(ownerType)}&ownerId=${ownerId}`;
               return (
                 <div
                   key={a.id}

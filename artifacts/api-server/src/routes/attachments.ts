@@ -157,10 +157,28 @@ router.get("/:id/download", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  const ownerType = String(req.query.ownerType || "");
+  const ownerId = Number(req.query.ownerId);
+  if (!ownerType || !Number.isFinite(ownerId)) {
+    res.status(400).json({ error: "ownerType and ownerId are required" });
+    return;
+  }
+  try {
+    validateOwnerType(ownerType);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+    return;
+  }
   const [row] = await db
     .select()
     .from(attachmentsTable)
-    .where(eq(attachmentsTable.id, id));
+    .where(
+      and(
+        eq(attachmentsTable.id, id),
+        eq(attachmentsTable.ownerType, ownerType),
+        eq(attachmentsTable.ownerId, ownerId),
+      ),
+    );
   if (!row) {
     res.status(404).json({ error: "Attachment not found" });
     return;
@@ -201,10 +219,28 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  const ownerType = String(req.query.ownerType || "");
+  const ownerId = Number(req.query.ownerId);
+  if (!ownerType || !Number.isFinite(ownerId)) {
+    res.status(400).json({ error: "ownerType and ownerId are required" });
+    return;
+  }
+  try {
+    validateOwnerType(ownerType);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+    return;
+  }
   const [row] = await db
     .select()
     .from(attachmentsTable)
-    .where(eq(attachmentsTable.id, id));
+    .where(
+      and(
+        eq(attachmentsTable.id, id),
+        eq(attachmentsTable.ownerType, ownerType),
+        eq(attachmentsTable.ownerId, ownerId),
+      ),
+    );
   if (!row) {
     res.status(404).json({ error: "Attachment not found" });
     return;
@@ -212,7 +248,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
   try {
     await deleteFile(row.storagePath);
   } catch (err) {
-    req.log?.warn({ err, storagePath: row.storagePath }, "SFTP delete failed; removing DB row anyway");
+    req.log?.warn({ err, storagePath: row.storagePath }, "storage delete failed; removing DB row anyway");
   }
   await db.delete(attachmentsTable).where(eq(attachmentsTable.id, id));
   res.status(204).end();
