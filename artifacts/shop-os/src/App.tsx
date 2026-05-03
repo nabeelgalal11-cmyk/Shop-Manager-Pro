@@ -58,6 +58,7 @@ import CannedJobs from "@/pages/canned-jobs";
 import SettingsPayments from "@/pages/settings-payments";
 import SettingsMessaging from "@/pages/settings-messaging";
 import PayInvoice from "@/pages/pay";
+import InspectionPublic from "@/pages/inspection-public";
 import { useLocation as useWouterLocation } from "wouter";
 
 const queryClient = new QueryClient();
@@ -146,6 +147,7 @@ function AuthGate() {
   const [location] = useWouterLocation();
   // Public, token-protected pay pages must be reachable without a session.
   if (location.startsWith("/pay/")) return <PayInvoice />;
+  if (location.startsWith("/inspection/")) return <InspectionPublic />;
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20">

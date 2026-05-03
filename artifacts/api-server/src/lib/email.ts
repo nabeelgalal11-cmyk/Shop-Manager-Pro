@@ -107,6 +107,25 @@ const DEFAULT_TEMPLATES = [
     </p>`),
   },
   {
+    key: "inspection_sent",
+    name: "Inspection Sent",
+    subject: "Your vehicle inspection is ready - {{shopName}}",
+    fromName: "ShopOS",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
+    enabled: "true",
+    bodyHtml: cardWrap("#0d9488", "Vehicle Inspection Ready", `
+    <p>Hi {{customerName}},</p>
+    <p>We've completed a digital inspection of your <strong>{{vehicleInfo}}</strong> at <strong>{{shopName}}</strong>.</p>
+    <p>Tap the button below to see condition photos and approve or decline any recommended work — right from your phone.</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="{{inspectionUrl}}" style="background:#0d9488;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;display:inline-block;font-weight:bold;">View Inspection</a>
+    </p>
+    <p style="font-size:12px;color:#6b7280;word-break:break-all;">Or open this link: {{inspectionUrl}}</p>
+    <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      Thank you for choosing {{shopName}}!
+    </p>`),
+  },
+  {
     key: "repair_order_completed",
     name: "Repair Order Completed",
     subject: "Your vehicle is ready for pickup - {{shopName}}",

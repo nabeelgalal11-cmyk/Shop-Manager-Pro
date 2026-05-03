@@ -15,6 +15,12 @@ export const inspectionsTable = pgTable("inspections", {
   overallCondition: text("overall_condition").notNull().default("good"),
   items: jsonb("items").default([]),
   notes: text("notes"),
+  publicToken: text("public_token").unique(),
+  sentAt: timestamp("sent_at"),
+  customerSignatureUrl: text("customer_signature_url"),
+  customerSignedAt: timestamp("customer_signed_at"),
+  customerSignerName: text("customer_signer_name"),
+  customerIp: text("customer_ip"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -1,8 +1,11 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { db, customersTable, vehiclesTable, appointmentsTable, invoicesTable, lineItemsTable, paymentsTable } from "@workspace/db";
-import { and, eq, ilike, or, desc } from "drizzle-orm";
+import { db, customersTable, vehiclesTable, appointmentsTable, invoicesTable, lineItemsTable, paymentsTable, inspectionsTable } from "@workspace/db";
+import { and, eq, ilike, or, desc, isNull, sql } from "drizzle-orm";
 import { createCheckoutSessionForInvoice } from "./invoices.js";
 import { getStripeSettings } from "../lib/stripe.js";
+import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
+import { randomUUID } from "crypto";
+import { Readable } from "stream";
 
 const router: Router = Router();
 
@@ -335,6 +338,230 @@ router.post("/invoices/:token/checkout-session", payRateLimit, async (req, res) 
     const status = err.status ?? 500;
     req.log?.warn({ err: err.message, invoiceId: invoice.id }, "Public checkout session create failed");
     res.status(status).json({ error: err.message ?? "Unable to start payment" });
+  }
+});
+
+// ---- PUBLIC INSPECTION REVIEW (Task #28) ----
+// Token-protected, no auth required. Customers tap a link from SMS/email,
+// see condition photos for each line, approve/decline individual items, and
+// e-sign at the end.
+
+const inspBuckets = new Map<string, { count: number; resetAt: number }>();
+function inspRateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+  const now = Date.now();
+  const entry = inspBuckets.get(ip);
+  if (!entry || entry.resetAt < now) {
+    inspBuckets.set(ip, { count: 1, resetAt: now + 60_000 });
+    return next();
+  }
+  if (entry.count >= 60) return res.status(429).json({ error: "Too many requests" });
+  entry.count++;
+  next();
+}
+
+function clientIp(req: Request): string {
+  return (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+}
+
+router.get("/inspections/:token", inspRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!token || token.length < 8) return res.status(404).json({ error: "Not found" });
+  const [inspection] = await db.select().from(inspectionsTable).where(eq(inspectionsTable.publicToken, token));
+  if (!inspection) return res.status(404).json({ error: "Not found" });
+
+  const [vehicle] = await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, inspection.vehicleId));
+  const [customer] = vehicle ? await db.select().from(customersTable).where(eq(customersTable.id, vehicle.customerId)) : [null as any];
+
+  res.json({
+    id: inspection.id,
+    type: inspection.type,
+    overallCondition: inspection.overallCondition,
+    // Note: internal `notes` field deliberately omitted — it's shop-only.
+    items: Array.isArray(inspection.items) ? inspection.items : [],
+    createdAt: inspection.createdAt,
+    sentAt: inspection.sentAt,
+    customerSignedAt: inspection.customerSignedAt,
+    customerSignerName: inspection.customerSignerName,
+    customerSignatureUrl: inspection.customerSignatureUrl,
+    vehicle: vehicle ? {
+      year: vehicle.year, make: vehicle.make, model: vehicle.model,
+      vin: vehicle.vin, licensePlate: vehicle.licensePlate, mileage: vehicle.mileage,
+    } : null,
+    customer: customer ? { firstName: customer.firstName, lastName: customer.lastName } : null,
+    shopName: process.env.SHOP_NAME || "Our Shop",
+  });
+});
+
+// Approve or decline a single inspection line item.
+router.post("/inspections/:token/decision", inspRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!token) return res.status(404).json({ error: "Not found" });
+  const itemId = String(req.body?.itemId ?? "");
+  const decision = String(req.body?.decision ?? "");
+  if (!itemId || (decision !== "approved" && decision !== "declined" && decision !== "")) {
+    return res.status(400).json({ error: "Invalid decision" });
+  }
+
+  // Serialize the read-modify-write of items[] inside a transaction with a
+  // row lock so concurrent decisions can't lose updates, and so the
+  // "locked once signed" check is atomic with the write.
+  try {
+    const result = await db.transaction(async (tx) => {
+      const qr = await tx.execute<{
+        id: number; items: any; customer_signed_at: Date | null;
+      }>(sql`SELECT id, items, customer_signed_at FROM inspections WHERE public_token = ${token} FOR UPDATE`);
+      const row = (qr as any).rows?.[0] ?? (Array.isArray(qr) ? (qr as any)[0] : undefined);
+      if (!row) return { http: 404, body: { error: "Not found" } } as const;
+      if (row.customer_signed_at) return { http: 409, body: { error: "Inspection already signed; decisions are locked" } } as const;
+      const items = Array.isArray(row.items) ? [...row.items] : [];
+      const idx = items.findIndex((it: any) => String(it.id) === itemId);
+      if (idx === -1) return { http: 404, body: { error: "Item not found" } } as const;
+      items[idx] = {
+        ...items[idx],
+        customerDecision: decision === "" ? null : decision,
+        decidedAt: decision === "" ? null : new Date().toISOString(),
+      };
+      await tx.update(inspectionsTable).set({
+        items,
+        customerIp: clientIp(req),
+        updatedAt: new Date(),
+      }).where(eq(inspectionsTable.id, row.id));
+      return { http: 200, body: { ok: true, item: items[idx] } } as const;
+    });
+    res.status(result.http).json(result.body);
+  } catch (err: any) {
+    req.log?.error({ err: err?.message }, "Inspection decision failed");
+    res.status(500).json({ error: "Could not save decision" });
+  }
+});
+
+// Customer e-signs the whole inspection. Body: { signerName, signatureDataUrl }
+// where signatureDataUrl is a PNG data URL captured from a canvas.
+router.post("/inspections/:token/sign", inspRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!token) return res.status(404).json({ error: "Not found" });
+
+  const signerName = String(req.body?.signerName ?? "").trim();
+  const signatureDataUrl = String(req.body?.signatureDataUrl ?? "");
+  if (!signerName || signerName.length > 200) return res.status(400).json({ error: "Signer name is required" });
+  // PNG only — the SignaturePad emits canvas.toDataURL("image/png").
+  if (!signatureDataUrl.startsWith("data:image/png;base64,")) {
+    return res.status(400).json({ error: "Invalid signature image (PNG required)" });
+  }
+
+  const [inspection] = await db.select().from(inspectionsTable).where(eq(inspectionsTable.publicToken, token));
+  if (!inspection) return res.status(404).json({ error: "Not found" });
+  if (inspection.customerSignedAt) {
+    return res.status(409).json({ error: "Inspection already signed" });
+  }
+
+  // Decode the data URL and upload to private object storage so the signature
+  // is durably stored and viewable from the admin UI via /objects/...
+  const contentType = "image/png";
+  const buffer = Buffer.from(signatureDataUrl.slice("data:image/png;base64,".length), "base64");
+  if (buffer.byteLength === 0 || buffer.byteLength > 1_000_000) {
+    return res.status(400).json({ error: "Signature image too large or empty" });
+  }
+
+  let signatureUrl: string | null = null;
+  try {
+    const svc = new ObjectStorageService();
+    const uploadUrl = await svc.getObjectEntityUploadURL();
+    const putResp = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: buffer,
+    });
+    if (!putResp.ok) throw new Error(`PUT ${putResp.status}`);
+    // Normalize back to /objects/uploads/<id> shape and tag as public so the
+    // signature image can be rendered without a session.
+    // Normalize back to /objects/uploads/<id> (no public ACL needed — it's
+    // streamed back via a token-scoped proxy route below).
+    signatureUrl = svc.normalizeObjectEntityPath(uploadUrl);
+    void randomUUID;
+  } catch (err: any) {
+    req.log?.error({ err: err?.message, inspectionId: inspection.id }, "Inspection signature upload failed");
+    return res.status(503).json({ error: "Could not save signature. Please try again." });
+  }
+
+  const now = new Date();
+  // Atomic lock: only the first concurrent signer wins; later writers see
+  // 0 affected rows and get a 409.
+  const updated = await db.update(inspectionsTable).set({
+    customerSignerName: signerName,
+    customerSignatureUrl: signatureUrl,
+    customerSignedAt: now,
+    customerIp: clientIp(req),
+    updatedAt: now,
+  }).where(and(
+    eq(inspectionsTable.id, inspection.id),
+    isNull(inspectionsTable.customerSignedAt),
+  )).returning({ id: inspectionsTable.id });
+
+  if (updated.length === 0) {
+    return res.status(409).json({ error: "Inspection already signed" });
+  }
+
+  req.log?.info({ inspectionId: inspection.id, signerName }, "Inspection signed by customer");
+  res.json({ ok: true, signedAt: now.toISOString(), signerName, signatureUrl });
+});
+
+// Token-scoped image proxy. Streams a per-item photo only if the requested
+// path actually appears in this inspection's items[].photos. Avoids needing
+// to flip ACLs to public.
+router.get("/inspections/:token/photo", inspRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  const photoPath = String(req.query.p ?? "");
+  if (!token || !photoPath.startsWith("/objects/")) return res.status(404).end();
+  const [inspection] = await db.select().from(inspectionsTable).where(eq(inspectionsTable.publicToken, token));
+  if (!inspection) return res.status(404).end();
+  const items = Array.isArray(inspection.items) ? (inspection.items as any[]) : [];
+  const allowed = items.some(it => Array.isArray(it.photos) && it.photos.includes(photoPath));
+  if (!allowed) return res.status(404).end();
+  try {
+    const svc = new ObjectStorageService();
+    const file = await svc.getObjectEntityFile(photoPath);
+    const response = await svc.downloadObject(file);
+    res.status(response.status);
+    response.headers.forEach((value: string, key: string) => res.setHeader(key, value));
+    if (response.body) {
+      const ns = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+      ns.pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (err) {
+    if (err instanceof ObjectNotFoundError) return res.status(404).end();
+    req.log?.error({ err }, "Public inspection photo serve failed");
+    res.status(500).end();
+  }
+});
+
+router.get("/inspections/:token/signature", inspRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!token) return res.status(404).end();
+  const [inspection] = await db.select({
+    id: inspectionsTable.id,
+    customerSignatureUrl: inspectionsTable.customerSignatureUrl,
+  }).from(inspectionsTable).where(eq(inspectionsTable.publicToken, token));
+  if (!inspection || !inspection.customerSignatureUrl?.startsWith("/objects/")) return res.status(404).end();
+  try {
+    const svc = new ObjectStorageService();
+    const file = await svc.getObjectEntityFile(inspection.customerSignatureUrl);
+    const response = await svc.downloadObject(file);
+    res.status(response.status);
+    response.headers.forEach((value: string, key: string) => res.setHeader(key, value));
+    if (response.body) {
+      const ns = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+      ns.pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (err) {
+    if (err instanceof ObjectNotFoundError) return res.status(404).end();
+    req.log?.error({ err }, "Public inspection signature serve failed");
+    res.status(500).end();
   }
 });
 
