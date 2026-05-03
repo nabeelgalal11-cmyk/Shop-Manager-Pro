@@ -88,7 +88,6 @@ async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, re
 
     if (wantsSms) {
       const smsBody = `${process.env.SHOP_NAME || "Our Shop"}: Invoice ${invoice.invoiceNumber} for $${Number(invoice.total).toFixed(2)} is ready.${payUrl ? ` Pay: ${payUrl}` : ""} Reply STOP to opt out.`;
-      const { sendSms } = await import("../lib/sms.js");
       await sendSms({ customerId: invoice.customerId, body: smsBody, invoiceId: invoice.id });
     }
 
