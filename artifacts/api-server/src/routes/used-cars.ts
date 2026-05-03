@@ -7,8 +7,11 @@ import {
   purchasesTable,
   repairOrdersTable,
   shopSettingsTable,
+  timeEntriesTable,
+  employeesTable,
 } from "@workspace/db";
-import { eq, sql, desc, and } from "drizzle-orm";
+import { eq, sql, desc, and, inArray } from "drizzle-orm";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
 
@@ -17,8 +20,8 @@ async function getLaborRate(): Promise<number> {
   return s ? Number(s.laborRate) : 95;
 }
 
-async function computeRecon(carId: number, laborRate: number) {
-  // Parts/materials from purchase line items tagged to this car
+async function computeRecon(carId: number, defaultLaborRate: number) {
+  // 1) Parts/materials from purchase line items tagged to this car
   const partsRows = await db
     .select({
       id: purchaseLineItemsTable.id,
@@ -39,24 +42,71 @@ async function computeRecon(carId: number, laborRate: number) {
     0
   );
 
-  // Internal repair orders linked to this car
+  // 2) Internal repair orders for this car
   const orders = await db
     .select()
     .from(repairOrdersTable)
     .where(and(eq(repairOrdersTable.usedCarId, carId), eq(repairOrdersTable.internal, true)))
     .orderBy(desc(repairOrdersTable.createdAt));
+  const orderIds = orders.map(o => o.id);
+
+  // 3) Time entries linked to those ROs (with employee hourly rate)
+  const timeRows = orderIds.length
+    ? await db
+        .select({
+          id: timeEntriesTable.id,
+          repairOrderId: timeEntriesTable.repairOrderId,
+          totalHours: timeEntriesTable.totalHours,
+          clockIn: timeEntriesTable.clockIn,
+          clockOut: timeEntriesTable.clockOut,
+          employeeId: timeEntriesTable.employeeId,
+          employeeFirstName: employeesTable.firstName,
+          employeeLastName: employeesTable.lastName,
+          hourlyRate: employeesTable.hourlyRate,
+        })
+        .from(timeEntriesTable)
+        .leftJoin(employeesTable, eq(timeEntriesTable.employeeId, employeesTable.id))
+        .where(inArray(timeEntriesTable.repairOrderId, orderIds))
+    : [];
+
+  // Aggregate labor cost per RO from time entries; fallback to RO actual/estimated hours × shop rate when no entries
+  const laborByOrder = new Map<number, { hours: number; cost: number; entries: typeof timeRows }>();
+  for (const t of timeRows) {
+    const id = t.repairOrderId!;
+    const hours = Number(t.totalHours ?? 0);
+    const rate = t.hourlyRate ? Number(t.hourlyRate) : defaultLaborRate;
+    const bucket = laborByOrder.get(id) ?? { hours: 0, cost: 0, entries: [] as typeof timeRows };
+    bucket.hours += hours;
+    bucket.cost += hours * rate;
+    bucket.entries.push(t);
+    laborByOrder.set(id, bucket);
+  }
 
   let roPartsTotal = 0;
   let laborHours = 0;
+  let laborTotal = 0;
   const orderSummaries = orders.map(o => {
     const partList = Array.isArray(o.parts) ? o.parts : [];
     const partsCost = partList.reduce(
       (s: number, p: any) => s + Number(p.quantity ?? 0) * Number(p.unitPrice ?? 0),
       0
     );
-    const hours = Number(o.actualHours ?? o.estimatedHours ?? 0);
+    const labor = laborByOrder.get(o.id);
+    let hours: number;
+    let laborCost: number;
+    let laborSource: "time_entries" | "ro_hours_fallback";
+    if (labor && labor.hours > 0) {
+      hours = labor.hours;
+      laborCost = labor.cost;
+      laborSource = "time_entries";
+    } else {
+      hours = Number(o.actualHours ?? o.estimatedHours ?? 0);
+      laborCost = hours * defaultLaborRate;
+      laborSource = "ro_hours_fallback";
+    }
     roPartsTotal += partsCost;
     laborHours += hours;
+    laborTotal += laborCost;
     return {
       id: o.id,
       orderNumber: o.orderNumber,
@@ -65,18 +115,18 @@ async function computeRecon(carId: number, laborRate: number) {
       diagnosis: o.diagnosis,
       hours,
       partsCost,
-      laborCost: hours * laborRate,
-      totalCost: partsCost + hours * laborRate,
+      laborCost,
+      laborSource,
+      totalCost: partsCost + laborCost,
       completedAt: o.completedAt,
       createdAt: o.createdAt,
     };
   });
 
-  const laborTotal = laborHours * laborRate;
   const reconTotal = partsTotal + roPartsTotal + laborTotal;
 
   return {
-    laborRate,
+    laborRate: defaultLaborRate,
     partsFromPurchases: partsRows.map(r => ({
       ...r,
       quantity: Number(r.quantity),
@@ -86,6 +136,12 @@ async function computeRecon(carId: number, laborRate: number) {
     partsFromPurchasesTotal: partsTotal,
     repairOrders: orderSummaries,
     repairOrderPartsTotal: roPartsTotal,
+    timeEntries: timeRows.map(t => ({
+      ...t,
+      totalHours: Number(t.totalHours ?? 0),
+      hourlyRate: t.hourlyRate ? Number(t.hourlyRate) : null,
+      cost: Number(t.totalHours ?? 0) * (t.hourlyRate ? Number(t.hourlyRate) : defaultLaborRate),
+    })),
     laborHours,
     laborTotal,
     reconTotal,
@@ -98,15 +154,23 @@ async function enrichCar(car: any, opts?: { withRecon?: boolean; laborRate?: num
     : null;
   const base: any = { ...car, customer };
   if (opts?.withRecon) {
-    const recon = await computeRecon(car.id, opts.laborRate ?? (await getLaborRate()));
+    const rate = opts.laborRate ?? (await getLaborRate());
+    const recon = await computeRecon(car.id, rate);
+    const sellingPrice = Number(car.sellingPrice);
+    const purchasePrice = Number(car.purchasePrice);
+    const totalCost = purchasePrice + recon.reconTotal;
+    const actualProfit = sellingPrice - totalCost;
+    const marginPct = sellingPrice > 0 ? (actualProfit / sellingPrice) * 100 : 0;
     base.recon = recon;
-    base.actualProfit =
-      Number(car.sellingPrice) - Number(car.purchasePrice) - recon.reconTotal;
+    base.reconTotal = recon.reconTotal;
+    base.totalCost = totalCost;
+    base.actualProfit = actualProfit;
+    base.marginPct = Math.round(marginPct * 10) / 10;
   }
   return base;
 }
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
   const status = req.query.status as string | undefined;
   const cars = status
     ? await db.select().from(usedCarsTable).where(eq(usedCarsTable.status, status)).orderBy(desc(usedCarsTable.createdAt))
@@ -114,38 +178,54 @@ router.get("/", async (req, res) => {
 
   const laborRate = await getLaborRate();
 
-  // Per-car recon totals via aggregate query (purchase items + RO parts + labor hours)
+  // Per-car recon totals (purchase parts + RO parts + labor from time_entries; fallback to RO hours × shop rate when no entries)
   const reconRows = await db.execute(sql`
     SELECT
       c.id AS car_id,
       COALESCE(pli.parts_total, 0)::numeric AS purchase_parts,
-      COALESCE(ro.ro_parts_total, 0)::numeric AS ro_parts,
-      COALESCE(ro.total_hours, 0)::numeric AS hours
+      COALESCE(ro_parts.total, 0)::numeric AS ro_parts,
+      COALESCE(labor.total, 0)::numeric AS labor_cost
     FROM used_cars c
     LEFT JOIN (
       SELECT used_car_id, SUM(quantity::numeric * unit_cost::numeric) AS parts_total
-      FROM purchase_line_items
-      WHERE used_car_id IS NOT NULL
+      FROM purchase_line_items WHERE used_car_id IS NOT NULL
       GROUP BY used_car_id
     ) pli ON pli.used_car_id = c.id
     LEFT JOIN (
-      SELECT used_car_id,
-        SUM(COALESCE(actual_hours, estimated_hours, 0)::numeric) AS total_hours,
-        SUM(COALESCE((
-          SELECT SUM((p->>'quantity')::numeric * (p->>'unitPrice')::numeric)
-          FROM jsonb_array_elements(COALESCE(parts, '[]'::jsonb)) p
-        ), 0)) AS ro_parts_total
-      FROM repair_orders
-      WHERE internal = true AND used_car_id IS NOT NULL
-      GROUP BY used_car_id
-    ) ro ON ro.used_car_id = c.id
+      SELECT ro.used_car_id, SUM(COALESCE((
+        SELECT SUM((p->>'quantity')::numeric * (p->>'unitPrice')::numeric)
+        FROM jsonb_array_elements(COALESCE(ro.parts, '[]'::jsonb)) p
+      ), 0)) AS total
+      FROM repair_orders ro
+      WHERE ro.internal = true AND ro.used_car_id IS NOT NULL
+      GROUP BY ro.used_car_id
+    ) ro_parts ON ro_parts.used_car_id = c.id
+    LEFT JOIN (
+      SELECT ro.used_car_id,
+        SUM(
+          CASE
+            WHEN te.has_entries THEN te.cost
+            ELSE COALESCE(ro.actual_hours, ro.estimated_hours, 0)::numeric * ${laborRate}
+          END
+        ) AS total
+      FROM repair_orders ro
+      LEFT JOIN (
+        SELECT
+          repair_order_id,
+          true AS has_entries,
+          SUM(COALESCE(total_hours, 0)::numeric * COALESCE(e.hourly_rate, ${laborRate})::numeric) AS cost
+        FROM time_entries t
+        LEFT JOIN employees e ON e.id = t.employee_id
+        WHERE repair_order_id IS NOT NULL
+        GROUP BY repair_order_id
+      ) te ON te.repair_order_id = ro.id
+      WHERE ro.internal = true AND ro.used_car_id IS NOT NULL
+      GROUP BY ro.used_car_id
+    ) labor ON labor.used_car_id = c.id
   `);
   const reconMap = new Map<number, number>();
   for (const r of reconRows.rows as any[]) {
-    const total =
-      Number(r.purchase_parts ?? 0) +
-      Number(r.ro_parts ?? 0) +
-      Number(r.hours ?? 0) * laborRate;
+    const total = Number(r.purchase_parts ?? 0) + Number(r.ro_parts ?? 0) + Number(r.labor_cost ?? 0);
     reconMap.set(Number(r.car_id), total);
   }
 
@@ -155,13 +235,11 @@ router.get("/", async (req, res) => {
         ? await db.select().from(customersTable).where(eq(customersTable.id, car.customerId)).then(r => r[0])
         : null;
       const reconTotal = reconMap.get(car.id) ?? 0;
-      return {
-        ...car,
-        customer,
-        reconTotal,
-        actualProfit:
-          Number(car.sellingPrice) - Number(car.purchasePrice) - reconTotal,
-      };
+      const sellingPrice = Number(car.sellingPrice);
+      const purchasePrice = Number(car.purchasePrice);
+      const actualProfit = sellingPrice - purchasePrice - reconTotal;
+      const marginPct = sellingPrice > 0 ? Math.round((actualProfit / sellingPrice) * 1000) / 10 : 0;
+      return { ...car, customer, reconTotal, actualProfit, marginPct };
     })
   );
 
@@ -174,10 +252,7 @@ router.get("/", async (req, res) => {
     reservedCount: sql<number>`sum(case when status = 'reserved' then 1 else 0 end)::int`,
   }).from(usedCarsTable);
 
-  // Recon costs included in net sold profit
-  const soldRecon = enriched
-    .filter(c => c.status === "sold")
-    .reduce((s, c) => s + c.reconTotal, 0);
+  const soldRecon = enriched.filter(c => c.status === "sold").reduce((s, c) => s + c.reconTotal, 0);
 
   res.json({
     data: enriched,
@@ -195,7 +270,7 @@ router.get("/", async (req, res) => {
   });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("used_cars", "create"), async (req, res) => {
   const { vin, year, make, model, trim, color, mileage, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
   const [car] = await db.insert(usedCarsTable).values({
     vin, year, make, model, trim, color, mileage, condition,
@@ -208,28 +283,33 @@ router.post("/", async (req, res) => {
   res.status(201).json(await enrichCar(car));
 });
 
-router.get("/:id/recon", async (req, res) => {
+router.get("/:id/recon", requirePermission("used_cars", "view"), async (req, res) => {
   const id = Number(req.params.id);
   const [car] = await db.select().from(usedCarsTable).where(eq(usedCarsTable.id, id));
   if (!car) return res.status(404).json({ error: "Car not found" });
   const laborRate = await getLaborRate();
   const recon = await computeRecon(id, laborRate);
-  const margin = Number(car.sellingPrice) - Number(car.purchasePrice);
+  const sellingPrice = Number(car.sellingPrice);
+  const purchasePrice = Number(car.purchasePrice);
+  const grossMargin = sellingPrice - purchasePrice;
+  const actualProfit = grossMargin - recon.reconTotal;
+  const marginPct = sellingPrice > 0 ? Math.round((actualProfit / sellingPrice) * 1000) / 10 : 0;
   res.json({
     car,
     ...recon,
-    grossMargin: margin,
-    actualProfit: margin - recon.reconTotal,
+    grossMargin,
+    actualProfit,
+    marginPct,
   });
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requirePermission("used_cars", "view"), async (req, res) => {
   const [car] = await db.select().from(usedCarsTable).where(eq(usedCarsTable.id, Number(req.params.id)));
   if (!car) return res.status(404).json({ error: "Car not found" });
   res.json(await enrichCar(car, { withRecon: true }));
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requirePermission("used_cars", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { vin, year, make, model, trim, color, mileage, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
   const [car] = await db.update(usedCarsTable).set({
@@ -243,7 +323,7 @@ router.put("/:id", async (req, res) => {
   res.json(await enrichCar(car));
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requirePermission("used_cars", "delete"), async (req, res) => {
   await db.delete(usedCarsTable).where(eq(usedCarsTable.id, Number(req.params.id)));
   res.status(204).send();
 });

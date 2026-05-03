@@ -87,8 +87,9 @@ router.delete("/:id", async (req, res) => {
 
 router.post("/:id/clock-in", async (req, res) => {
   const id = Number(req.params.id);
+  const repairOrderId = req.body?.repairOrderId ? Number(req.body.repairOrderId) : null;
   await db.update(employeesTable).set({ clockedIn: true, updatedAt: new Date() }).where(eq(employeesTable.id, id));
-  const [entry] = await db.insert(timeEntriesTable).values({ employeeId: id, clockIn: new Date() }).returning();
+  const [entry] = await db.insert(timeEntriesTable).values({ employeeId: id, clockIn: new Date(), repairOrderId }).returning();
   res.status(201).json(entry);
 });
 

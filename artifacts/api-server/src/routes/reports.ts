@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+
+router.use(requirePermission("reports", "view"));
 
 async function q<T = any>(query: ReturnType<typeof sql>): Promise<T[]> {
   const result = await db.execute(query);
@@ -172,9 +175,12 @@ router.get("/used-cars", async (_req, res) => {
 });
 
 // Per-car used-car profitability (purchase + recon parts + labor)
-router.get("/used-car-profitability", async (_req, res) => {
+router.get("/used-car-profitability", async (req, res) => {
   const settings = await q(sql`SELECT labor_rate FROM shop_settings LIMIT 1`);
   const laborRate = Number((settings[0] as any)?.labor_rate ?? 95);
+
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
 
   const rows = await q(sql`
     SELECT
@@ -185,26 +191,49 @@ router.get("/used-car-profitability", async (_req, res) => {
       c.selling_price::numeric   AS selling_price,
       c.sale_date,
       COALESCE(pli.parts_total, 0)::numeric AS purchase_parts,
-      COALESCE(ro.ro_parts_total, 0)::numeric AS ro_parts,
-      COALESCE(ro.total_hours, 0)::numeric AS hours
+      COALESCE(ro_parts.total, 0)::numeric AS ro_parts,
+      COALESCE(labor.total, 0)::numeric AS labor_cost,
+      COALESCE(labor.hours, 0)::numeric AS hours
     FROM used_cars c
     LEFT JOIN (
       SELECT used_car_id, SUM(quantity::numeric * unit_cost::numeric) AS parts_total
-      FROM purchase_line_items
-      WHERE used_car_id IS NOT NULL
+      FROM purchase_line_items WHERE used_car_id IS NOT NULL
       GROUP BY used_car_id
     ) pli ON pli.used_car_id = c.id
     LEFT JOIN (
-      SELECT used_car_id,
-        SUM(COALESCE(actual_hours, estimated_hours, 0)::numeric) AS total_hours,
-        SUM(COALESCE((
-          SELECT SUM((p->>'quantity')::numeric * (p->>'unitPrice')::numeric)
-          FROM jsonb_array_elements(COALESCE(parts, '[]'::jsonb)) p
-        ), 0)) AS ro_parts_total
-      FROM repair_orders
-      WHERE internal = true AND used_car_id IS NOT NULL
-      GROUP BY used_car_id
-    ) ro ON ro.used_car_id = c.id
+      SELECT ro.used_car_id, SUM(COALESCE((
+        SELECT SUM((p->>'quantity')::numeric * (p->>'unitPrice')::numeric)
+        FROM jsonb_array_elements(COALESCE(ro.parts, '[]'::jsonb)) p
+      ), 0)) AS total
+      FROM repair_orders ro
+      WHERE ro.internal = true AND ro.used_car_id IS NOT NULL
+      GROUP BY ro.used_car_id
+    ) ro_parts ON ro_parts.used_car_id = c.id
+    LEFT JOIN (
+      SELECT ro.used_car_id,
+        SUM(
+          CASE WHEN te.has_entries THEN te.cost
+               ELSE COALESCE(ro.actual_hours, ro.estimated_hours, 0)::numeric * ${laborRate}
+          END
+        ) AS total,
+        SUM(
+          CASE WHEN te.has_entries THEN te.hours
+               ELSE COALESCE(ro.actual_hours, ro.estimated_hours, 0)::numeric
+          END
+        ) AS hours
+      FROM repair_orders ro
+      LEFT JOIN (
+        SELECT repair_order_id, true AS has_entries,
+          SUM(COALESCE(total_hours, 0)::numeric) AS hours,
+          SUM(COALESCE(total_hours, 0)::numeric * COALESCE(e.hourly_rate, ${laborRate})::numeric) AS cost
+        FROM time_entries t
+        LEFT JOIN employees e ON e.id = t.employee_id
+        WHERE repair_order_id IS NOT NULL
+        GROUP BY repair_order_id
+      ) te ON te.repair_order_id = ro.id
+      WHERE ro.internal = true AND ro.used_car_id IS NOT NULL
+      GROUP BY ro.used_car_id
+    ) labor ON labor.used_car_id = c.id
     ORDER BY c.created_at DESC
   `);
 
@@ -212,11 +241,12 @@ router.get("/used-car-profitability", async (_req, res) => {
     const purchasePrice = Number(r.purchase_price);
     const sellingPrice = Number(r.selling_price);
     const reconParts = Number(r.purchase_parts) + Number(r.ro_parts);
-    const reconLabor = Number(r.hours) * laborRate;
+    const reconLabor = Number(r.labor_cost);
     const reconTotal = reconParts + reconLabor;
     const totalCost = purchasePrice + reconTotal;
     const grossMargin = sellingPrice - purchasePrice;
     const netProfit = sellingPrice - totalCost;
+    const marginPct = sellingPrice > 0 ? Math.round((netProfit / sellingPrice) * 1000) / 10 : 0;
     return {
       id: r.id,
       vehicle: [r.year, r.make, r.model, r.trim].filter(Boolean).join(" "),
@@ -230,14 +260,24 @@ router.get("/used-car-profitability", async (_req, res) => {
       totalCost,
       grossMargin,
       netProfit,
+      marginPct,
       hours: Number(r.hours),
     };
   });
 
-  const sold = data.filter(c => c.status === "sold");
+  // Sold-in-range scoping for the summary; the full table stays visible for context.
+  const sold = data.filter(c => {
+    if (c.status !== "sold") return false;
+    const sd = c.saleDate ? String(c.saleDate).slice(0, 10) : null;
+    if (from && (!sd || sd < from)) return false;
+    if (to && (!sd || sd > to)) return false;
+    return true;
+  });
+
   res.json({
     data,
     laborRate,
+    range: { from: from ?? null, to: to ?? null },
     summary: {
       soldCount: sold.length,
       totalRevenue: sold.reduce((s, c) => s + c.sellingPrice, 0),

@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from "recharts";
@@ -88,9 +92,22 @@ export default function Reports() {
     queryFn: () => apiFetch("/api/reports/used-cars"),
   });
 
+  // Default the profitability date range to the trailing 12 months so the summary
+  // is always meaningful on first load. Users can clear or change either bound.
+  const today = new Date();
+  const yearAgo = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+  const toISO = (d: Date) => d.toISOString().slice(0, 10);
+  const [profitFrom, setProfitFrom] = useState<string>(toISO(yearAgo));
+  const [profitTo, setProfitTo] = useState<string>(toISO(today));
+
+  const profitabilityQs = new URLSearchParams();
+  if (profitFrom) profitabilityQs.set("from", profitFrom);
+  if (profitTo) profitabilityQs.set("to", profitTo);
+  const profitabilityUrl = `/api/reports/used-car-profitability?${profitabilityQs.toString()}`;
+
   const { data: profitability } = useQuery<any>({
-    queryKey: ["/api/reports/used-car-profitability"],
-    queryFn: () => apiFetch("/api/reports/used-car-profitability"),
+    queryKey: ["/api/reports/used-car-profitability", profitFrom, profitTo],
+    queryFn: () => apiFetch(profitabilityUrl),
   });
 
   const totalRevenue = overview?.totalRevenue ?? 0;
@@ -358,9 +375,26 @@ export default function Reports() {
           <CardTitle className="flex items-center gap-2 text-base font-semibold">
             <Car className="h-4 w-4" /> Used Car Profitability (incl. Reconditioning)
           </CardTitle>
+          <div className="flex flex-wrap items-end gap-3 pt-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Sold from</Label>
+              <Input type="date" value={profitFrom} onChange={e => setProfitFrom(e.target.value)} className="h-8 w-[160px]" />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Sold to</Label>
+              <Input type="date" value={profitTo} onChange={e => setProfitTo(e.target.value)} className="h-8 w-[160px]" />
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setProfitFrom(""); setProfitTo(""); }}
+            >
+              Clear range
+            </Button>
+          </div>
           {profitability?.summary && (
-            <p className="text-xs text-muted-foreground">
-              {profitability.summary.soldCount} sold · Revenue {fmt(profitability.summary.totalRevenue)} · Cost {fmt(profitability.summary.totalCost)} · Recon {fmt(profitability.summary.totalRecon)} · <span className={profitability.summary.netProfit >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>Net {fmt(profitability.summary.netProfit)}</span>
+            <p className="text-xs text-muted-foreground pt-2">
+              In range: {profitability.summary.soldCount} sold · Revenue {fmt(profitability.summary.totalRevenue)} · Cost {fmt(profitability.summary.totalCost)} · Recon {fmt(profitability.summary.totalRecon)} · <span className={profitability.summary.netProfit >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>Net {fmt(profitability.summary.netProfit)}</span>
             </p>
           )}
         </CardHeader>
@@ -370,20 +404,23 @@ export default function Reports() {
               <TableRow>
                 <TableHead className="pl-6">Vehicle</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Sold</TableHead>
                 <TableHead>Purchase</TableHead>
                 <TableHead>Recon</TableHead>
                 <TableHead>Total Cost</TableHead>
                 <TableHead>Sold/Asking</TableHead>
                 <TableHead>Net Profit</TableHead>
+                <TableHead>Margin %</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {!profitability?.data?.length ? (
-                <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground pl-6">No vehicles tracked yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground pl-6">No vehicles tracked yet.</TableCell></TableRow>
               ) : profitability.data.map((c: any) => (
                 <TableRow key={c.id} className="hover:bg-muted/50">
                   <TableCell className="pl-6 font-medium">{c.vehicle}</TableCell>
                   <TableCell><Badge variant="secondary" className="capitalize">{c.status}</Badge></TableCell>
+                  <TableCell className="text-muted-foreground text-xs">{c.saleDate ? String(c.saleDate).slice(0, 10) : "—"}</TableCell>
                   <TableCell>{fmt(c.purchasePrice)}</TableCell>
                   <TableCell>
                     <span className={c.reconTotal > 0 ? "text-orange-700" : "text-muted-foreground"}>
@@ -395,6 +432,11 @@ export default function Reports() {
                   <TableCell>
                     <span className={c.netProfit >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
                       {c.netProfit >= 0 ? "+" : ""}{fmt(c.netProfit)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className={c.marginPct >= 0 ? "text-green-700" : "text-red-700"}>
+                      {c.marginPct >= 0 ? "+" : ""}{c.marginPct}%
                     </span>
                   </TableCell>
                 </TableRow>
