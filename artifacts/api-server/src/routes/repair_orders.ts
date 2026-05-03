@@ -496,20 +496,32 @@ async function reverseRepairOrderConsumption(order: any, executor: DbExecutor = 
 
 router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
+  let deleted: { orderNumber: string; customerId: number | null } | null = null;
   try {
-    await db.transaction(async (tx) => {
+    deleted = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
-      if (!existing) return;
+      if (!existing) return null;
       // Reverse before delete (atomically) so completed-RO consumption
       // cannot be orphaned in the ledger.
       if (existing.status === "completed") {
         await reverseRepairOrderConsumption(existing, tx);
       }
       await tx.delete(repairOrdersTable).where(eq(repairOrdersTable.id, id));
+      return { orderNumber: existing.orderNumber, customerId: existing.customerId ?? null };
     });
   } catch (err) {
     req.log?.error({ err, id }, "RO delete transaction failed");
     return res.status(500).json({ error: "Failed to delete repair order" });
+  }
+  if (deleted) {
+    await recordActivity({
+      entityType: "repair_order",
+      entityId: id,
+      eventType: "deleted",
+      meta: { orderNumber: deleted.orderNumber },
+      customerId: deleted.customerId,
+      req,
+    });
   }
   res.status(204).send();
 });

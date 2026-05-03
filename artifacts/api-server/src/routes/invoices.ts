@@ -305,6 +305,14 @@ router.put("/:id", async (req, res) => {
       req,
     });
   }
+  await recordActivity({
+    entityType: "invoice",
+    entityId: result.invoice.id,
+    eventType: "updated",
+    meta: { total: Number(result.invoice.total) },
+    customerId: result.invoice.customerId ?? null,
+    req,
+  });
 
   const enriched = await enrichInvoice(result.invoice);
   await maybeSendInvoiceEmail(result.prevStatus, enriched, req);
@@ -503,6 +511,7 @@ router.post("/:id/checkout-session", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
+  const [existing] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
   try {
     await db.transaction(async (tx) => {
       await reverseInvoiceConsumption(id, tx);
@@ -513,6 +522,16 @@ router.delete("/:id", async (req, res) => {
   } catch (err) {
     req.log?.error({ err, id }, "Invoice delete transaction failed");
     return res.status(500).json({ error: "Failed to delete invoice" });
+  }
+  if (existing) {
+    await recordActivity({
+      entityType: "invoice",
+      entityId: id,
+      eventType: "deleted",
+      meta: { invoiceNumber: existing.invoiceNumber },
+      customerId: existing.customerId ?? null,
+      req,
+    });
   }
   res.status(204).send();
 });

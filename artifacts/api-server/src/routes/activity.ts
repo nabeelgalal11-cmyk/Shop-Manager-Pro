@@ -20,16 +20,27 @@ const ENTITY_PERMISSIONS: Record<ActivityEntityType, Resource> = {
 const ALLOWED_ENTITY_TYPES = new Set<string>(Object.keys(ENTITY_PERMISSIONS));
 
 async function entityExists(type: ActivityEntityType, id: number): Promise<boolean> {
-  const tableMap = {
-    repair_order: repairOrdersTable,
-    invoice: invoicesTable,
-    estimate: estimatesTable,
-    customer: customersTable,
-  } as const;
-  const table = (tableMap as Record<string, any>)[type];
-  if (!table) return true; // vehicle/inspection/appointment: skip the existence check rather than add another import
-  const [row] = await db.select({ id: table.id }).from(table).where(eq(table.id, id)).limit(1);
-  return !!row;
+  switch (type) {
+    case "repair_order": {
+      const [row] = await db.select({ id: repairOrdersTable.id }).from(repairOrdersTable).where(eq(repairOrdersTable.id, id)).limit(1);
+      return !!row;
+    }
+    case "invoice": {
+      const [row] = await db.select({ id: invoicesTable.id }).from(invoicesTable).where(eq(invoicesTable.id, id)).limit(1);
+      return !!row;
+    }
+    case "estimate": {
+      const [row] = await db.select({ id: estimatesTable.id }).from(estimatesTable).where(eq(estimatesTable.id, id)).limit(1);
+      return !!row;
+    }
+    case "customer": {
+      const [row] = await db.select({ id: customersTable.id }).from(customersTable).where(eq(customersTable.id, id)).limit(1);
+      return !!row;
+    }
+    // vehicle/inspection/appointment: skip the existence check rather than add another import
+    default:
+      return true;
+  }
 }
 
 router.get("/", async (req, res) => {

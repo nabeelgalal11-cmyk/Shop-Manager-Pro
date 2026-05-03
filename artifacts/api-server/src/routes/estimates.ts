@@ -93,12 +93,32 @@ router.put("/:id", async (req, res) => {
   const discount = discountAmount ?? 0;
   const { subtotal, taxAmount, total } = calcTotals(lineItems || [], tax, discount);
 
+  const [prev] = await db.select({ status: estimatesTable.status }).from(estimatesTable).where(eq(estimatesTable.id, id));
   const [estimate] = await db.update(estimatesTable).set({
     customerId, vehicleId, status, notes,
     taxRate: tax.toString(), taxAmount: taxAmount.toString(), discountAmount: discount.toString(),
     subtotal: subtotal.toString(), total: total.toString(), updatedAt: new Date(),
   }).where(eq(estimatesTable.id, id)).returning();
   if (!estimate) return res.status(404).json({ error: "Estimate not found" });
+
+  if (status !== undefined && prev && status !== prev.status) {
+    await recordActivity({
+      entityType: "estimate",
+      entityId: estimate.id,
+      eventType: "status_changed",
+      meta: { from: prev.status ?? null, to: estimate.status },
+      customerId: estimate.customerId ?? null,
+      req,
+    });
+  }
+  await recordActivity({
+    entityType: "estimate",
+    entityId: estimate.id,
+    eventType: "updated",
+    meta: { total: Number(estimate.total) },
+    customerId: estimate.customerId ?? null,
+    req,
+  });
 
   if (lineItems) {
     await db.delete(lineItemsTable).where(eq(lineItemsTable.estimateId, id));
@@ -121,8 +141,19 @@ router.put("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
+  const [existing] = await db.select().from(estimatesTable).where(eq(estimatesTable.id, id));
   await db.delete(lineItemsTable).where(eq(lineItemsTable.estimateId, id));
   await db.delete(estimatesTable).where(eq(estimatesTable.id, id));
+  if (existing) {
+    await recordActivity({
+      entityType: "estimate",
+      entityId: id,
+      eventType: "deleted",
+      meta: { estimateNumber: existing.estimateNumber },
+      customerId: existing.customerId ?? null,
+      req,
+    });
+  }
   res.status(204).send();
 });
 

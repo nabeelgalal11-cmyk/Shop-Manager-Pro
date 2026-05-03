@@ -3,9 +3,10 @@ import { useGetActivity, getGetActivityQueryKey, type ActivityEvent } from "@wor
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Activity, ArrowRightCircle, Mail, MessageSquare, Paperclip, FileText,
-  CheckCircle2, XCircle, DollarSign, AlertCircle, UserPlus, Plus, Send, Clock,
+  CheckCircle2, XCircle, DollarSign, AlertCircle, UserPlus, Plus, Send, Clock, Trash2,
 } from "lucide-react";
 
 type EntityType = "repair_order" | "invoice" | "estimate" | "customer" | "vehicle" | "inspection" | "appointment";
@@ -36,13 +37,14 @@ function iconFor(eventType: string) {
     case "inspection_approved": return <CheckCircle2 className="h-4 w-4" />;
     case "estimate_declined": return <XCircle className="h-4 w-4" />;
     case "estimate_converted": return <ArrowRightCircle className="h-4 w-4" />;
+    case "deleted": return <Trash2 className="h-4 w-4" />;
     default: return <Clock className="h-4 w-4" />;
   }
 }
 
 function colorFor(eventType: string): string {
   if (eventType === "payment_received" || eventType === "estimate_approved" || eventType === "inspection_approved") return "text-emerald-600 bg-emerald-50";
-  if (eventType === "payment_failed" || eventType === "estimate_declined" || eventType === "attachment_deleted") return "text-red-600 bg-red-50";
+  if (eventType === "payment_failed" || eventType === "estimate_declined" || eventType === "attachment_deleted" || eventType === "deleted") return "text-red-600 bg-red-50";
   if (eventType === "email_sent" || eventType === "sms_sent" || eventType === "estimate_sent" || eventType === "inspection_sent") return "text-blue-600 bg-blue-50";
   if (eventType === "status_changed" || eventType === "estimate_converted") return "text-amber-700 bg-amber-50";
   if (eventType === "created") return "text-violet-600 bg-violet-50";
@@ -98,6 +100,12 @@ function describe(ev: ActivityEvent): string {
         return meta.invoiceNumber ? `Converted to ${meta.invoiceNumber}` : "Converted to invoice";
       }
       return meta.orderNumber ? `Converted to ${meta.orderNumber}` : "Converted to repair order";
+    case "deleted":
+      return meta.orderNumber ? `Deleted ${meta.orderNumber}` :
+             meta.invoiceNumber ? `Deleted ${meta.invoiceNumber}` :
+             meta.estimateNumber ? `Deleted ${meta.estimateNumber}` : "Deleted";
+    case "updated":
+      return "Updated";
     default:
       return ev.eventType.replace(/_/g, " ");
   }
@@ -107,6 +115,13 @@ function actorOf(ev: ActivityEvent): string {
   if (ev.actorName && ev.actorName.trim().length > 0) return ev.actorName.trim();
   if (ev.actorLabel) return ev.actorLabel;
   return "System";
+}
+
+function actorInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export function ActivityTimeline({ entityType, entityId, title = "Activity", description }: Props) {
@@ -153,19 +168,27 @@ export function ActivityTimeline({ entityType, entityId, title = "Activity", des
           <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
         ) : (
           <ol className="relative border-l border-border pl-6 space-y-4">
-            {events.map((ev) => (
-              <li key={ev.id} className="relative">
-                <span className={`absolute -left-[33px] flex h-6 w-6 items-center justify-center rounded-full ${colorFor(ev.eventType)}`}>
-                  {iconFor(ev.eventType)}
-                </span>
-                <div className="flex flex-col">
-                  <div className="text-sm font-medium">{describe(ev)}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {actorOf(ev)} &middot; {formatRelative(ev.createdAt as unknown as string)}
+            {events.map((ev) => {
+              const actor = actorOf(ev);
+              return (
+                <li key={ev.id} className="relative">
+                  <span className={`absolute -left-[33px] flex h-6 w-6 items-center justify-center rounded-full ${colorFor(ev.eventType)}`}>
+                    {iconFor(ev.eventType)}
+                  </span>
+                  <div className="flex items-start gap-2">
+                    <Avatar className="h-7 w-7">
+                      <AvatarFallback className="text-[10px]">{actorInitials(actor)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <div className="text-sm font-medium">{describe(ev)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {actor} &middot; {formatRelative(ev.createdAt as unknown as string)}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
         )}
 

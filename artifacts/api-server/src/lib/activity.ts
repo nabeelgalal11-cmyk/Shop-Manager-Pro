@@ -27,7 +27,8 @@ export type ActivityEventType =
   | "estimate_sent"
   | "estimate_approved"
   | "estimate_declined"
-  | "estimate_converted";
+  | "estimate_converted"
+  | "deleted";
 
 export interface RecordActivityOpts {
   entityType: ActivityEntityType;
