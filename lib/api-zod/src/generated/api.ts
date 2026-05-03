@@ -244,6 +244,7 @@ export const GetCustomerStatementResponse = zod.object({
             total: zod.number(),
             partNumber: zod.string().optional(),
             inventoryItemId: zod.number().optional(),
+            unitCost: zod.number().optional(),
           }),
         )
         .optional(),
@@ -593,6 +594,7 @@ export const GetEstimatesResponse = zod.object({
             total: zod.number(),
             partNumber: zod.string().optional(),
             inventoryItemId: zod.number().optional(),
+            unitCost: zod.number().optional(),
           }),
         )
         .optional(),
@@ -685,6 +687,7 @@ export const CreateEstimateBody = zod.object({
       unitPrice: zod.number(),
       partNumber: zod.string().optional(),
       inventoryItemId: zod.number().optional(),
+      unitCost: zod.number().optional(),
     }),
   ),
 });
@@ -719,6 +722,7 @@ export const GetEstimateResponse = zod.object({
         total: zod.number(),
         partNumber: zod.string().optional(),
         inventoryItemId: zod.number().optional(),
+        unitCost: zod.number().optional(),
       }),
     )
     .optional(),
@@ -810,6 +814,7 @@ export const UpdateEstimateBody = zod.object({
       unitPrice: zod.number(),
       partNumber: zod.string().optional(),
       inventoryItemId: zod.number().optional(),
+      unitCost: zod.number().optional(),
     }),
   ),
 });
@@ -837,6 +842,7 @@ export const UpdateEstimateResponse = zod.object({
         total: zod.number(),
         partNumber: zod.string().optional(),
         inventoryItemId: zod.number().optional(),
+        unitCost: zod.number().optional(),
       }),
     )
     .optional(),
@@ -961,6 +967,7 @@ export const GetInvoicesResponse = zod.object({
             total: zod.number(),
             partNumber: zod.string().optional(),
             inventoryItemId: zod.number().optional(),
+            unitCost: zod.number().optional(),
           }),
         )
         .optional(),
@@ -1077,6 +1084,7 @@ export const CreateInvoiceBody = zod.object({
       unitPrice: zod.number(),
       partNumber: zod.string().optional(),
       inventoryItemId: zod.number().optional(),
+      unitCost: zod.number().optional(),
     }),
   ),
 });
@@ -1116,6 +1124,7 @@ export const GetInvoiceResponse = zod.object({
         total: zod.number(),
         partNumber: zod.string().optional(),
         inventoryItemId: zod.number().optional(),
+        unitCost: zod.number().optional(),
       }),
     )
     .optional(),
@@ -1231,6 +1240,7 @@ export const UpdateInvoiceBody = zod.object({
       unitPrice: zod.number(),
       partNumber: zod.string().optional(),
       inventoryItemId: zod.number().optional(),
+      unitCost: zod.number().optional(),
     }),
   ),
 });
@@ -1263,6 +1273,7 @@ export const UpdateInvoiceResponse = zod.object({
         total: zod.number(),
         partNumber: zod.string().optional(),
         inventoryItemId: zod.number().optional(),
+        unitCost: zod.number().optional(),
       }),
     )
     .optional(),
@@ -2048,6 +2059,38 @@ export const UpdateInventoryItemResponse = zod.object({
  */
 export const DeleteInventoryItemParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary List recent stock movements for an inventory item
+ */
+export const GetInventoryMovementsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetInventoryMovementsResponse = zod.object({
+  data: zod.array(
+    zod.object({
+      id: zod.number(),
+      inventoryId: zod.number(),
+      delta: zod.number(),
+      reason: zod.enum([
+        "purchase_received",
+        "purchase_unreceived",
+        "ro_consumed",
+        "ro_unconsumed",
+        "invoice_consumed",
+        "invoice_unconsumed",
+        "manual_adjustment",
+      ]),
+      referenceTable: zod.string().nullish(),
+      referenceId: zod.number().nullish(),
+      referenceLineId: zod.number().nullish(),
+      unitCost: zod.number().nullish(),
+      notes: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
 });
 
 /**

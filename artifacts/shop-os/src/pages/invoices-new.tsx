@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { useCreateInvoice, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey } from "@workspace/api-client-react";
+import { useCreateInvoice, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetInventory, getGetInventoryQueryKey } from "@workspace/api-client-react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,6 +16,8 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Required"),
   quantity: z.coerce.number().min(1),
   unitPrice: z.coerce.number().min(0),
+  inventoryItemId: z.coerce.number().int().positive().optional(),
+  unitCost: z.coerce.number().min(0).optional(),
 });
 
 const formSchema = z.object({
@@ -35,6 +37,8 @@ export default function InvoicesNew() {
   
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
   const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
+  const { data: inventoryData } = useGetInventory({ limit: 200 }, { query: { queryKey: getGetInventoryQueryKey({ limit: 200 }) } });
+  const inventory = inventoryData?.data ?? [];
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -131,14 +135,26 @@ export default function InvoicesNew() {
                     <Plus className="h-4 w-4 mr-2" /> Add Item
                   </Button>
                 </div>
-                {fields.map((field, index) => (
-                  <div key={field.id} className="flex items-start gap-4 p-4 border rounded-md bg-muted/20">
+                {fields.map((field, index) => {
+                  const lineType = form.watch(`lineItems.${index}.type`);
+                  const linkedInvId = form.watch(`lineItems.${index}.inventoryItemId`);
+                  return (
+                  <div key={field.id} className="flex flex-wrap items-start gap-4 p-4 border rounded-md bg-muted/20">
                     <FormField
                       control={form.control}
                       name={`lineItems.${index}.type`}
                       render={({ field }) => (
                         <FormItem className="w-[150px]">
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <Select
+                            onValueChange={(val) => {
+                              field.onChange(val);
+                              if (val !== "part") {
+                                form.setValue(`lineItems.${index}.inventoryItemId`, undefined);
+                                form.setValue(`lineItems.${index}.unitCost`, undefined);
+                              }
+                            }}
+                            defaultValue={field.value}
+                          >
                             <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                             <SelectContent>
                               <SelectItem value="labor">Labor</SelectItem>
@@ -150,11 +166,41 @@ export default function InvoicesNew() {
                         </FormItem>
                       )}
                     />
+                    {lineType === "part" && (
+                      <FormItem className="w-[220px]">
+                        <Select
+                          value={linkedInvId ? String(linkedInvId) : "__none__"}
+                          onValueChange={(val) => {
+                            if (val === "__none__") {
+                              form.setValue(`lineItems.${index}.inventoryItemId`, undefined);
+                              form.setValue(`lineItems.${index}.unitCost`, undefined);
+                              return;
+                            }
+                            const item = inventory.find(i => String(i.id) === val);
+                            if (!item) return;
+                            form.setValue(`lineItems.${index}.inventoryItemId`, item.id);
+                            form.setValue(`lineItems.${index}.unitCost`, Number(item.costPrice));
+                            form.setValue(`lineItems.${index}.description`, item.name);
+                            form.setValue(`lineItems.${index}.unitPrice`, Number(item.sellPrice));
+                          }}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Link inventory part…" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— manual / not linked —</SelectItem>
+                            {inventory.map(it => (
+                              <SelectItem key={it.id} value={String(it.id)}>
+                                {it.name} {it.partNumber ? `(${it.partNumber})` : ""} · {it.quantity} in stock
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
                     <FormField
                       control={form.control}
                       name={`lineItems.${index}.description`}
                       render={({ field }) => (
-                        <FormItem className="flex-1">
+                        <FormItem className="flex-1 min-w-[200px]">
                           <FormControl><Input placeholder="Description" {...field} /></FormControl>
                         </FormItem>
                       )}
@@ -181,7 +227,8 @@ export default function InvoicesNew() {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

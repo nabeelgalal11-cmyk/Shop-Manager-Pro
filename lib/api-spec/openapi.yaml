@@ -814,6 +814,25 @@ paths:
         "204":
           description: Deleted
 
+  /inventory/{id}/movements:
+    get:
+      operationId: getInventoryMovements
+      tags: [inventory]
+      summary: List recent stock movements for an inventory item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Stock movements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockMovementListResponse"
+
   # ---- INSPECTIONS ----
   /inspections:
     get:
@@ -1870,6 +1889,8 @@ components:
           type: string
         inventoryItemId:
           type: integer
+        unitCost:
+          type: number
       required:
         - type
         - description
@@ -1893,6 +1914,8 @@ components:
           type: string
         inventoryItemId:
           type: integer
+        unitCost:
+          type: number
       required:
         - type
         - description
@@ -2508,6 +2531,60 @@ components:
         - sellPrice
         - quantity
         - minQuantity
+
+    StockMovement:
+      type: object
+      properties:
+        id:
+          type: integer
+        inventoryId:
+          type: integer
+        delta:
+          type: integer
+        reason:
+          type: string
+          enum:
+            - purchase_received
+            - purchase_unreceived
+            - ro_consumed
+            - ro_unconsumed
+            - invoice_consumed
+            - invoice_unconsumed
+            - manual_adjustment
+        referenceTable:
+          type: string
+          nullable: true
+        referenceId:
+          type: integer
+          nullable: true
+        referenceLineId:
+          type: integer
+          nullable: true
+        unitCost:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - inventoryId
+        - delta
+        - reason
+        - createdAt
+
+    StockMovementListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockMovement"
+      required:
+        - data
 
     InventoryListResponse:
       type: object

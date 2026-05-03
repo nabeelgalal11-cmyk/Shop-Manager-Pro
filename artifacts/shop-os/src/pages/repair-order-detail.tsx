@@ -22,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
-type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean };
+type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean; inventoryId?: number; unitCost?: number };
 
 type CompatResult = "compatible" | "universal" | "incompatible";
 
@@ -285,6 +285,8 @@ export default function RepairOrderDetail() {
       quantity: 1,
       unitPrice: Number(item.sellPrice),
       fromInventory: true,
+      inventoryId: item.id,
+      unitCost: Number(item.costPrice),
     });
     setSearchQuery(item.name);
     setShowDropdown(false);

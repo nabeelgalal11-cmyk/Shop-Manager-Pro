@@ -12,8 +12,18 @@ async function q<T = any>(query: ReturnType<typeof sql>): Promise<T[]> {
   return result.rows as T[];
 }
 
-// Revenue & business overview
-router.get("/overview", async (_req, res) => {
+// Revenue & business overview. Optional `from` / `to` (YYYY-MM-DD) filter
+// the revenue / COGS window; if omitted, all-time totals are returned.
+router.get("/overview", async (req, res) => {
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
+  const fromTs = from ? new Date(from + "T00:00:00Z") : null;
+  const toTs = to ? new Date(to + "T23:59:59Z") : null;
+  const invWhere = sql`
+    ${fromTs ? sql`AND created_at >= ${fromTs}` : sql``}
+    ${toTs ? sql`AND created_at <= ${toTs}` : sql``}
+  `;
+
   const inv = await q(sql`
     SELECT
       COALESCE(SUM(total), 0)::numeric       AS total_revenue,
@@ -21,7 +31,21 @@ router.get("/overview", async (_req, res) => {
       COUNT(*)::int                           AS invoice_count,
       COALESCE(AVG(total), 0)::numeric        AS avg_invoice
     FROM invoices
+    WHERE 1=1 ${invWhere}
   `);
+
+  // COGS = absolute value of negative consumption movements * unit cost.
+  // Reasons that count: ro_consumed, invoice_consumed (compensating
+  // un-consumed movements have positive deltas and net out automatically).
+  const cogsRows = await q(sql`
+    SELECT
+      COALESCE(SUM((-delta) * COALESCE(unit_cost, 0)), 0)::numeric AS cogs
+    FROM stock_movements
+    WHERE reason IN ('ro_consumed','invoice_consumed','ro_unconsumed','invoice_unconsumed')
+      ${fromTs ? sql`AND created_at >= ${fromTs}` : sql``}
+      ${toTs ? sql`AND created_at <= ${toTs}` : sql``}
+  `);
+  const partsCogs = Number((cogsRows[0] as any)?.cogs ?? 0);
   const cars = await q(sql`
     SELECT
       COALESCE(SUM(CASE WHEN status = 'sold' THEN selling_price ELSE 0 END), 0)::numeric    AS sold_revenue,
@@ -57,7 +81,11 @@ router.get("/overview", async (_req, res) => {
     usedCarAvailableCount: Number(c.available_count ?? 0),
     totalExpenses: expenses,
     totalRevenue: Number(i.total_revenue ?? 0) + usedCarRevenue,
-    totalProfit: servicePaid + (usedCarRevenue - usedCarCost) - expenses,
+    // Net profit subtracts parts COGS so the API and UI report the same
+    // bottom-line number; clients should rely on this server value.
+    totalProfit: servicePaid + (usedCarRevenue - usedCarCost) - expenses - partsCogs,
+    cogs: partsCogs,
+    range: { from: from ?? null, to: to ?? null },
   });
 });
 

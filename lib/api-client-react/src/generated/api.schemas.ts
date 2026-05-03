@@ -89,6 +89,7 @@ export interface LineItem {
   total: number;
   partNumber?: string;
   inventoryItemId?: number;
+  unitCost?: number;
 }
 
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
@@ -219,6 +220,7 @@ export interface CreateLineItemInput {
   unitPrice: number;
   partNumber?: string;
   inventoryItemId?: number;
+  unitCost?: number;
 }
 
 export type EstimateStatus =
@@ -587,6 +589,36 @@ export interface CreateInventoryItemInput {
   minQuantity: number;
   location?: string;
   notes?: string;
+}
+
+export type StockMovementReason =
+  (typeof StockMovementReason)[keyof typeof StockMovementReason];
+
+export const StockMovementReason = {
+  purchase_received: "purchase_received",
+  purchase_unreceived: "purchase_unreceived",
+  ro_consumed: "ro_consumed",
+  ro_unconsumed: "ro_unconsumed",
+  invoice_consumed: "invoice_consumed",
+  invoice_unconsumed: "invoice_unconsumed",
+  manual_adjustment: "manual_adjustment",
+} as const;
+
+export interface StockMovement {
+  id: number;
+  inventoryId: number;
+  delta: number;
+  reason: StockMovementReason;
+  referenceTable?: string | null;
+  referenceId?: number | null;
+  referenceLineId?: number | null;
+  unitCost?: number | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface StockMovementListResponse {
+  data: StockMovement[];
 }
 
 export interface InventoryListResponse {

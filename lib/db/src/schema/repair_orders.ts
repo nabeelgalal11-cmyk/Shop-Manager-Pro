@@ -19,7 +19,7 @@ export const repairOrdersTable = pgTable("repair_orders", {
   complaint: text("complaint"),
   diagnosis: text("diagnosis"),
   notes: text("notes"),
-  parts: jsonb("parts").$type<Array<{ name: string; partNumber?: string; quantity: number; unitPrice: number }>>().default([]),
+  parts: jsonb("parts").$type<Array<{ name: string; partNumber?: string; quantity: number; unitPrice: number; inventoryId?: number; unitCost?: number }>>().default([]),
   estimatedHours: numeric("estimated_hours", { precision: 10, scale: 2 }),
   actualHours: numeric("actual_hours", { precision: 10, scale: 2 }),
   mileageIn: integer("mileage_in"),

@@ -74,6 +74,7 @@ import type {
   ServiceCount,
   ServiceHistoryEntry,
   StatusCount,
+  StockMovementListResponse,
   TimeEntry,
   TimeEntryListResponse,
   UpdateCustomerInput,
@@ -3344,6 +3345,97 @@ export const useDeleteInventoryItem = <
 > => {
   return useMutation(getDeleteInventoryItemMutationOptions(options));
 };
+
+/**
+ * @summary List recent stock movements for an inventory item
+ */
+export const getGetInventoryMovementsUrl = (id: number) => {
+  return `/api/inventory/${id}/movements`;
+};
+
+export const getInventoryMovements = async (
+  id: number,
+  options?: RequestInit,
+): Promise<StockMovementListResponse> => {
+  return customFetch<StockMovementListResponse>(
+    getGetInventoryMovementsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetInventoryMovementsQueryKey = (id: number) => {
+  return [`/api/inventory/${id}/movements`] as const;
+};
+
+export const getGetInventoryMovementsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInventoryMovements>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInventoryMovements>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetInventoryMovementsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getInventoryMovements>>
+  > = ({ signal }) => getInventoryMovements(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getInventoryMovements>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetInventoryMovementsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInventoryMovements>>
+>;
+export type GetInventoryMovementsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List recent stock movements for an inventory item
+ */
+
+export function useGetInventoryMovements<
+  TData = Awaited<ReturnType<typeof getInventoryMovements>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getInventoryMovements>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetInventoryMovementsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary List inspections

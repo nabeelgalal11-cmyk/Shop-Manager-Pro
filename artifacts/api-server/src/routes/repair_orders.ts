@@ -4,6 +4,7 @@ import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remin
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { requirePermission } from "../lib/auth.js";
+import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
 import type { Action } from "../lib/permissions.js";
 
 async function maybeSendCompletionEmail(order: any, req: any) {
@@ -159,11 +160,7 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const [lastOrder] = await db.select({ orderNumber: repairOrdersTable.orderNumber }).from(repairOrdersTable).orderBy(desc(repairOrdersTable.id)).limit(1);
-  const nextNum = lastOrder ? Number(lastOrder.orderNumber.replace("RO-", "")) + 1 : 1001;
-  const orderNumber = `RO-${nextNum}`;
-
-  const { customerId, vehicleId, usedCarId, internal, assignedToId, status, priority, complaint, diagnosis, notes, estimatedHours, mileageIn, promisedDate } = req.body;
+  const { customerId, vehicleId, usedCarId, internal, assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, mileageIn, promisedDate } = req.body;
   const isInternal = Boolean(internal) || (usedCarId != null && !customerId);
   if (!isInternal && (!customerId || !vehicleId)) {
     return res.status(400).json({ error: "Customer and vehicle are required for non-internal repair orders" });
@@ -171,15 +168,42 @@ router.post("/", async (req, res) => {
   if (isInternal && !usedCarId) {
     return res.status(400).json({ error: "Used car is required for internal repair orders" });
   }
-  const [order] = await db.insert(repairOrdersTable).values({
-    orderNumber,
-    customerId: customerId || null,
-    vehicleId: vehicleId || null,
-    usedCarId: usedCarId || null,
-    internal: isInternal,
-    assignedToId, status: status || "pending", priority: priority || "normal",
-    complaint, diagnosis, notes, estimatedHours, mileageIn, promisedDate: promisedDate ? new Date(promisedDate) : null,
-  }).returning();
+
+  // If the RO is being created already in `completed` status, the row
+  // insert + inventory consumption must be one atomic unit so the ledger
+  // stays in sync (mirrors the invoice/purchase create-time behavior).
+  let order: any;
+  try {
+    order = await db.transaction(async (tx) => {
+      const [lastOrder] = await tx.select({ orderNumber: repairOrdersTable.orderNumber }).from(repairOrdersTable).orderBy(desc(repairOrdersTable.id)).limit(1);
+      const nextNum = lastOrder ? Number(lastOrder.orderNumber.replace("RO-", "")) + 1 : 1001;
+      const orderNumber = `RO-${nextNum}`;
+
+      const initialStatus = status || "pending";
+      const [created] = await tx.insert(repairOrdersTable).values({
+        orderNumber,
+        customerId: customerId || null,
+        vehicleId: vehicleId || null,
+        usedCarId: usedCarId || null,
+        internal: isInternal,
+        assignedToId, status: initialStatus, priority: priority || "normal",
+        complaint, diagnosis, notes,
+        parts: parts ?? undefined,
+        estimatedHours, mileageIn,
+        promisedDate: promisedDate ? new Date(promisedDate) : null,
+        completedAt: initialStatus === "completed" ? new Date() : null,
+      }).returning();
+
+      if (initialStatus === "completed") {
+        await applyRepairOrderConsumption(created, tx);
+      }
+      return created;
+    });
+  } catch (err) {
+    req.log?.error({ err }, "RO create transaction failed");
+    return res.status(500).json({ error: "Failed to create repair order" });
+  }
+
   res.status(201).json(await enrichOrder(order));
 });
 
@@ -193,53 +217,96 @@ router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { orderNumber, vehicleId, assignedToId, status, priority, complaint, diagnosis, notes, parts, estimatedHours, actualHours, mileageIn, mileageOut, promisedDate, completedAt, createdAt } = req.body;
 
-  // Fetch previous status to detect completion transition
-  const [prev] = await db.select({ status: repairOrdersTable.status }).from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
-
-  // Build update payload — only include fields explicitly present in the body so we don't overwrite with undefined
-  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  // Validate orderNumber up-front (cheap pre-check; conflict re-checked in tx).
   if (orderNumber !== undefined) {
     const trimmed = String(orderNumber).trim();
     if (!trimmed) return res.status(400).json({ error: "Order number cannot be empty" });
-    const [conflict] = await db
-      .select({ id: repairOrdersTable.id })
-      .from(repairOrdersTable)
-      .where(and(eq(repairOrdersTable.orderNumber, trimmed), sql`${repairOrdersTable.id} <> ${id}`))
-      .limit(1);
-    if (conflict) return res.status(409).json({ error: `Order number ${trimmed} is already in use` });
-    updates.orderNumber = trimmed;
-  }
-  if (vehicleId !== undefined && vehicleId !== null && vehicleId !== "") updates.vehicleId = Number(vehicleId);
-  if (assignedToId !== undefined) updates.assignedToId = assignedToId === null || assignedToId === "" ? null : Number(assignedToId);
-  if (status !== undefined) updates.status = status;
-  if (priority !== undefined) updates.priority = priority;
-  if (complaint !== undefined) updates.complaint = complaint;
-  if (diagnosis !== undefined) updates.diagnosis = diagnosis;
-  if (notes !== undefined) updates.notes = notes;
-  if (parts !== undefined) updates.parts = parts;
-  if (estimatedHours !== undefined) updates.estimatedHours = estimatedHours === null || estimatedHours === "" ? null : estimatedHours;
-  if (actualHours !== undefined) updates.actualHours = actualHours === null || actualHours === "" ? null : actualHours;
-  if (mileageIn !== undefined) updates.mileageIn = mileageIn === null || mileageIn === "" ? null : Number(mileageIn);
-  if (mileageOut !== undefined) updates.mileageOut = mileageOut === null || mileageOut === "" ? null : Number(mileageOut);
-  if (promisedDate !== undefined) updates.promisedDate = promisedDate ? new Date(promisedDate) : null;
-  if (createdAt !== undefined && createdAt !== null && createdAt !== "") updates.createdAt = new Date(createdAt);
-
-  // Auto-set completedAt on transition to completed; allow explicit override
-  if (completedAt !== undefined) {
-    updates.completedAt = completedAt ? new Date(completedAt) : null;
-  } else if (status === "completed" && prev?.status !== "completed") {
-    updates.completedAt = new Date();
   }
 
-  const [order] = await db.update(repairOrdersTable).set(updates).where(eq(repairOrdersTable.id, id)).returning();
+  // Wrap status update + inventory consumption / reversal in a single
+  // transaction. Either both succeed or neither does — prevents the
+  // ledger from drifting out of sync with RO status.
+  type Result =
+    | { kind: "ok"; order: any; prevStatus: string | undefined }
+    | { kind: "error"; status: number; error: string };
 
-  if (!order) return res.status(404).json({ error: "Repair order not found" });
+  let result: Result;
+  try {
+    result = await db.transaction(async (tx): Promise<Result> => {
+      const [prev] = await tx.select({ status: repairOrdersTable.status, parts: repairOrdersTable.parts })
+        .from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
 
+      const updates: Record<string, unknown> = { updatedAt: new Date() };
+      if (orderNumber !== undefined) {
+        const trimmed = String(orderNumber).trim();
+        const [conflict] = await tx
+          .select({ id: repairOrdersTable.id })
+          .from(repairOrdersTable)
+          .where(and(eq(repairOrdersTable.orderNumber, trimmed), sql`${repairOrdersTable.id} <> ${id}`))
+          .limit(1);
+        if (conflict) return { kind: "error", status: 409, error: `Order number ${trimmed} is already in use` };
+        updates.orderNumber = trimmed;
+      }
+      if (vehicleId !== undefined && vehicleId !== null && vehicleId !== "") updates.vehicleId = Number(vehicleId);
+      if (assignedToId !== undefined) updates.assignedToId = assignedToId === null || assignedToId === "" ? null : Number(assignedToId);
+      if (status !== undefined) updates.status = status;
+      if (priority !== undefined) updates.priority = priority;
+      if (complaint !== undefined) updates.complaint = complaint;
+      if (diagnosis !== undefined) updates.diagnosis = diagnosis;
+      if (notes !== undefined) updates.notes = notes;
+      if (parts !== undefined) updates.parts = parts;
+      if (estimatedHours !== undefined) updates.estimatedHours = estimatedHours === null || estimatedHours === "" ? null : estimatedHours;
+      if (actualHours !== undefined) updates.actualHours = actualHours === null || actualHours === "" ? null : actualHours;
+      if (mileageIn !== undefined) updates.mileageIn = mileageIn === null || mileageIn === "" ? null : Number(mileageIn);
+      if (mileageOut !== undefined) updates.mileageOut = mileageOut === null || mileageOut === "" ? null : Number(mileageOut);
+      if (promisedDate !== undefined) updates.promisedDate = promisedDate ? new Date(promisedDate) : null;
+      if (createdAt !== undefined && createdAt !== null && createdAt !== "") updates.createdAt = new Date(createdAt);
+
+      if (completedAt !== undefined) {
+        updates.completedAt = completedAt ? new Date(completedAt) : null;
+      } else if (status === "completed" && prev?.status !== "completed") {
+        updates.completedAt = new Date();
+      }
+
+      const [order] = await tx.update(repairOrdersTable).set(updates).where(eq(repairOrdersTable.id, id)).returning();
+      if (!order) return { kind: "error", status: 404, error: "Repair order not found" };
+
+      // Apply inventory effects inside the same transaction so a movement
+      // failure rolls back the status change.
+      const wasCompleted = prev?.status === "completed";
+      const isCompleted = order.status === "completed";
+      const partsRewritten = parts !== undefined;
+
+      if (!wasCompleted && isCompleted) {
+        // Fresh completion → consume per current parts.
+        await applyRepairOrderConsumption(order, tx);
+      } else if (wasCompleted && !isCompleted) {
+        // Leaving completed → reverse all prior consumption (use prev.parts so
+        // we know which line indexes were originally consumed).
+        await reverseRepairOrderConsumption({ id: order.id, parts: prev?.parts }, tx);
+      } else if (wasCompleted && isCompleted && partsRewritten) {
+        // Already-completed RO whose parts changed: reverse everything that
+        // was previously consumed, then re-apply against the new parts list
+        // — atomic with the row update so the ledger never drifts.
+        await reverseRepairOrderConsumption({ id: order.id, parts: prev?.parts }, tx);
+        await applyRepairOrderConsumption(order, tx);
+      }
+
+      return { kind: "ok", order, prevStatus: prev?.status };
+    });
+  } catch (err) {
+    req.log?.error({ err, id }, "RO update transaction failed");
+    return res.status(500).json({ error: "Failed to update repair order" });
+  }
+
+  if (result.kind === "error") return res.status(result.status).json({ error: result.error });
+
+  const { order, prevStatus } = result;
   const enriched = await enrichOrder(order);
 
-  // Auto-create reminders + send completion email when transitioning to completed.
-  // Skip for internal (used-car reconditioning) repair orders — no customer to notify.
-  if (status === "completed" && prev?.status !== "completed" && !order.internal) {
+  // Side effects that do NOT need to be transactional with the status
+  // update (email send / reminder creation) run after commit.
+  if (status === "completed" && prevStatus !== "completed" && !order.internal) {
     await autoCreateReminders(order).catch(() => {});
     await maybeSendCompletionEmail(enriched, req);
   }
@@ -247,8 +314,61 @@ router.put("/:id", async (req, res) => {
   res.json(enriched);
 });
 
+async function applyRepairOrderConsumption(order: any, executor: DbExecutor = db) {
+  const parts: Array<any> = Array.isArray(order.parts) ? order.parts : [];
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    const invId = Number(p?.inventoryId);
+    if (!Number.isFinite(invId) || invId <= 0) continue;
+    const qty = Math.round(Number(p.quantity ?? 1));
+    if (!Number.isFinite(qty) || qty === 0) continue;
+    const unitCost = p.unitCost != null ? p.unitCost : await getInventoryUnitCost(invId, executor);
+    await applyStockMovement({
+      inventoryId: invId,
+      delta: -qty,
+      reason: "ro_consumed",
+      referenceTable: "repair_orders",
+      referenceId: order.id,
+      referenceLineId: i,
+      unitCost: unitCost ?? null,
+    }, executor);
+  }
+}
+
+async function reverseRepairOrderConsumption(order: any, executor: DbExecutor = db) {
+  const parts: Array<any> = Array.isArray(order.parts) ? order.parts : [];
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    const invId = Number(p?.inventoryId);
+    if (!Number.isFinite(invId) || invId <= 0) continue;
+    await reverseStockMovement({
+      inventoryId: invId,
+      originalReason: "ro_consumed",
+      reverseReason: "ro_unconsumed",
+      referenceTable: "repair_orders",
+      referenceId: order.id,
+      referenceLineId: i,
+    }, executor);
+  }
+}
+
 router.delete("/:id", async (req, res) => {
-  await db.delete(repairOrdersTable).where(eq(repairOrdersTable.id, Number(req.params.id)));
+  const id = Number(req.params.id);
+  try {
+    await db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
+      if (!existing) return;
+      // Reverse before delete (atomically) so completed-RO consumption
+      // cannot be orphaned in the ledger.
+      if (existing.status === "completed") {
+        await reverseRepairOrderConsumption(existing, tx);
+      }
+      await tx.delete(repairOrdersTable).where(eq(repairOrdersTable.id, id));
+    });
+  } catch (err) {
+    req.log?.error({ err, id }, "RO delete transaction failed");
+    return res.status(500).json({ error: "Failed to delete repair order" });
+  }
   res.status(204).send();
 });
 

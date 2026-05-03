@@ -10,6 +10,7 @@ export * from "./invoices";
 export * from "./line_items";
 export * from "./payments";
 export * from "./inventory";
+export * from "./stock_movements";
 export * from "./inspections";
 export * from "./appointments";
 export * from "./time_entries";

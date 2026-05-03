@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { inventoryTable } from "@workspace/db";
-import { eq, ilike, sql, desc, lte } from "drizzle-orm";
+import { inventoryTable, stockMovementsTable } from "@workspace/db";
+import { eq, ilike, sql, desc } from "drizzle-orm";
 
 const router: Router = Router();
 
@@ -45,6 +45,20 @@ router.get("/:id", async (req, res) => {
   const [item] = await db.select().from(inventoryTable).where(eq(inventoryTable.id, Number(req.params.id)));
   if (!item) return res.status(404).json({ error: "Item not found" });
   res.json(item);
+});
+
+// GET /api/inventory/:id/movements — recent stock movement history
+router.get("/:id/movements", async (req, res) => {
+  const id = Number(req.params.id);
+  const limit = Math.min(200, Number(req.query.limit) || 20);
+  const movements = await db.select().from(stockMovementsTable)
+    .where(eq(stockMovementsTable.inventoryId, id))
+    .orderBy(desc(stockMovementsTable.createdAt), desc(stockMovementsTable.id))
+    .limit(limit);
+  res.json({ data: movements.map(m => ({
+    ...m,
+    unitCost: m.unitCost != null ? Number(m.unitCost) : null,
+  })) });
 });
 
 router.put("/:id", async (req, res) => {

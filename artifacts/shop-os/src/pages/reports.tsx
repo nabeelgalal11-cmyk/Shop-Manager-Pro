@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from "recharts";
-import { BarChart2, DollarSign, TrendingUp, Users, Car, Receipt, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { BarChart2, DollarSign, TrendingUp, Users, Car, Receipt, ArrowUpRight, ArrowDownRight, Package } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
@@ -62,9 +62,23 @@ function StatCard({ icon, label, value, sub, trend, color = "bg-primary/10" }: S
 }
 
 export default function Reports() {
+  // Default the overview date range to the trailing 12 months. The same
+  // bounds get sent to /api/reports/overview so revenue, COGS, and net
+  // profit are all filtered to the user's selected window.
+  const _today = new Date();
+  const _yearAgoOverview = new Date(_today.getFullYear(), _today.getMonth() - 11, 1);
+  const _toISOOverview = (d: Date) => d.toISOString().slice(0, 10);
+  const [overviewFrom, setOverviewFrom] = useState<string>(_toISOOverview(_yearAgoOverview));
+  const [overviewTo, setOverviewTo] = useState<string>(_toISOOverview(_today));
+
+  const overviewQs = new URLSearchParams();
+  if (overviewFrom) overviewQs.set("from", overviewFrom);
+  if (overviewTo) overviewQs.set("to", overviewTo);
+  const overviewUrl = `/api/reports/overview${overviewQs.toString() ? `?${overviewQs.toString()}` : ""}`;
+
   const { data: overview, isLoading: loadingOverview } = useQuery({
-    queryKey: ["/api/reports/overview"],
-    queryFn: () => apiFetch("/api/reports/overview"),
+    queryKey: ["/api/reports/overview", overviewFrom, overviewTo],
+    queryFn: () => apiFetch(overviewUrl),
   });
 
   const { data: byCategory = [] } = useQuery({
@@ -143,7 +157,12 @@ export default function Reports() {
   const totalRevenue = overview?.totalRevenue ?? 0;
   const totalExpenses = overview?.totalExpenses ?? 0;
   const usedCarProfit = overview?.usedCarProfit ?? 0;
-  const totalProfit = (overview?.servicePaid ?? 0) + usedCarProfit - totalExpenses;
+  const partsCogs = overview?.cogs ?? 0;
+  // Prefer the server's COGS-inclusive totalProfit so the API and UI agree.
+  const serverTotalProfit = overview?.totalProfit;
+  const servicePaid = overview?.servicePaid ?? 0;
+  const totalProfit = serverTotalProfit ?? (servicePaid + usedCarProfit - totalExpenses - partsCogs);
+  const grossPartsMargin = servicePaid - partsCogs;
 
   // Format month labels like "Jan '25"
   function fmtMonth(ym: string) {
@@ -175,20 +194,71 @@ export default function Reports() {
         </div>
       </div>
 
+      {/* Overview date range — filters revenue, COGS, and net profit together */}
+      <Card className="border-border">
+        <CardContent className="pt-4 pb-4 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[140px]">
+            <Label htmlFor="overview-from" className="text-xs">From</Label>
+            <Input
+              id="overview-from"
+              type="date"
+              value={overviewFrom}
+              onChange={(e) => setOverviewFrom(e.target.value)}
+            />
+          </div>
+          <div className="flex-1 min-w-[140px]">
+            <Label htmlFor="overview-to" className="text-xs">To</Label>
+            <Input
+              id="overview-to"
+              type="date"
+              value={overviewTo}
+              onChange={(e) => setOverviewTo(e.target.value)}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setOverviewFrom(_toISOOverview(_yearAgoOverview));
+              setOverviewTo(_toISOOverview(_today));
+            }}
+          >
+            Reset
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setOverviewFrom("");
+              setOverviewTo("");
+            }}
+          >
+            All time
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Overview KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={<DollarSign className="h-5 w-5 text-primary" />}
           label="Total Revenue"
           value={loadingOverview ? "—" : fmt(totalRevenue + (overview?.usedCarSoldRevenue ?? 0))}
-          sub={`${fmt(overview?.servicePaid ?? 0)} collected`}
+          sub={`${fmt(servicePaid)} collected`}
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5 text-green-600" />}
           label="Net Profit"
           value={loadingOverview ? "—" : fmt(totalProfit)}
-          sub="after expenses"
+          sub="after COGS & expenses"
           color="bg-green-100"
+        />
+        <StatCard
+          icon={<Package className="h-5 w-5 text-purple-600" />}
+          label="Parts COGS"
+          value={loadingOverview ? "—" : fmt(partsCogs)}
+          sub={`Gross parts margin ${fmt(grossPartsMargin)}`}
+          color="bg-purple-100"
         />
         <StatCard
           icon={<Receipt className="h-5 w-5 text-orange-500" />}

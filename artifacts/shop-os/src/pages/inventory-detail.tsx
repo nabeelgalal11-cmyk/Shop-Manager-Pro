@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetInventoryItem, getGetInventoryItemQueryKey,
   useUpdateInventoryItem, useDeleteInventoryItem,
   useGetInventory, getGetInventoryQueryKey,
+  useGetInventoryMovements, getGetInventoryMovementsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Edit2, Save, X, Trash2, Car, Package, Plus } from "lucide-react";
+import { ArrowLeft, Edit2, Save, X, Trash2, Car, Package, Plus, History, ArrowUp, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const CUSTOM_KEY = "__custom__";
@@ -37,6 +38,11 @@ export default function InventoryDetail() {
   );
   const allItems = Array.isArray(inventoryData) ? inventoryData : inventoryData?.data ?? [];
   const existingCategories = Array.from(new Set(allItems.map((i) => i.category).filter(Boolean))).sort();
+
+  const { data: movementsResp } = useGetInventoryMovements(id, {
+    query: { enabled: !!id, queryKey: getGetInventoryMovementsQueryKey(id) },
+  });
+  const movements = movementsResp?.data ?? [];
 
   const updateItem = useUpdateInventoryItem();
   const deleteItem = useDeleteInventoryItem();
@@ -287,6 +293,64 @@ export default function InventoryDetail() {
                 <p className="text-sm text-muted-foreground italic">
                   Universal — fits all vehicles. Edit to restrict to specific makes/models.
                 </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Stock movement history */}
+          <Card>
+            <CardHeader className="bg-muted/20 border-b pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <History className="h-4 w-4" /> Recent Stock Movements
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {movements.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic py-6 text-center">
+                  No movements yet. Receiving purchases or completing repair orders / invoices will populate this history.
+                </p>
+              ) : (
+                <div className="divide-y -mx-6">
+                  {movements.map((m) => {
+                    const positive = m.delta > 0;
+                    const refRoute =
+                      m.referenceTable === "purchases" ? `/purchases/${m.referenceId}` :
+                      m.referenceTable === "repair_orders" ? `/repair-orders/${m.referenceId}` :
+                      m.referenceTable === "invoices" ? `/invoices/${m.referenceId}` :
+                      null;
+                    const refLabel = m.referenceTable && m.referenceId != null
+                      ? `${m.referenceTable.replace(/_/g, " ")} #${m.referenceId}`
+                      : null;
+                    return (
+                      <div key={m.id} className="px-6 py-3 flex items-center justify-between text-sm gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0 ${positive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                            {positive ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium capitalize truncate">{m.reason.replace(/_/g, " ")}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(m.createdAt).toLocaleString()}
+                              {refLabel && (
+                                <> · {refRoute ? (
+                                  <Link href={refRoute} className="text-primary hover:underline">{refLabel}</Link>
+                                ) : refLabel}</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className={`font-semibold ${positive ? "text-green-700" : "text-red-700"}`}>
+                            {positive ? "+" : ""}{m.delta}
+                          </p>
+                          {m.unitCost != null && (
+                            <p className="text-xs text-muted-foreground">@ ${Number(m.unitCost).toFixed(2)}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </CardContent>
           </Card>

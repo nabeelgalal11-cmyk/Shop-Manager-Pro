@@ -15,6 +15,7 @@ export const lineItemsTable = pgTable("line_items", {
   total: numeric("total", { precision: 10, scale: 2 }).notNull().default("0"),
   partNumber: text("part_number"),
   inventoryItemId: integer("inventory_item_id"),
+  unitCost: numeric("unit_cost", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

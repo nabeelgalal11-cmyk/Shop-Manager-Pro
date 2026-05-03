@@ -16,4 +16,5 @@ export interface LineItem {
   total: number;
   partNumber?: string;
   inventoryItemId?: number;
+  unitCost?: number;
 }

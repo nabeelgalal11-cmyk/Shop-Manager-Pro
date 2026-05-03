@@ -14,4 +14,5 @@ export interface CreateLineItemInput {
   unitPrice: number;
   partNumber?: string;
   inventoryItemId?: number;
+  unitCost?: number;
 }
