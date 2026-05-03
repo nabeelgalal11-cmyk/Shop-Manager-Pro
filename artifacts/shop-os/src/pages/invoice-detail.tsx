@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetInvoice, getGetInvoiceQueryKey,
   useCreatePayment,
+  useGetPayments, getGetPaymentsQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, CreditCard } from "lucide-react";
+import { ArrowLeft, Printer, CreditCard, Link as LinkIcon, ExternalLink } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -31,10 +32,32 @@ export default function InvoiceDetail() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
+  const [payLinkLoading, setPayLinkLoading] = useState(false);
+
+  const handleSendPayLink = async () => {
+    setPayLinkLoading(true);
+    try {
+      const r = await fetch(`/api/invoices/${id}/pay-link`, { method: "POST" });
+      if (!r.ok) throw new Error("Failed to generate pay link");
+      const { url } = await r.json();
+      await navigator.clipboard.writeText(url).catch(() => {});
+      toast({ title: "Pay link copied to clipboard", description: url });
+    } catch (err: any) {
+      toast({ title: err.message ?? "Failed to generate pay link", variant: "destructive" });
+    } finally {
+      setPayLinkLoading(false);
+    }
+  };
 
   const { data: invoice, isLoading } = useGetInvoice(id, {
     query: { enabled: !!id, queryKey: getGetInvoiceQueryKey(id) },
   });
+
+  const { data: paymentsResponse } = useGetPayments(
+    { invoiceId: id },
+    { query: { enabled: !!id, queryKey: getGetPaymentsQueryKey({ invoiceId: id }) } },
+  );
+  const paymentsList = paymentsResponse?.data ?? [];
 
   const createPayment = useCreatePayment();
 
@@ -119,9 +142,18 @@ export default function InvoiceDetail() {
             <Printer className="h-4 w-4 mr-2" /> Print
           </Button>
           {invoice.status !== "paid" && balance > 0 && (
-            <Button onClick={() => setPaymentOpen(true)}>
-              <CreditCard className="h-4 w-4 mr-2" /> Record Payment
-            </Button>
+            <>
+              {/* Backend only allows pay-link generation for `sent` invoices,
+                  so hide it for drafts to avoid avoidable error toasts. */}
+              {invoice.status === "sent" && (
+                <Button variant="outline" onClick={handleSendPayLink} disabled={payLinkLoading}>
+                  <LinkIcon className="h-4 w-4 mr-2" /> {payLinkLoading ? "Generating…" : "Send pay link"}
+                </Button>
+              )}
+              <Button onClick={() => setPaymentOpen(true)}>
+                <CreditCard className="h-4 w-4 mr-2" /> Record Payment
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -206,6 +238,58 @@ export default function InvoiceDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {paymentsList.length > 0 && (
+        <Card className="shadow-sm border-border">
+          <CardContent className="p-6">
+            <h3 className="font-semibold mb-3">Payment history</h3>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paymentsList.map((p) => {
+                  const status = (p as { status?: string }).status ?? "succeeded";
+                  const failureReason = (p as { failureReason?: string | null }).failureReason;
+                  const failed = status === "failed" || status === "cancelled";
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell>{new Date(p.paidAt).toLocaleString()}</TableCell>
+                      <TableCell className="capitalize">
+                        {p.method}
+                        {p.method === "stripe" && (
+                          <Badge variant="secondary" className="ml-2 text-xs">Online</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {failed ? (
+                          <Badge variant="destructive" className="text-xs" title={failureReason ?? undefined}>
+                            {status === "cancelled" ? "Cancelled" : "Failed"}
+                          </Badge>
+                        ) : (
+                          <Badge variant="default" className="text-xs">Paid</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {p.referenceNumber ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {failed ? "—" : formatCurrency(Number(p.amount))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
         <DialogContent className="sm:max-w-md">

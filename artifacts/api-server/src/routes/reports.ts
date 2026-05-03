@@ -65,9 +65,21 @@ router.get("/overview", async (req, res) => {
     SELECT COALESCE(SUM(amount), 0)::numeric AS total_expenses FROM expenses
   `);
 
+  // Online (Stripe) payments collected within the same window. Lets the shop
+  // reconcile Stripe payouts against ShopOS without leaving the page.
+  const onlineRows = await q(sql`
+    SELECT COALESCE(SUM(amount), 0)::numeric AS total
+    FROM payments
+    WHERE method = 'stripe'
+      AND status = 'succeeded'
+      ${fromTs ? sql`AND paid_at >= ${fromTs}` : sql``}
+      ${toTs ? sql`AND paid_at <= ${toTs}` : sql``}
+  `);
+
   const i = inv[0] as any || {};
   const c = cars[0] as any || {};
   const e = exp[0] as any || {};
+  const onlinePayments = Number((onlineRows[0] as any)?.total ?? 0);
 
   const servicePaid = Number(i.total_paid ?? 0);
   const usedCarRevenue = Number(c.sold_revenue ?? 0);
@@ -91,6 +103,7 @@ router.get("/overview", async (req, res) => {
     // bottom-line number; clients should rely on this server value.
     totalProfit: servicePaid + (usedCarRevenue - usedCarCost) - expenses - partsCogs,
     cogs: partsCogs,
+    onlinePayments,
     range: { from: from ?? null, to: to ?? null },
   });
 });

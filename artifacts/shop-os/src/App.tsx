@@ -55,6 +55,9 @@ import UsersPage from "@/pages/users";
 import PermissionsPage from "@/pages/permissions";
 import EmailTemplates from "@/pages/email-templates";
 import CannedJobs from "@/pages/canned-jobs";
+import SettingsPayments from "@/pages/settings-payments";
+import PayInvoice from "@/pages/pay";
+import { useLocation as useWouterLocation } from "wouter";
 
 const queryClient = new QueryClient();
 
@@ -128,6 +131,7 @@ function Router() {
         <Route path="/users" component={UsersPage} />
         <Route path="/permissions" component={PermissionsPage} />
         <Route path="/email-templates" component={EmailTemplates} />
+        <Route path="/settings/payments" component={SettingsPayments} />
 
         <Route component={NotFound} />
       </Switch>
@@ -137,6 +141,9 @@ function Router() {
 
 function AuthGate() {
   const { user, loading } = useAuth();
+  const [location] = useWouterLocation();
+  // Public, token-protected pay pages must be reachable without a session.
+  if (location.startsWith("/pay/")) return <PayInvoice />;
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20">

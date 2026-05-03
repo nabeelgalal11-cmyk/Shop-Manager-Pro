@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from "recharts";
-import { BarChart2, DollarSign, TrendingUp, Users, Car, Receipt, ArrowUpRight, ArrowDownRight, Package, Wrench } from "lucide-react";
+import { BarChart2, DollarSign, TrendingUp, Users, Car, Receipt, ArrowUpRight, ArrowDownRight, Package, Wrench, CreditCard } from "lucide-react";
 import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -77,7 +77,19 @@ export default function Reports() {
   if (overviewTo) overviewQs.set("to", overviewTo);
   const overviewUrl = `/api/reports/overview${overviewQs.toString() ? `?${overviewQs.toString()}` : ""}`;
 
-  const { data: overview, isLoading: loadingOverview } = useQuery({
+  interface OverviewResponse {
+    totalRevenue?: number;
+    totalExpenses?: number;
+    usedCarProfit?: number;
+    cogs?: number;
+    totalProfit?: number;
+    servicePaid?: number;
+    onlinePayments?: number;
+    usedCarSoldRevenue?: number;
+    usedCarSoldCount?: number;
+    usedCarAvailableCount?: number;
+  }
+  const { data: overview, isLoading: loadingOverview } = useQuery<OverviewResponse>({
     queryKey: ["/api/reports/overview", overviewFrom, overviewTo],
     queryFn: () => apiFetch(overviewUrl),
   });
@@ -318,6 +330,13 @@ export default function Reports() {
           value={loadingOverview ? "—" : fmt(usedCarProfit)}
           sub={`${overview?.usedCarSoldCount ?? 0} sold · ${overview?.usedCarAvailableCount ?? 0} available`}
           color="bg-blue-100"
+        />
+        <StatCard
+          icon={<CreditCard className="h-5 w-5 text-indigo-600" />}
+          label="Online Payments"
+          value={loadingOverview ? "—" : fmt(Number(overview?.onlinePayments ?? 0))}
+          sub="Stripe in selected range"
+          color="bg-indigo-100"
         />
       </div>
 

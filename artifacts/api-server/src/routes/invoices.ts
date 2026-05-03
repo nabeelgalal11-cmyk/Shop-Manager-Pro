@@ -1,9 +1,11 @@
 import { Router } from "express";
+import { randomBytes } from "crypto";
 import { db } from "@workspace/db";
 import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
+import { getStripeClient, getStripeSettings } from "../lib/stripe.js";
 
 const CONSUMPTION_STATUSES = new Set(["sent", "paid"]);
 
@@ -227,6 +229,146 @@ router.put("/:id", async (req, res) => {
   const enriched = await enrichInvoice(result.invoice);
   await maybeSendInvoiceEmail(result.prevStatus, enriched, req);
   res.json(enriched);
+});
+
+async function ensurePublicToken(invoiceId: number): Promise<string> {
+  const [row] = await db.select({ publicToken: invoicesTable.publicToken }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+  if (row?.publicToken) return row.publicToken;
+  const token = randomBytes(24).toString("base64url");
+  await db.update(invoicesTable).set({ publicToken: token, updatedAt: new Date() }).where(eq(invoicesTable.id, invoiceId));
+  return token;
+}
+
+// Generate (or fetch) the public pay link for an invoice. Used by the
+// admin "Send pay link" affordance. Only `sent` invoices are payable online —
+// drafts are not yet finalized, paid/void shouldn't be charged again.
+router.post("/:id/pay-link", async (req, res) => {
+  const id = Number(req.params.id);
+  const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
+  if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+  if (invoice.status !== "sent") {
+    return res.status(400).json({ error: "Pay links are only available for sent invoices" });
+  }
+  const token = await ensurePublicToken(id);
+  const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "")
+    || (req.headers["x-forwarded-host"] && `${req.protocol}://${req.headers["x-forwarded-host"]}`)
+    || `${req.protocol}://${req.get("host")}`;
+  res.json({ token, url: `${base}/pay/${token}` });
+});
+
+// Create a Stripe Checkout Session for an invoice (called by both the admin UI
+// and the public pay page; the public-side wrapper lives in routes/public.ts).
+export async function createCheckoutSessionForInvoice(invoiceId: number, baseUrl: string) {
+  const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+  if (!invoice) throw Object.assign(new Error("Invoice not found"), { status: 404 });
+  const balance = Number(invoice.balance);
+  if (!(balance > 0)) throw Object.assign(new Error("Invoice has no outstanding balance"), { status: 400 });
+  // Online checkout is only allowed for invoices that have been sent. Drafts
+  // are not finalized; paid/void invoices must not be charged again.
+  if (invoice.status !== "sent") {
+    throw Object.assign(new Error(`Invoice is ${invoice.status} and cannot be paid online`), { status: 400 });
+  }
+
+  const token = invoice.publicToken ?? await ensurePublicToken(invoiceId);
+  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, invoice.customerId));
+  // Refuse to start a checkout without a webhook secret — otherwise Stripe
+  // could collect the payment and we'd never auto-mark the invoice paid.
+  const { webhookSecret } = await getStripeSettings();
+  if (!webhookSecret) {
+    throw Object.assign(new Error("Stripe webhook signing secret not configured. Add it in Settings → Payments."), { status: 503 });
+  }
+  const stripe = await getStripeClient();
+  const amountCents = Math.round(balance * 100);
+
+  // Single-charge enforcement: if we've already created a Checkout Session
+  // for this invoice and it's still open with the same amount, hand the
+  // customer back to it instead of opening a second pay window. This is the
+  // primary defense against duplicate customer charges (e.g. customer
+  // double-clicks "Pay" or refreshes the public pay page).
+  let priorSessionState: "open" | "stale" | "none" = "none";
+  if (invoice.stripeSessionId) {
+    try {
+      const existing = await stripe.checkout.sessions.retrieve(invoice.stripeSessionId);
+      if (
+        existing.status === "open" &&
+        existing.url &&
+        (existing.amount_total ?? 0) === amountCents
+      ) {
+        return { sessionId: existing.id, url: existing.url };
+      }
+      // Prior session is no longer the right one (expired/complete/amount
+      // changed). If it's still open in Stripe, expire it now so a customer
+      // who already had it open in another tab cannot complete a stale
+      // charge. Then fall through and create a fresh session.
+      if (existing.status === "open") {
+        try { await stripe.checkout.sessions.expire(existing.id); } catch { /* best effort */ }
+      }
+      priorSessionState = "stale";
+    } catch {
+      // Retrieval failed (deleted/wrong account): fall through.
+      priorSessionState = "stale";
+    }
+  }
+
+  // Stripe-side idempotency: keying on invoice id + amount means a second
+  // create call within the same balance state returns the already-created
+  // session instead of minting a new one. Combined with the open-session
+  // reuse above, this closes the race window for two near-simultaneous
+  // "Pay" clicks. When the prior session is no longer usable (expired/
+  // completed/amount-changed) we mix in a fresh nonce so we don't get a
+  // stale Stripe response from inside Stripe's 24h idempotency window.
+  const nonce = priorSessionState === "stale" ? `:${Date.now()}` : "";
+  const idempotencyKey = `shopos:invoice:${invoiceId}:${amountCents}${nonce}`;
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    payment_method_types: ["card"],
+    customer_email: customer?.email ?? undefined,
+    line_items: [{
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: amountCents,
+        product_data: {
+          name: `Invoice ${invoice.invoiceNumber}`,
+          description: customer ? `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() : undefined,
+        },
+      },
+    }],
+    success_url: `${baseUrl}/pay/${token}/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}/pay/${token}/cancelled`,
+    metadata: {
+      invoiceId: String(invoiceId),
+      invoiceNumber: invoice.invoiceNumber,
+    },
+    payment_intent_data: {
+      metadata: {
+        invoiceId: String(invoiceId),
+        invoiceNumber: invoice.invoiceNumber,
+      },
+    },
+  }, { idempotencyKey });
+
+  await db.update(invoicesTable).set({
+    stripeSessionId: session.id,
+    updatedAt: new Date(),
+  }).where(eq(invoicesTable.id, invoiceId));
+
+  return { sessionId: session.id, url: session.url };
+}
+
+router.post("/:id/checkout-session", async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "")
+      || (req.headers["x-forwarded-host"] && `${req.protocol}://${req.headers["x-forwarded-host"]}`)
+      || `${req.protocol}://${req.get("host")}`;
+    const out = await createCheckoutSessionForInvoice(id, base);
+    res.json(out);
+  } catch (err: any) {
+    const status = err.status ?? 500;
+    req.log?.error({ err: err.message, id }, "Checkout session create failed");
+    res.status(status).json({ error: err.message ?? "Failed to create checkout session" });
+  }
 });
 
 router.delete("/:id", async (req, res) => {

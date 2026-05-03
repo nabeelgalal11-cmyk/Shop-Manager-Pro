@@ -9,6 +9,7 @@ import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 import { sessionMiddleware, attachUser } from "./lib/auth.js";
 import { seedDefaultPermissions, bootstrapAdmin } from "./lib/permissions.js";
+import { stripeWebhookHandler } from "./routes/stripe-webhook.js";
 
 const app: Express = express();
 
@@ -42,6 +43,12 @@ app.use(
 app.set("trust proxy", 1);
 
 app.use(cors({ origin: true, credentials: true }));
+
+// Stripe webhook needs the raw request body for signature verification — must
+// be mounted BEFORE express.json() or the body will be parsed and re-stringified
+// and the signature check will fail.
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);

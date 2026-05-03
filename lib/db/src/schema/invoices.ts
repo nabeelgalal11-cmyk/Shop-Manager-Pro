@@ -23,6 +23,9 @@ export const invoicesTable = pgTable("invoices", {
   amountPaid: numeric("amount_paid", { precision: 10, scale: 2 }).notNull().default("0"),
   balance: numeric("balance", { precision: 10, scale: 2 }).notNull().default("0"),
   dueDate: date("due_date"),
+  publicToken: text("public_token").unique(),
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

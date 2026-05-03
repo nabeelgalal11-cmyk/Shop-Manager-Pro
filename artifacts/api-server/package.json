@@ -27,7 +27,8 @@
     "openai": "^4.77.0",
     "pino": "^10.3.0",
     "pino-http": "^10.5.0",
-    "ssh2-sftp-client": "^12.1.1"
+    "ssh2-sftp-client": "^12.1.1",
+    "stripe": "^22.1.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

@@ -65,6 +65,7 @@ const navGroups: NavGroup[] = [
       { name: "Users", href: "/users", icon: KeyRound, resource: "users" },
       { name: "Permissions", href: "/permissions", icon: Shield, resource: "permissions" },
       { name: "Email Templates", href: "/email-templates", icon: Mail, resource: "permissions" },
+      { name: "Payments (Stripe)", href: "/settings/payments", icon: CreditCard, resource: "permissions" },
     ]
   }
 ];

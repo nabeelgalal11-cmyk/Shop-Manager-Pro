@@ -33,6 +33,7 @@ import searchRouter from "./search.js";
 import attachmentsRouter from "./attachments.js";
 import vinRouter from "./vin.js";
 import cannedJobsRouter from "./canned-jobs.js";
+import settingsRouter from "./settings.js";
 
 const router: IRouter = Router();
 
@@ -73,5 +74,6 @@ router.use("/search", searchRouter);
 router.use("/attachments", attachmentsRouter);
 router.use("/vin", vinRouter);
 router.use("/canned-jobs", cannedJobsRouter);
+router.use("/settings", settingsRouter);
 
 export default router;
