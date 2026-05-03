@@ -7,9 +7,50 @@ const HOST = process.env.HOSTGATOR_SFTP_HOST;
 const PORT = Number(process.env.HOSTGATOR_SFTP_PORT || "2222");
 const USER = process.env.HOSTGATOR_SFTP_USER;
 const PASSWORD = process.env.HOSTGATOR_SFTP_PASSWORD;
-const PRIVATE_KEY = process.env.HOSTGATOR_SFTP_PRIVATE_KEY;
+const PRIVATE_KEY = normalizePem(process.env.HOSTGATOR_SFTP_PRIVATE_KEY);
 const PRIVATE_KEY_PASSPHRASE = process.env.HOSTGATOR_SFTP_PRIVATE_KEY_PASSPHRASE;
 const ROOT_DIR = process.env.HOSTGATOR_UPLOAD_DIR;
+
+/**
+ * Re-format a PEM key that was pasted as one line (newlines stripped by the
+ * secret-entry field). Reconstructs BEGIN/headers/body/END structure with
+ * proper newlines, so ssh2 can parse it.
+ */
+function normalizePem(raw: string | undefined): string | undefined {
+  if (!raw) return raw;
+  let s = raw.trim().replace(/\r\n/g, "\n");
+  // Convert literal "\n" (backslash-n) sequences into real newlines.
+  if (!s.includes("\n") && s.includes("\\n")) s = s.replace(/\\n/g, "\n");
+  if (s.includes("\n")) return s; // already multi-line — leave it
+
+  const beginMatch = s.match(/-----BEGIN [A-Z0-9 ]+-----/);
+  const endMatch = s.match(/-----END [A-Z0-9 ]+-----/);
+  if (!beginMatch || !endMatch || beginMatch.index === undefined || endMatch.index === undefined) {
+    return s;
+  }
+  const beginLine = beginMatch[0];
+  const endLine = endMatch[0];
+  let middle = s.slice(beginMatch.index + beginLine.length, endMatch.index).trim();
+
+  // Pull out any "Header: value" lines (Proc-Type, DEK-Info, etc).
+  const headerLines: string[] = [];
+  let m: RegExpMatchArray | null;
+  while ((m = middle.match(/^([A-Za-z-]+):\s*([^\s]+)\s*/))) {
+    headerLines.push(`${m[1]}: ${m[2]}`);
+    middle = middle.slice(m[0].length);
+  }
+
+  // The remainder is base64; strip whitespace and rewrap to 64 chars/line.
+  const body = middle.replace(/\s+/g, "");
+  const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? body;
+
+  const out: string[] = [beginLine];
+  if (headerLines.length > 0) {
+    out.push(...headerLines, "");
+  }
+  out.push(wrapped, endLine, "");
+  return out.join("\n");
+}
 
 export class HostgatorStorageError extends Error {
   constructor(message: string, public cause?: unknown) {
