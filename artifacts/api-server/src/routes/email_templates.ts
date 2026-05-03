@@ -51,8 +51,11 @@ router.post("/:key/test", async (req, res) => {
     vehicleInfo: "2020 Bluebird Vision",
     notes: "This is a test email.",
   });
-  if (!result.ok) return res.status(500).json(result);
-  res.json(result);
+  if (!result.ok) {
+    req.log.error({ result, templateKey: req.params.key, to }, "Test email send failed");
+    return res.status(500).json({ ok: false, error: "Failed to send test email. Check server logs." });
+  }
+  res.json({ ok: true, id: result.id, provider: result.provider });
 });
 
 export default router;

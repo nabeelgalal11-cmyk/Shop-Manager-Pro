@@ -94,12 +94,13 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 - `pnpm --filter @workspace/db run push` — push schema changes to database
 
 ## Email
-- **Provider:** Resend (REST). API key in `RESEND_API_KEY` secret.
-- **Templates:** stored in `email_templates` table (DB-backed, editable via `/email-templates` page).
-- **Variables:** `{{customerName}} {{customerEmail}} {{shopName}} {{appointmentDateTime}} {{serviceType}} {{vehicleInfo}} {{notes}}`. Render uses simple `{{var}}` substitution in `artifacts/api-server/src/lib/email.ts`.
+- **Provider (primary):** Resend REST API. Used when `RESEND_API_KEY` is set.
+- **Provider (fallback):** SMTP via nodemailer. Used only when `RESEND_API_KEY` is unset and `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` are set. Note: HostGator shared-host SMTP does not DKIM-sign authenticated relay submissions, so Gmail silently quarantines those messages — this is why Resend is preferred.
+- **Verified sender:** `znmotors.com` is verified on Resend; default `from` is `contact@znmotors.com`.
+- **Templates:** stored in `email_templates` table (DB-backed, editable via `/email-templates` page) with fields key/name/subject/bodyHtml/fromName/fromEmail/enabled.
+- **Variables:** `{{customerName}} {{customerEmail}} {{shopName}} {{appointmentDateTime}} {{serviceType}} {{vehicleInfo}} {{notes}}`. Simple `{{var}}` substitution in `artifacts/api-server/src/lib/email.ts`.
 - **Trigger:** `appointment_confirmed` template fires when an appointment status changes from `pending` → `scheduled`/`confirmed` (see `routes/appointments.ts` `maybeSendConfirmation`). Errors are logged but never block the PUT response.
-- **Free-tier note:** Resend only sends to the account owner's email until a domain is verified at resend.com/domains. Default `from` is `onboarding@resend.dev`.
-- **Render deployment:** must also have `RESEND_API_KEY` set; apply migration `CREATE TABLE email_templates (...)`.
+- **Render deployment:** set `RESEND_API_KEY`; apply migration `CREATE TABLE email_templates (...)`.
 
 ## Authentication & Permissions
 

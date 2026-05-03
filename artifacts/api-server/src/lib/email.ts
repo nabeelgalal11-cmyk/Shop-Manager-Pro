@@ -95,6 +95,7 @@ export async function sendTemplatedEmail(
 
   // Prefer Resend when configured (better Gmail deliverability than shared-host SMTP)
   const apiKey = process.env.RESEND_API_KEY;
+  let resendError: string | undefined;
   if (apiKey) {
     try {
       const resp = await fetch(RESEND_API, {
@@ -106,19 +107,19 @@ export async function sendTemplatedEmail(
         body: JSON.stringify({ from, to: [toEmail], subject, html, reply_to: fromEmailRaw }),
       });
       const data = (await resp.json()) as { id?: string; message?: string; name?: string };
-      if (!resp.ok) {
-        logger.error({ status: resp.status, data }, "Resend API error");
-        return { ok: false, error: data.message || `HTTP ${resp.status}`, provider: "resend" };
+      if (resp.ok) {
+        logger.info({ id: data.id, to: toEmail, template: templateKey, provider: "resend" }, "Email sent");
+        return { ok: true, id: data.id, provider: "resend" };
       }
-      logger.info({ id: data.id, to: toEmail, template: templateKey, provider: "resend" }, "Email sent");
-      return { ok: true, id: data.id, provider: "resend" };
+      resendError = data.message || `HTTP ${resp.status}`;
+      logger.error({ status: resp.status, data }, "Resend API error; will try SMTP fallback if available");
     } catch (err: any) {
-      logger.error({ err }, "Failed to send email via Resend");
-      return { ok: false, error: err?.message || "Send failed", provider: "resend" };
+      resendError = err?.message || "Send failed";
+      logger.error({ err }, "Resend send threw; will try SMTP fallback if available");
     }
   }
 
-  // Fallback to SMTP (HostGator etc.) when Resend not configured
+  // Fallback to SMTP (HostGator etc.) when Resend not configured OR Resend just failed
   const transporter = getSmtpTransporter();
   if (transporter) {
     try {
@@ -138,6 +139,7 @@ export async function sendTemplatedEmail(
     }
   }
 
+  if (resendError) return { ok: false, error: resendError, provider: "resend" };
   logger.warn("Neither RESEND_API_KEY nor SMTP_* configured; skipping email send");
   return { ok: false, error: "Email not configured" };
 }
