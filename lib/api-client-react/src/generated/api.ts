@@ -21,6 +21,7 @@ import type {
   Appointment,
   AppointmentListResponse,
   BoardPreference,
+  ConvertEstimateToRepairOrder201,
   CreateAppointmentInput,
   CreateCustomerInput,
   CreateEmployeeInput,
@@ -74,6 +75,7 @@ import type {
   RepairOrderListResponse,
   RepairOrderProfitabilityReport,
   RevenueChartPoint,
+  SendEstimate200,
   ServiceCount,
   ServiceHistoryEntry,
   StatusCount,
@@ -1836,6 +1838,177 @@ export const useConvertEstimateToInvoice = <
   TContext
 > => {
   return useMutation(getConvertEstimateToInvoiceMutationOptions(options));
+};
+
+/**
+ * @summary Send estimate to customer for approval (email/SMS)
+ */
+export const getSendEstimateUrl = (id: number) => {
+  return `/api/estimates/${id}/send`;
+};
+
+export const sendEstimate = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SendEstimate200> => {
+  return customFetch<SendEstimate200>(getSendEstimateUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSendEstimateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEstimate>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEstimate>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["sendEstimate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEstimate>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return sendEstimate(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEstimateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEstimate>>
+>;
+
+export type SendEstimateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send estimate to customer for approval (email/SMS)
+ */
+export const useSendEstimate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEstimate>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendEstimate>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getSendEstimateMutationOptions(options));
+};
+
+/**
+ * @summary Convert approved estimate lines into a Repair Order
+ */
+export const getConvertEstimateToRepairOrderUrl = (id: number) => {
+  return `/api/estimates/${id}/convert-to-ro`;
+};
+
+export const convertEstimateToRepairOrder = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ConvertEstimateToRepairOrder201> => {
+  return customFetch<ConvertEstimateToRepairOrder201>(
+    getConvertEstimateToRepairOrderUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getConvertEstimateToRepairOrderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof convertEstimateToRepairOrder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof convertEstimateToRepairOrder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["convertEstimateToRepairOrder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof convertEstimateToRepairOrder>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return convertEstimateToRepairOrder(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConvertEstimateToRepairOrderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof convertEstimateToRepairOrder>>
+>;
+
+export type ConvertEstimateToRepairOrderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Convert approved estimate lines into a Repair Order
+ */
+export const useConvertEstimateToRepairOrder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof convertEstimateToRepairOrder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof convertEstimateToRepairOrder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getConvertEstimateToRepairOrderMutationOptions(options));
 };
 
 /**

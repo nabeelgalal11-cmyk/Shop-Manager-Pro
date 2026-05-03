@@ -6,14 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type EstimateStatus =
-  (typeof EstimateStatus)[keyof typeof EstimateStatus];
+export type LineItemCustomerDecision =
+  (typeof LineItemCustomerDecision)[keyof typeof LineItemCustomerDecision];
 
-export const EstimateStatus = {
-  draft: "draft",
-  sent: "sent",
+export const LineItemCustomerDecision = {
+  pending: "pending",
   approved: "approved",
   declined: "declined",
-  denied: "denied",
-  converted: "converted",
 } as const;

@@ -113,6 +113,15 @@ export const LineItemType = {
   discount: "discount",
 } as const;
 
+export type LineItemCustomerDecision =
+  (typeof LineItemCustomerDecision)[keyof typeof LineItemCustomerDecision];
+
+export const LineItemCustomerDecision = {
+  pending: "pending",
+  approved: "approved",
+  declined: "declined",
+} as const;
+
 export interface LineItem {
   id?: number;
   type: LineItemType;
@@ -123,6 +132,7 @@ export interface LineItem {
   partNumber?: string;
   inventoryItemId?: number;
   unitCost?: number;
+  customerDecision?: LineItemCustomerDecision;
 }
 
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
@@ -263,6 +273,7 @@ export const EstimateStatus = {
   draft: "draft",
   sent: "sent",
   approved: "approved",
+  declined: "declined",
   denied: "denied",
   converted: "converted",
 } as const;
@@ -279,6 +290,12 @@ export interface Estimate {
   taxAmount: number;
   discountAmount: number;
   total: number;
+  publicToken?: string | null;
+  sentAt?: string | null;
+  customerSignatureUrl?: string | null;
+  customerSignedAt?: string | null;
+  customerSignerName?: string | null;
+  declineReason?: string | null;
   lineItems?: LineItem[];
   customer?: Customer;
   vehicle?: Vehicle;
@@ -293,6 +310,7 @@ export const CreateEstimateInputStatus = {
   draft: "draft",
   sent: "sent",
   approved: "approved",
+  declined: "declined",
   denied: "denied",
   converted: "converted",
 } as const;
@@ -1099,9 +1117,21 @@ export const GetEstimatesStatus = {
   draft: "draft",
   sent: "sent",
   approved: "approved",
+  declined: "declined",
   denied: "denied",
   converted: "converted",
 } as const;
+
+export type SendEstimate200 = {
+  emailed?: boolean;
+  smsed?: boolean;
+  channel?: string;
+  estimateUrl?: string;
+  publicToken?: string;
+  errors?: string[];
+};
+
+export type ConvertEstimateToRepairOrder201 = { [key: string]: unknown };
 
 export type GetInvoicesParams = {
   status?: GetInvoicesStatus;

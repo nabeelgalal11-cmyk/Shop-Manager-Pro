@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { db, customersTable, vehiclesTable, appointmentsTable, invoicesTable, lineItemsTable, paymentsTable, inspectionsTable } from "@workspace/db";
+import { db, customersTable, vehiclesTable, appointmentsTable, invoicesTable, lineItemsTable, paymentsTable, inspectionsTable, estimatesTable } from "@workspace/db";
 import { and, eq, ilike, or, desc, isNull, sql } from "drizzle-orm";
 import { createCheckoutSessionForInvoice } from "./invoices.js";
 import { getStripeSettings } from "../lib/stripe.js";
@@ -561,6 +561,237 @@ router.get("/inspections/:token/signature", inspRateLimit, async (req, res) => {
   } catch (err) {
     if (err instanceof ObjectNotFoundError) return res.status(404).end();
     req.log?.error({ err }, "Public inspection signature serve failed");
+    res.status(500).end();
+  }
+});
+
+// ---- PUBLIC ESTIMATE APPROVAL (Task #29) ----
+// Token-protected, no auth required. Customers tap a link from SMS/email,
+// approve/decline individual line items, and e-sign at the end.
+
+const estBuckets = new Map<string, { count: number; resetAt: number }>();
+function estRateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+  const now = Date.now();
+  const entry = estBuckets.get(ip);
+  if (!entry || entry.resetAt < now) {
+    estBuckets.set(ip, { count: 1, resetAt: now + 60_000 });
+    return next();
+  }
+  if (entry.count >= 60) return res.status(429).json({ error: "Too many requests" });
+  entry.count++;
+  next();
+}
+
+router.get("/estimates/:token", estRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!token || token.length < 16) return res.status(404).json({ error: "Not found" });
+  const [estimate] = await db.select().from(estimatesTable).where(eq(estimatesTable.publicToken, token));
+  if (!estimate) return res.status(404).json({ error: "Not found" });
+
+  const [items, vehicle, customer] = await Promise.all([
+    db.select().from(lineItemsTable).where(eq(lineItemsTable.estimateId, estimate.id)),
+    estimate.vehicleId ? db.select().from(vehiclesTable).where(eq(vehiclesTable.id, estimate.vehicleId)).then(r => r[0]) : Promise.resolve(null),
+    db.select().from(customersTable).where(eq(customersTable.id, estimate.customerId)).then(r => r[0]),
+  ]);
+
+  res.json({
+    id: estimate.id,
+    estimateNumber: estimate.estimateNumber,
+    status: estimate.status,
+    subtotal: estimate.subtotal,
+    taxRate: estimate.taxRate,
+    taxAmount: estimate.taxAmount,
+    discountAmount: estimate.discountAmount,
+    total: estimate.total,
+    createdAt: estimate.createdAt,
+    sentAt: estimate.sentAt,
+    customerSignedAt: estimate.customerSignedAt,
+    customerSignerName: estimate.customerSignerName,
+    customerSignatureUrl: estimate.customerSignatureUrl,
+    declineReason: estimate.declineReason,
+    // Internal `notes` is deliberately omitted — shop-only.
+    lineItems: items.map(i => ({
+      id: i.id,
+      type: i.type,
+      description: i.description,
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+      total: i.total,
+      partNumber: i.partNumber,
+      customerDecision: i.customerDecision,
+    })),
+    vehicle: vehicle ? {
+      year: vehicle.year, make: vehicle.make, model: vehicle.model,
+      vin: vehicle.vin, licensePlate: vehicle.licensePlate,
+    } : null,
+    customer: customer ? { firstName: customer.firstName, lastName: customer.lastName } : null,
+    shopName: process.env.SHOP_NAME || "Our Shop",
+  });
+});
+
+// Per-line approve / decline. Locked once the estimate is signed or declined.
+router.post("/estimates/:token/decision", estRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!token) return res.status(404).json({ error: "Not found" });
+  const itemId = Number(req.body?.itemId);
+  const decision = String(req.body?.decision ?? "");
+  if (!Number.isFinite(itemId) || (decision !== "approved" && decision !== "declined" && decision !== "")) {
+    return res.status(400).json({ error: "Invalid decision" });
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const qr = await tx.execute<{
+        id: number; status: string; customer_signed_at: Date | null;
+      }>(sql`SELECT id, status, customer_signed_at FROM estimates WHERE public_token = ${token} FOR UPDATE`);
+      const row = (qr as any).rows?.[0] ?? (Array.isArray(qr) ? (qr as any)[0] : undefined);
+      if (!row) return { http: 404, body: { error: "Not found" } } as const;
+      if (row.customer_signed_at) return { http: 409, body: { error: "Estimate already signed; decisions are locked" } } as const;
+      if (row.status === "declined" || row.status === "converted") {
+        return { http: 409, body: { error: "Estimate is no longer open for decisions" } } as const;
+      }
+
+      // Confirm the line belongs to this estimate, then update it.
+      const [line] = await tx.select().from(lineItemsTable).where(and(
+        eq(lineItemsTable.id, itemId),
+        eq(lineItemsTable.estimateId, row.id),
+      ));
+      if (!line) return { http: 404, body: { error: "Line item not found" } } as const;
+
+      const newDecision = decision === "" ? "pending" : decision;
+      await tx.update(lineItemsTable).set({
+        customerDecision: newDecision,
+        decidedAt: decision === "" ? null : new Date(),
+      }).where(eq(lineItemsTable.id, itemId));
+
+      await tx.update(estimatesTable).set({
+        customerIp: clientIp(req),
+        updatedAt: new Date(),
+      }).where(eq(estimatesTable.id, row.id));
+
+      return { http: 200, body: { ok: true, itemId, decision: newDecision } } as const;
+    });
+    res.status(result.http).json(result.body);
+  } catch (err: any) {
+    req.log?.error({ err: err?.message }, "Estimate decision failed");
+    res.status(500).json({ error: "Could not save decision" });
+  }
+});
+
+// Whole-document sign or decline.
+// Body for approval:  { signerName, signatureDataUrl }
+// Body for decline:   { declineAll: true, declineReason }
+router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!token) return res.status(404).json({ error: "Not found" });
+
+  const declineAll = req.body?.declineAll === true;
+  const declineReason = String(req.body?.declineReason ?? "").trim();
+  const signerName = String(req.body?.signerName ?? "").trim();
+  const signatureDataUrl = String(req.body?.signatureDataUrl ?? "");
+
+  const [estimate] = await db.select().from(estimatesTable).where(eq(estimatesTable.publicToken, token));
+  if (!estimate) return res.status(404).json({ error: "Not found" });
+  if (estimate.customerSignedAt) return res.status(409).json({ error: "Estimate already signed" });
+  if (estimate.status === "declined") return res.status(409).json({ error: "Estimate already declined" });
+  if (estimate.status === "converted") return res.status(409).json({ error: "Estimate already converted" });
+
+  const now = new Date();
+
+  // Decline path — no signature needed.
+  if (declineAll) {
+    if (!declineReason || declineReason.length > 2000) {
+      return res.status(400).json({ error: "Decline reason is required" });
+    }
+    const updated = await db.update(estimatesTable).set({
+      status: "declined",
+      declineReason,
+      customerIp: clientIp(req),
+      updatedAt: now,
+    }).where(and(
+      eq(estimatesTable.id, estimate.id),
+      isNull(estimatesTable.customerSignedAt),
+    )).returning({ id: estimatesTable.id });
+    if (updated.length === 0) return res.status(409).json({ error: "Estimate already finalized" });
+
+    req.log?.info({ estimateId: estimate.id }, "Estimate declined by customer");
+    return res.json({ ok: true, status: "declined", declinedAt: now.toISOString() });
+  }
+
+  // Approval path — requires PNG signature + name.
+  if (!signerName || signerName.length > 200) return res.status(400).json({ error: "Signer name is required" });
+  if (!signatureDataUrl.startsWith("data:image/png;base64,")) {
+    return res.status(400).json({ error: "Invalid signature image (PNG required)" });
+  }
+
+  const buffer = Buffer.from(signatureDataUrl.slice("data:image/png;base64,".length), "base64");
+  if (buffer.byteLength === 0 || buffer.byteLength > 1_000_000) {
+    return res.status(400).json({ error: "Signature image too large or empty" });
+  }
+
+  let signatureUrl: string | null = null;
+  try {
+    const svc = new ObjectStorageService();
+    const uploadUrl = await svc.getObjectEntityUploadURL();
+    const putResp = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "image/png" },
+      body: buffer,
+    });
+    if (!putResp.ok) throw new Error(`PUT ${putResp.status}`);
+    signatureUrl = svc.normalizeObjectEntityPath(uploadUrl);
+    void randomUUID;
+  } catch (err: any) {
+    req.log?.error({ err: err?.message, estimateId: estimate.id }, "Estimate signature upload failed");
+    return res.status(503).json({ error: "Could not save signature. Please try again." });
+  }
+
+  // Atomic: only the first signer wins; later writers see 0 affected rows.
+  const updated = await db.update(estimatesTable).set({
+    status: "approved",
+    customerSignerName: signerName,
+    customerSignatureUrl: signatureUrl,
+    customerSignedAt: now,
+    customerIp: clientIp(req),
+    updatedAt: now,
+  }).where(and(
+    eq(estimatesTable.id, estimate.id),
+    isNull(estimatesTable.customerSignedAt),
+  )).returning({ id: estimatesTable.id });
+
+  if (updated.length === 0) {
+    return res.status(409).json({ error: "Estimate already signed" });
+  }
+
+  req.log?.info({ estimateId: estimate.id, signerName }, "Estimate signed by customer");
+  res.json({ ok: true, status: "approved", signedAt: now.toISOString(), signerName, signatureUrl });
+});
+
+// Token-scoped signature image proxy — avoids needing to flip ACLs to public.
+router.get("/estimates/:token/signature", estRateLimit, async (req, res) => {
+  const token = String(req.params.token ?? "");
+  if (!token) return res.status(404).end();
+  const [estimate] = await db.select({
+    id: estimatesTable.id,
+    customerSignatureUrl: estimatesTable.customerSignatureUrl,
+  }).from(estimatesTable).where(eq(estimatesTable.publicToken, token));
+  if (!estimate || !estimate.customerSignatureUrl?.startsWith("/objects/")) return res.status(404).end();
+  try {
+    const svc = new ObjectStorageService();
+    const file = await svc.getObjectEntityFile(estimate.customerSignatureUrl);
+    const response = await svc.downloadObject(file);
+    res.status(response.status);
+    response.headers.forEach((value: string, key: string) => res.setHeader(key, value));
+    if (response.body) {
+      const ns = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]);
+      ns.pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (err) {
+    if (err instanceof ObjectNotFoundError) return res.status(404).end();
+    req.log?.error({ err }, "Public estimate signature serve failed");
     res.status(500).end();
   }
 });

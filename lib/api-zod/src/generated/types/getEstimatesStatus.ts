@@ -13,6 +13,7 @@ export const GetEstimatesStatus = {
   draft: "draft",
   sent: "sent",
   approved: "approved",
+  declined: "declined",
   denied: "denied",
   converted: "converted",
 } as const;

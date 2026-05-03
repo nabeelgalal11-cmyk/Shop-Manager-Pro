@@ -5,6 +5,7 @@
  * ShopOS Auto Repair Management API
  * OpenAPI spec version: 0.1.0
  */
+import type { LineItemCustomerDecision } from "./lineItemCustomerDecision";
 import type { LineItemType } from "./lineItemType";
 
 export interface LineItem {
@@ -17,4 +18,5 @@ export interface LineItem {
   partNumber?: string;
   inventoryItemId?: number;
   unitCost?: number;
+  customerDecision?: LineItemCustomerDecision;
 }

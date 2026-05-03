@@ -22,6 +22,12 @@ export interface Estimate {
   taxAmount: number;
   discountAmount: number;
   total: number;
+  publicToken?: string | null;
+  sentAt?: Date | null;
+  customerSignatureUrl?: string | null;
+  customerSignedAt?: Date | null;
+  customerSignerName?: string | null;
+  declineReason?: string | null;
   lineItems?: LineItem[];
   customer?: Customer;
   vehicle?: Vehicle;

@@ -336,7 +336,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [draft, sent, approved, denied, converted]
+            enum: [draft, sent, approved, declined, denied, converted]
         - name: customerId
           in: query
           schema:
@@ -449,6 +449,54 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Invoice"
+
+  /estimates/{id}/send:
+    post:
+      operationId: sendEstimate
+      tags: [estimates]
+      summary: Send estimate to customer for approval (email/SMS)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Send result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  emailed: { type: boolean }
+                  smsed: { type: boolean }
+                  channel: { type: string }
+                  estimateUrl: { type: string }
+                  publicToken: { type: string }
+                  errors:
+                    type: array
+                    items: { type: string }
+
+  /estimates/{id}/convert-to-ro:
+    post:
+      operationId: convertEstimateToRepairOrder
+      tags: [estimates]
+      summary: Convert approved estimate lines into a Repair Order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Repair order created from approved estimate lines
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
 
   # ---- INVOICES ----
   /invoices:
@@ -1975,6 +2023,9 @@ components:
           type: integer
         unitCost:
           type: number
+        customerDecision:
+          type: string
+          enum: [pending, approved, declined]
       required:
         - type
         - description
@@ -2019,7 +2070,7 @@ components:
           type: integer
         status:
           type: string
-          enum: [draft, sent, approved, denied, converted]
+          enum: [draft, sent, approved, declined, denied, converted]
         notes:
           type: string
         subtotal:
@@ -2032,6 +2083,26 @@ components:
           type: number
         total:
           type: number
+        publicToken:
+          type: string
+          nullable: true
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        customerSignatureUrl:
+          type: string
+          nullable: true
+        customerSignedAt:
+          type: string
+          format: date-time
+          nullable: true
+        customerSignerName:
+          type: string
+          nullable: true
+        declineReason:
+          type: string
+          nullable: true
         lineItems:
           type: array
           items:
@@ -2068,7 +2139,7 @@ components:
           type: integer
         status:
           type: string
-          enum: [draft, sent, approved, denied, converted]
+          enum: [draft, sent, approved, declined, denied, converted]
         notes:
           type: string
         taxRate:

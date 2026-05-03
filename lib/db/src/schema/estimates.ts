@@ -16,6 +16,13 @@ export const estimatesTable = pgTable("estimates", {
   taxAmount: numeric("tax_amount", { precision: 10, scale: 2 }).notNull().default("0"),
   discountAmount: numeric("discount_amount", { precision: 10, scale: 2 }).notNull().default("0"),
   total: numeric("total", { precision: 10, scale: 2 }).notNull().default("0"),
+  publicToken: text("public_token").unique(),
+  sentAt: timestamp("sent_at"),
+  customerSignatureUrl: text("customer_signature_url"),
+  customerSignedAt: timestamp("customer_signed_at"),
+  customerSignerName: text("customer_signer_name"),
+  customerIp: text("customer_ip"),
+  declineReason: text("decline_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

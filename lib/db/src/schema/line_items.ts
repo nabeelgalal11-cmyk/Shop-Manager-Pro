@@ -16,6 +16,8 @@ export const lineItemsTable = pgTable("line_items", {
   partNumber: text("part_number"),
   inventoryItemId: integer("inventory_item_id"),
   unitCost: numeric("unit_cost", { precision: 10, scale: 2 }),
+  customerDecision: text("customer_decision").notNull().default("pending"),
+  decidedAt: timestamp("decided_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

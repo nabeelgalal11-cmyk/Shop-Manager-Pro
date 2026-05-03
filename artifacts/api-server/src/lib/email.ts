@@ -101,7 +101,10 @@ const DEFAULT_TEMPLATES = [
       <tr><td style="padding: 8px 0; color: #6b7280;">Estimate #</td><td style="padding: 8px 0; font-weight: bold;">{{estimateNumber}}</td></tr>
       <tr><td style="padding: 8px 0; color: #6b7280;">Total</td><td style="padding: 8px 0; font-weight: bold;">{{total}}</td></tr>
     </table>
-    <p>Reply to this email to approve or with any questions.</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="{{estimateUrl}}" style="background:#7c3aed;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;display:inline-block;font-weight:bold;">Review & approve</a>
+    </p>
+    <p style="font-size:12px;color:#6b7280;word-break:break-all;">Or open this link: {{estimateUrl}}</p>
     <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
       Thank you for choosing {{shopName}}!
     </p>`),
@@ -204,6 +207,11 @@ export async function seedEmailTemplates() {
       const upgraded = existing.bodyHtml.replace("</table>", "</table>\n    {{payLinkSection}}");
       await db.update(emailTemplatesTable).set({ bodyHtml: upgraded }).where(eq(emailTemplatesTable.key, tpl.key));
       logger.info({ key: tpl.key }, "Upgraded invoice_sent template with pay link section");
+    } else if (tpl.key === "estimate_sent" && !existing.bodyHtml.includes("{{estimateUrl}}")) {
+      // Replace stored body with the latest version so the public approval
+      // link is included for shops that already have the older template.
+      await db.update(emailTemplatesTable).set({ bodyHtml: tpl.bodyHtml }).where(eq(emailTemplatesTable.key, tpl.key));
+      logger.info({ key: tpl.key }, "Upgraded estimate_sent template with approval link");
     }
   }
 }

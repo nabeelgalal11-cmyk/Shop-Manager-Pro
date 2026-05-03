@@ -259,6 +259,9 @@ export const GetCustomerStatementResponse = zod.object({
             partNumber: zod.string().optional(),
             inventoryItemId: zod.number().optional(),
             unitCost: zod.number().optional(),
+            customerDecision: zod
+              .enum(["pending", "approved", "declined"])
+              .optional(),
           }),
         )
         .optional(),
@@ -586,7 +589,7 @@ export const getEstimatesQueryLimitDefault = 20;
 
 export const GetEstimatesQueryParams = zod.object({
   status: zod
-    .enum(["draft", "sent", "approved", "denied", "converted"])
+    .enum(["draft", "sent", "approved", "declined", "denied", "converted"])
     .optional(),
   customerId: zod.coerce.number().optional(),
   page: zod.coerce.number().default(getEstimatesQueryPageDefault),
@@ -600,13 +603,26 @@ export const GetEstimatesResponse = zod.object({
       estimateNumber: zod.string(),
       customerId: zod.number(),
       vehicleId: zod.number().optional(),
-      status: zod.enum(["draft", "sent", "approved", "denied", "converted"]),
+      status: zod.enum([
+        "draft",
+        "sent",
+        "approved",
+        "declined",
+        "denied",
+        "converted",
+      ]),
       notes: zod.string().optional(),
       subtotal: zod.number(),
       taxRate: zod.number(),
       taxAmount: zod.number(),
       discountAmount: zod.number(),
       total: zod.number(),
+      publicToken: zod.string().nullish(),
+      sentAt: zod.coerce.date().nullish(),
+      customerSignatureUrl: zod.string().nullish(),
+      customerSignedAt: zod.coerce.date().nullish(),
+      customerSignerName: zod.string().nullish(),
+      declineReason: zod.string().nullish(),
       lineItems: zod
         .array(
           zod.object({
@@ -619,6 +635,9 @@ export const GetEstimatesResponse = zod.object({
             partNumber: zod.string().optional(),
             inventoryItemId: zod.number().optional(),
             unitCost: zod.number().optional(),
+            customerDecision: zod
+              .enum(["pending", "approved", "declined"])
+              .optional(),
           }),
         )
         .optional(),
@@ -702,7 +721,7 @@ export const CreateEstimateBody = zod.object({
   customerId: zod.number(),
   vehicleId: zod.number().optional(),
   status: zod
-    .enum(["draft", "sent", "approved", "denied", "converted"])
+    .enum(["draft", "sent", "approved", "declined", "denied", "converted"])
     .optional(),
   notes: zod.string().optional(),
   taxRate: zod.number().optional(),
@@ -732,13 +751,26 @@ export const GetEstimateResponse = zod.object({
   estimateNumber: zod.string(),
   customerId: zod.number(),
   vehicleId: zod.number().optional(),
-  status: zod.enum(["draft", "sent", "approved", "denied", "converted"]),
+  status: zod.enum([
+    "draft",
+    "sent",
+    "approved",
+    "declined",
+    "denied",
+    "converted",
+  ]),
   notes: zod.string().optional(),
   subtotal: zod.number(),
   taxRate: zod.number(),
   taxAmount: zod.number(),
   discountAmount: zod.number(),
   total: zod.number(),
+  publicToken: zod.string().nullish(),
+  sentAt: zod.coerce.date().nullish(),
+  customerSignatureUrl: zod.string().nullish(),
+  customerSignedAt: zod.coerce.date().nullish(),
+  customerSignerName: zod.string().nullish(),
+  declineReason: zod.string().nullish(),
   lineItems: zod
     .array(
       zod.object({
@@ -751,6 +783,9 @@ export const GetEstimateResponse = zod.object({
         partNumber: zod.string().optional(),
         inventoryItemId: zod.number().optional(),
         unitCost: zod.number().optional(),
+        customerDecision: zod
+          .enum(["pending", "approved", "declined"])
+          .optional(),
       }),
     )
     .optional(),
@@ -833,7 +868,7 @@ export const UpdateEstimateBody = zod.object({
   customerId: zod.number(),
   vehicleId: zod.number().optional(),
   status: zod
-    .enum(["draft", "sent", "approved", "denied", "converted"])
+    .enum(["draft", "sent", "approved", "declined", "denied", "converted"])
     .optional(),
   notes: zod.string().optional(),
   taxRate: zod.number().optional(),
@@ -856,13 +891,26 @@ export const UpdateEstimateResponse = zod.object({
   estimateNumber: zod.string(),
   customerId: zod.number(),
   vehicleId: zod.number().optional(),
-  status: zod.enum(["draft", "sent", "approved", "denied", "converted"]),
+  status: zod.enum([
+    "draft",
+    "sent",
+    "approved",
+    "declined",
+    "denied",
+    "converted",
+  ]),
   notes: zod.string().optional(),
   subtotal: zod.number(),
   taxRate: zod.number(),
   taxAmount: zod.number(),
   discountAmount: zod.number(),
   total: zod.number(),
+  publicToken: zod.string().nullish(),
+  sentAt: zod.coerce.date().nullish(),
+  customerSignatureUrl: zod.string().nullish(),
+  customerSignedAt: zod.coerce.date().nullish(),
+  customerSignerName: zod.string().nullish(),
+  declineReason: zod.string().nullish(),
   lineItems: zod
     .array(
       zod.object({
@@ -875,6 +923,9 @@ export const UpdateEstimateResponse = zod.object({
         partNumber: zod.string().optional(),
         inventoryItemId: zod.number().optional(),
         unitCost: zod.number().optional(),
+        customerDecision: zod
+          .enum(["pending", "approved", "declined"])
+          .optional(),
       }),
     )
     .optional(),
@@ -961,6 +1012,29 @@ export const ConvertEstimateToInvoiceParams = zod.object({
 });
 
 /**
+ * @summary Send estimate to customer for approval (email/SMS)
+ */
+export const SendEstimateParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SendEstimateResponse = zod.object({
+  emailed: zod.boolean().optional(),
+  smsed: zod.boolean().optional(),
+  channel: zod.string().optional(),
+  estimateUrl: zod.string().optional(),
+  publicToken: zod.string().optional(),
+  errors: zod.array(zod.string()).optional(),
+});
+
+/**
+ * @summary Convert approved estimate lines into a Repair Order
+ */
+export const ConvertEstimateToRepairOrderParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary List invoices
  */
 export const getInvoicesQueryPageDefault = 1;
@@ -1004,6 +1078,9 @@ export const GetInvoicesResponse = zod.object({
             partNumber: zod.string().optional(),
             inventoryItemId: zod.number().optional(),
             unitCost: zod.number().optional(),
+            customerDecision: zod
+              .enum(["pending", "approved", "declined"])
+              .optional(),
           }),
         )
         .optional(),
@@ -1165,6 +1242,9 @@ export const GetInvoiceResponse = zod.object({
         partNumber: zod.string().optional(),
         inventoryItemId: zod.number().optional(),
         unitCost: zod.number().optional(),
+        customerDecision: zod
+          .enum(["pending", "approved", "declined"])
+          .optional(),
       }),
     )
     .optional(),
@@ -1318,6 +1398,9 @@ export const UpdateInvoiceResponse = zod.object({
         partNumber: zod.string().optional(),
         inventoryItemId: zod.number().optional(),
         unitCost: zod.number().optional(),
+        customerDecision: zod
+          .enum(["pending", "approved", "declined"])
+          .optional(),
       }),
     )
     .optional(),
