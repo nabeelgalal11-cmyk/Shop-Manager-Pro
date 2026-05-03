@@ -29,6 +29,7 @@ import InventoryDetail from "@/pages/inventory-detail";
 import InventoryNew from "@/pages/inventory-new";
 import Inspections from "@/pages/inspections";
 import InspectionsNew from "@/pages/inspections-new";
+import InspectionDetail from "@/pages/inspection-detail";
 import Appointments from "@/pages/appointments";
 import AppointmentsNew from "@/pages/appointments-new";
 import Payments from "@/pages/payments";
@@ -44,6 +45,7 @@ import UsedCarsNew from "@/pages/used-cars-new";
 import Reports from "@/pages/reports";
 import Purchases from "@/pages/purchases";
 import PurchasesNew from "@/pages/purchases-new";
+import PurchaseDetail from "@/pages/purchase-detail";
 import NjmvcInspections from "@/pages/njmvc";
 import NjmvcNew from "@/pages/njmvc-new";
 import NjmvcPrint from "@/pages/njmvc-print";
@@ -87,6 +89,7 @@ function Router() {
 
         <Route path="/inspections" component={Inspections} />
         <Route path="/inspections/new" component={InspectionsNew} />
+        <Route path="/inspections/:id" component={InspectionDetail} />
 
         <Route path="/appointments" component={Appointments} />
         <Route path="/appointments/new" component={AppointmentsNew} />
@@ -109,7 +112,7 @@ function Router() {
         <Route path="/reports" component={Reports} />
         <Route path="/purchases" component={Purchases} />
         <Route path="/purchases/new" component={PurchasesNew} />
-        <Route path="/purchases/:id" component={PurchasesNew} />
+        <Route path="/purchases/:id" component={PurchaseDetail} />
 
         <Route path="/njmvc" component={NjmvcInspections} />
         <Route path="/njmvc/template" component={NjmvcTemplate} />
