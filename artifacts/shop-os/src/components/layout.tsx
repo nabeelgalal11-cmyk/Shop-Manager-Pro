@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { MessagesBell } from "@/components/messages-bell";
 import { GlobalSearch } from "@/components/global-search";
 
 interface NavItem { name: string; href: string; icon: any; resource?: string }
@@ -66,6 +67,7 @@ const navGroups: NavGroup[] = [
       { name: "Permissions", href: "/permissions", icon: Shield, resource: "permissions" },
       { name: "Email Templates", href: "/email-templates", icon: Mail, resource: "permissions" },
       { name: "Payments (Stripe)", href: "/settings/payments", icon: CreditCard, resource: "permissions" },
+      { name: "Messaging (SMS)", href: "/settings/messaging", icon: Mail, resource: "permissions" },
     ]
   }
 ];
@@ -156,6 +158,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <GlobalSearch />
             </div>
             <div className="flex items-center gap-3">
+              {user && <MessagesBell />}
               {user && <NotificationsBell />}
               {user && (
                 <DropdownMenu>

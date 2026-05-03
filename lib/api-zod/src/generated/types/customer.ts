@@ -5,6 +5,7 @@
  * ShopOS Auto Repair Management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CustomerPreferredChannel } from "./customerPreferredChannel";
 
 export interface Customer {
   id: number;
@@ -18,6 +19,8 @@ export interface Customer {
   zip?: string;
   notes?: string;
   categoryId?: number | null;
+  preferredChannel?: CustomerPreferredChannel;
+  smsOptOut?: string;
   createdAt: Date;
   updatedAt: Date;
   vehicleCount?: number;

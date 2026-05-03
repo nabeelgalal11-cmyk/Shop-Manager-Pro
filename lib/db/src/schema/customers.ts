@@ -15,6 +15,12 @@ export const customersTable = pgTable("customers", {
   zip: text("zip"),
   notes: text("notes"),
   categoryId: integer("category_id").references(() => customerCategoriesTable.id),
+  // Preferred contact channel for outbound notifications
+  // ("email" | "sms" | "both"). Defaults to "email" for back-compat.
+  preferredChannel: text("preferred_channel").notNull().default("email"),
+  // Set true when a customer replies STOP to an SMS. All future SMS sends
+  // are blocked until they text START/UNSTOP.
+  smsOptOut: text("sms_opt_out").notNull().default("false"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

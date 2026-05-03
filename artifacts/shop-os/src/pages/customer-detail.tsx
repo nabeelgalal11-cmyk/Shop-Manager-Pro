@@ -26,6 +26,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AttachmentsPanel } from "@/components/attachments-panel";
+import { CustomerMessageThread } from "@/components/customer-message-thread";
 
 export default function CustomerDetail() {
   const [match, params] = useRoute("/customers/:id");
@@ -47,6 +48,8 @@ export default function CustomerDetail() {
     zip: "",
     notes: "",
     categoryId: "none",
+    preferredChannel: "email",
+    smsOptOut: "false",
   });
 
   const { data: customer, isLoading } = useGetCustomer(id, {
@@ -93,6 +96,8 @@ export default function CustomerDetail() {
       zip: customer?.zip ?? "",
       notes: customer?.notes ?? "",
       categoryId: customer?.categoryId ? String(customer.categoryId) : "none",
+      preferredChannel: (customer?.preferredChannel as "email" | "sms" | "both") ?? "email",
+      smsOptOut: customer?.smsOptOut ?? "false",
     });
     setEditOpen(true);
   };
@@ -339,6 +344,12 @@ export default function CustomerDetail() {
       </Tabs>
 
       {id > 0 && (
+        <div id="messages">
+          <CustomerMessageThread customerId={id} />
+        </div>
+      )}
+
+      {id > 0 && (
         <AttachmentsPanel
           ownerType="customer"
           ownerId={id}
@@ -403,6 +414,35 @@ export default function CustomerDetail() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="col-span-2 grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Preferred Channel</Label>
+                <Select
+                  value={editForm.preferredChannel || "email"}
+                  onValueChange={v => setEditForm(f => ({ ...f, preferredChannel: v as "email" | "sms" | "both" }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email only</SelectItem>
+                    <SelectItem value="sms">SMS only</SelectItem>
+                    <SelectItem value="both">Email + SMS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>SMS Status</Label>
+                <Select
+                  value={editForm.smsOptOut || "false"}
+                  onValueChange={v => setEditForm(f => ({ ...f, smsOptOut: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="false">Subscribed</SelectItem>
+                    <SelectItem value="true">Opted out</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>Notes</Label>

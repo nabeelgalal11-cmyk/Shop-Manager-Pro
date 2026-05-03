@@ -23,3 +23,4 @@ export * from "./attachments";
 export * from "./canned_jobs";
 export * from "./shop_settings";
 export * from "./user_board_preferences";
+export * from "./messages";

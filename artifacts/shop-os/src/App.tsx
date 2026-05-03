@@ -56,6 +56,7 @@ import PermissionsPage from "@/pages/permissions";
 import EmailTemplates from "@/pages/email-templates";
 import CannedJobs from "@/pages/canned-jobs";
 import SettingsPayments from "@/pages/settings-payments";
+import SettingsMessaging from "@/pages/settings-messaging";
 import PayInvoice from "@/pages/pay";
 import { useLocation as useWouterLocation } from "wouter";
 
@@ -132,6 +133,7 @@ function Router() {
         <Route path="/permissions" component={PermissionsPage} />
         <Route path="/email-templates" component={EmailTemplates} />
         <Route path="/settings/payments" component={SettingsPayments} />
+        <Route path="/settings/messaging" component={SettingsMessaging} />
 
         <Route component={NotFound} />
       </Switch>

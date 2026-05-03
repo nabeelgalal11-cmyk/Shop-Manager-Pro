@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
+import { sendSms } from "../lib/sms.js";
 import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
 import { getStripeClient, getStripeSettings } from "../lib/stripe.js";
 
@@ -278,6 +279,40 @@ router.post("/:id/pay-link", async (req, res) => {
     || (req.headers["x-forwarded-host"] && `${req.protocol}://${req.headers["x-forwarded-host"]}`)
     || `${req.protocol}://${req.get("host")}`;
   res.json({ token, url: `${base}/pay/${token}` });
+});
+
+// Send the pay link via SMS. Generates the token if missing and texts the
+// customer a short message with the public link. Idempotent on Twilio's side
+// (status callback updates the messages row asynchronously).
+router.post("/:id/pay-link-sms", async (req, res) => {
+  const id = Number(req.params.id);
+  const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, id));
+  if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+  if (invoice.status !== "sent") {
+    return res.status(400).json({ error: "Pay links are only available for sent invoices" });
+  }
+  const token = await ensurePublicToken(id);
+  const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "")
+    || (req.headers["x-forwarded-host"] && `${req.protocol}://${req.headers["x-forwarded-host"]}`)
+    || `${req.protocol}://${req.get("host")}`;
+  const url = `${base}/pay/${token}`;
+  const shopName = process.env.SHOP_NAME || "Our Shop";
+  const body = `${shopName}: Invoice ${invoice.invoiceNumber} ($${Number(invoice.balance).toFixed(2)}) is ready. Pay online: ${url} — Reply STOP to opt out.`;
+  const result = await sendSms({
+    customerId: invoice.customerId,
+    body,
+    invoiceId: id,
+    sentByUserId: (req as any).user?.id ?? null,
+  });
+  if (!result.ok) {
+    const status =
+      result.reason === "not_configured" ? 503 :
+      result.reason === "no_phone" ? 400 :
+      result.reason === "opted_out" ? 409 :
+      500;
+    return res.status(status).json({ error: result.error, reason: result.reason });
+  }
+  res.json({ ok: true, url, messageId: result.messageId });
 });
 
 // Create a Stripe Checkout Session for an invoice (called by both the admin UI

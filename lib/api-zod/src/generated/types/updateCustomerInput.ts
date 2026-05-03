@@ -5,6 +5,7 @@
  * ShopOS Auto Repair Management API
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateCustomerInputPreferredChannel } from "./updateCustomerInputPreferredChannel";
 
 export interface UpdateCustomerInput {
   firstName?: string;
@@ -17,4 +18,6 @@ export interface UpdateCustomerInput {
   zip?: string;
   notes?: string;
   categoryId?: number | null;
+  preferredChannel?: UpdateCustomerInputPreferredChannel;
+  smsOptOut?: string;
 }

@@ -1695,6 +1695,11 @@ components:
         categoryId:
           type: integer
           nullable: true
+        preferredChannel:
+          type: string
+          enum: [email, sms, both]
+        smsOptOut:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -1738,6 +1743,11 @@ components:
         categoryId:
           type: integer
           nullable: true
+        preferredChannel:
+          type: string
+          enum: [email, sms, both]
+        smsOptOut:
+          type: string
       required:
         - firstName
         - lastName
@@ -1766,6 +1776,11 @@ components:
         categoryId:
           type: integer
           nullable: true
+        preferredChannel:
+          type: string
+          enum: [email, sms, both]
+        smsOptOut:
+          type: string
 
     CustomerListResponse:
       type: object

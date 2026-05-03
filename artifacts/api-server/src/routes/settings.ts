@@ -40,4 +40,26 @@ router.put("/payments", requirePermission("permissions", "edit"), async (req, re
   res.json({ ok: true });
 });
 
+// ---- Twilio messaging settings ----
+router.get("/messaging", requirePermission("permissions", "view"), async (_req, res) => {
+  const row = await ensureSettingsRow();
+  res.json({
+    accountSid: row.twilioAccountSid ?? "",
+    authTokenSet: !!row.twilioAuthToken,
+    fromNumber: row.twilioFromNumber ?? "",
+  });
+});
+
+router.put("/messaging", requirePermission("permissions", "edit"), async (req, res) => {
+  const { accountSid, authToken, fromNumber } = req.body ?? {};
+  const row = await ensureSettingsRow();
+  const update: Record<string, unknown> = { updatedAt: new Date() };
+  if (typeof accountSid === "string") update.twilioAccountSid = accountSid.trim() || null;
+  if (typeof fromNumber === "string") update.twilioFromNumber = fromNumber.trim() || null;
+  if (typeof authToken === "string" && authToken.trim()) update.twilioAuthToken = authToken.trim();
+  if (req.body?.clearAuthToken) update.twilioAuthToken = null;
+  await db.update(shopSettingsTable).set(update).where(eq(shopSettingsTable.id, row.id));
+  res.json({ ok: true });
+});
+
 export default router;

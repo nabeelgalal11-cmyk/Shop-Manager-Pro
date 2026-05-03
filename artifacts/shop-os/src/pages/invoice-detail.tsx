@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, CreditCard, Link as LinkIcon, ExternalLink } from "lucide-react";
+import { ArrowLeft, Printer, CreditCard, Link as LinkIcon, ExternalLink, MessageSquare } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -33,6 +33,7 @@ export default function InvoiceDetail() {
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
   const [payLinkLoading, setPayLinkLoading] = useState(false);
+  const [smsLoading, setSmsLoading] = useState(false);
 
   const handleSendPayLink = async () => {
     setPayLinkLoading(true);
@@ -46,6 +47,20 @@ export default function InvoiceDetail() {
       toast({ title: err.message ?? "Failed to generate pay link", variant: "destructive" });
     } finally {
       setPayLinkLoading(false);
+    }
+  };
+
+  const handleTextPayLink = async () => {
+    setSmsLoading(true);
+    try {
+      const r = await fetch(`/api/invoices/${id}/pay-link-sms`, { method: "POST" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.error || "Failed to send pay link SMS");
+      toast({ title: "Pay link sent via SMS", description: data.url });
+    } catch (err: any) {
+      toast({ title: err.message ?? "Failed to send SMS", variant: "destructive" });
+    } finally {
+      setSmsLoading(false);
     }
   };
 
@@ -146,9 +161,14 @@ export default function InvoiceDetail() {
               {/* Backend only allows pay-link generation for `sent` invoices,
                   so hide it for drafts to avoid avoidable error toasts. */}
               {invoice.status === "sent" && (
-                <Button variant="outline" onClick={handleSendPayLink} disabled={payLinkLoading}>
-                  <LinkIcon className="h-4 w-4 mr-2" /> {payLinkLoading ? "Generating…" : "Send pay link"}
-                </Button>
+                <>
+                  <Button variant="outline" onClick={handleSendPayLink} disabled={payLinkLoading}>
+                    <LinkIcon className="h-4 w-4 mr-2" /> {payLinkLoading ? "Generating…" : "Copy pay link"}
+                  </Button>
+                  <Button variant="outline" onClick={handleTextPayLink} disabled={smsLoading}>
+                    <MessageSquare className="h-4 w-4 mr-2" /> {smsLoading ? "Sending…" : "Text pay link"}
+                  </Button>
+                </>
               )}
               <Button onClick={() => setPaymentOpen(true)}>
                 <CreditCard className="h-4 w-4 mr-2" /> Record Payment

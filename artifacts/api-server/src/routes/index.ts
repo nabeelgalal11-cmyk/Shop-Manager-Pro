@@ -27,6 +27,8 @@ import usersRouter from "./users.js";
 import permissionsRouter from "./permissions.js";
 import { requireAuth } from "../lib/auth.js";
 import publicRouter from "./public.js";
+import twilioRouter from "./twilio.js";
+import messagesRouter from "./messages.js";
 import emailTemplatesRouter from "./email_templates.js";
 import notificationsRouter from "./notifications.js";
 import searchRouter from "./search.js";
@@ -42,6 +44,8 @@ const router: IRouter = Router();
 router.use("/health", healthRouter);
 router.use("/auth", authRouter);
 router.use("/public", publicRouter);
+// Twilio inbound + status webhooks: signature-verified, no session.
+router.use("/twilio", twilioRouter);
 
 // All routes below this point require authentication
 router.use(requireAuth);
@@ -77,5 +81,6 @@ router.use("/vin", vinRouter);
 router.use("/canned-jobs", cannedJobsRouter);
 router.use("/settings", settingsRouter);
 router.use("/user-preferences", userPreferencesRouter);
+router.use("/messages", messagesRouter);
 
 export default router;

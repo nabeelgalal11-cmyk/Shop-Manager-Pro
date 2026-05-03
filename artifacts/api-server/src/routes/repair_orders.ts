@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remindersTable, usedCarsTable } from "@workspace/db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
+import { sendSms } from "../lib/sms.js";
 import { requirePermission } from "../lib/auth.js";
 import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
 import type { Action } from "../lib/permissions.js";
@@ -25,25 +26,42 @@ type EnrichedOrder = Record<string, unknown> & {
 async function maybeSendCompletionEmail(order: any, req: any) {
   try {
     const customer = order.customer;
-    if (!customer?.email) {
-      req.log?.info({ id: order.id }, "No customer email; skipping completion email");
-      return;
-    }
+    if (!customer) return;
     const vehicle = order.vehicle;
     const vehicleInfo = vehicle
       ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") +
         (vehicle.licensePlate ? ` (${vehicle.licensePlate})` : "")
       : "your vehicle";
-    const result = await sendTemplatedEmail("repair_order_completed", customer.email, {
-      customerName: `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || "Customer",
-      customerEmail: customer.email,
-      shopName: process.env.SHOP_NAME || "Our Shop",
-      orderNumber: order.orderNumber,
-      diagnosis: order.diagnosis || order.complaint || "Service completed",
-      mileageOut: order.mileageOut ? String(order.mileageOut) : "—",
-      vehicleInfo,
-    });
-    if (!result.ok) req.log?.warn({ err: result.error, id: order.id }, "Repair order completion email failed");
+    const channel = customer.preferredChannel || "email";
+    const shopName = process.env.SHOP_NAME || "Our Shop";
+
+    const wantsEmail = channel === "email" || channel === "both";
+    const wantsSms = channel === "sms" || channel === "both";
+
+    if (wantsEmail && customer.email) {
+      const result = await sendTemplatedEmail("repair_order_completed", customer.email, {
+        customerName: `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || "Customer",
+        customerEmail: customer.email,
+        shopName,
+        orderNumber: order.orderNumber,
+        diagnosis: order.diagnosis || order.complaint || "Service completed",
+        mileageOut: order.mileageOut ? String(order.mileageOut) : "—",
+        vehicleInfo,
+      });
+      if (!result.ok) req.log?.warn({ err: result.error, id: order.id }, "Repair order completion email failed");
+    }
+
+    if (wantsSms && customer.phone && customer.id) {
+      const body = `${shopName}: Your ${vehicleInfo} is ready for pickup (RO ${order.orderNumber}). Reply STOP to opt out.`;
+      const result = await sendSms({
+        customerId: customer.id,
+        body,
+        repairOrderId: order.id,
+      });
+      if (!result.ok) {
+        req.log?.warn({ err: result.error, reason: result.reason, id: order.id }, "RO completion SMS failed");
+      }
+    }
   } catch (err) {
     req.log?.error({ err }, "maybeSendCompletionEmail crashed");
   }

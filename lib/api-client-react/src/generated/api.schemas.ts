@@ -9,6 +9,15 @@ export interface HealthStatus {
   status: string;
 }
 
+export type CustomerPreferredChannel =
+  (typeof CustomerPreferredChannel)[keyof typeof CustomerPreferredChannel];
+
+export const CustomerPreferredChannel = {
+  email: "email",
+  sms: "sms",
+  both: "both",
+} as const;
+
 export interface Customer {
   id: number;
   firstName: string;
@@ -21,12 +30,23 @@ export interface Customer {
   zip?: string;
   notes?: string;
   categoryId?: number | null;
+  preferredChannel?: CustomerPreferredChannel;
+  smsOptOut?: string;
   createdAt: string;
   updatedAt: string;
   vehicleCount?: number;
   totalBilled?: number;
   totalPaid?: number;
 }
+
+export type CreateCustomerInputPreferredChannel =
+  (typeof CreateCustomerInputPreferredChannel)[keyof typeof CreateCustomerInputPreferredChannel];
+
+export const CreateCustomerInputPreferredChannel = {
+  email: "email",
+  sms: "sms",
+  both: "both",
+} as const;
 
 export interface CreateCustomerInput {
   firstName: string;
@@ -39,7 +59,18 @@ export interface CreateCustomerInput {
   zip?: string;
   notes?: string;
   categoryId?: number | null;
+  preferredChannel?: CreateCustomerInputPreferredChannel;
+  smsOptOut?: string;
 }
+
+export type UpdateCustomerInputPreferredChannel =
+  (typeof UpdateCustomerInputPreferredChannel)[keyof typeof UpdateCustomerInputPreferredChannel];
+
+export const UpdateCustomerInputPreferredChannel = {
+  email: "email",
+  sms: "sms",
+  both: "both",
+} as const;
 
 export interface UpdateCustomerInput {
   firstName?: string;
@@ -52,6 +83,8 @@ export interface UpdateCustomerInput {
   zip?: string;
   notes?: string;
   categoryId?: number | null;
+  preferredChannel?: UpdateCustomerInputPreferredChannel;
+  smsOptOut?: string;
 }
 
 export interface CustomerListResponse {
