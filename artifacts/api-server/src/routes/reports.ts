@@ -175,9 +175,10 @@ router.get("/used-cars", async (_req, res) => {
 });
 
 // Per-car used-car profitability (purchase + recon parts + labor)
-router.get("/used-car-profitability", async (req, res) => {
-  const settings = await q(sql`SELECT labor_rate FROM shop_settings LIMIT 1`);
-  const laborRate = Number((settings[0] as any)?.labor_rate ?? 95);
+router.get("/used-car-profitability", requirePermission("used_cars", "view"), async (req, res) => {
+  type SettingsRow = { labor_rate: number | string | null };
+  const settings = await q<SettingsRow>(sql`SELECT labor_rate FROM shop_settings LIMIT 1`);
+  const laborRate = Number(settings[0]?.labor_rate ?? 95);
 
   const from = req.query.from as string | undefined;
   const to = req.query.to as string | undefined;
