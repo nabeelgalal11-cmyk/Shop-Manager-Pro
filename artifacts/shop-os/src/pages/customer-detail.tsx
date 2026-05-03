@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AttachmentsPanel } from "@/components/attachments-panel";
 
 export default function CustomerDetail() {
   const [match, params] = useRoute("/customers/:id");
@@ -288,6 +289,15 @@ export default function CustomerDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {id > 0 && (
+        <AttachmentsPanel
+          ownerType="customer"
+          ownerId={id}
+          title="Photos & Documents"
+          description="Driver's license, insurance card, signed forms, or any related PDFs/photos."
+        />
+      )}
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg">

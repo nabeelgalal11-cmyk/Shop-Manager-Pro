@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CustomerCombobox } from "@/components/customer-combobox";
+import { AttachmentsPanel } from "@/components/attachments-panel";
 
 export default function VehicleDetail() {
   const [match, params] = useRoute("/vehicles/:id");
@@ -204,6 +205,15 @@ export default function VehicleDetail() {
             </TableBody>
           </Table>
         </Card>
+
+        {id > 0 && (
+          <AttachmentsPanel
+            ownerType="vehicle"
+            ownerId={id}
+            title="Photos & Documents"
+            description="Photos, registration, insurance, or PDFs related to this vehicle."
+          />
+        )}
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
