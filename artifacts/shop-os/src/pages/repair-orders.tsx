@@ -10,8 +10,15 @@ import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench,
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 const PAGE_SIZE = 50;
+
+function marginColor(pct: number): string {
+  if (pct >= 50) return "text-green-700 dark:text-green-500";
+  if (pct >= 30) return "text-amber-600 dark:text-amber-500";
+  return "text-red-600 dark:text-red-500";
+}
 
 const escapeHtml = (s: any) =>
   String(s ?? "")
@@ -105,6 +112,8 @@ function buildOrderHtml(ro: any, isLast: boolean): string {
 export default function RepairOrders() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { can } = useAuth();
+  const canViewReports = can("reports", "view");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [printing, setPrinting] = useState(false);
@@ -298,6 +307,7 @@ export default function RepairOrders() {
               <TableHead>Status</TableHead>
               <TableHead>Priority</TableHead>
               <TableHead>Assigned To</TableHead>
+              {canViewReports && <TableHead className="text-right">Margin</TableHead>}
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -311,6 +321,7 @@ export default function RepairOrders() {
                   <TableCell><Skeleton className="h-6 w-24" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                   <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                  {canViewReports && <TableCell><Skeleton className="h-5 w-12 ml-auto" /></TableCell>}
                   <TableCell></TableCell>
                 </TableRow>
               ))
@@ -360,6 +371,17 @@ export default function RepairOrders() {
                       <span className="text-sm text-muted-foreground italic">Unassigned</span>
                     )}
                   </TableCell>
+                  {canViewReports && (
+                    <TableCell className="text-right">
+                      {ro.marginPct == null ? (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      ) : (
+                        <span className={`text-sm font-semibold ${marginColor(ro.marginPct)}`}>
+                          {ro.marginPct.toFixed(1)}%
+                        </span>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </TableCell>
@@ -367,7 +389,7 @@ export default function RepairOrders() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={canViewReports ? 8 : 7} className="h-32 text-center text-muted-foreground">
                   No repair orders found.
                 </TableCell>
               </TableRow>

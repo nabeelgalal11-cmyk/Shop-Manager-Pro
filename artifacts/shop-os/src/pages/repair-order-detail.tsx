@@ -21,6 +21,17 @@ import { AttachmentsPanel } from "@/components/attachments-panel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/hooks/useAuth";
+
+function marginTone(pct: number): string {
+  if (pct >= 50) return "text-green-700 dark:text-green-500";
+  if (pct >= 30) return "text-amber-600 dark:text-amber-500";
+  return "text-red-600 dark:text-red-500";
+}
+
+function fmtUsd(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+}
 
 type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean; inventoryId?: number; unitCost?: number };
 
@@ -65,6 +76,9 @@ export default function RepairOrderDetail() {
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const { can } = useAuth();
+  const canViewReports = can("reports", "view");
 
   const { data: ro, isLoading } = useGetRepairOrder(id, {
     query: { enabled: !!id, queryKey: getGetRepairOrderQueryKey(id) },
@@ -675,6 +689,79 @@ export default function RepairOrderDetail() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Profitability — only visible to users with reports:view */}
+          {canViewReports && ro.profitability && (() => {
+            const p = ro.profitability;
+            return (
+              <Card>
+                <CardHeader className="bg-muted/20 border-b pb-3">
+                  <CardTitle className="text-base">Profitability</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-5 space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Revenue</p>
+                      <p className="text-lg font-semibold">{fmtUsd(p.totalRevenue)}</p>
+                      <p className="text-[11px] text-muted-foreground">Parts {fmtUsd(p.partsRevenue)} · Labor {fmtUsd(p.laborRevenue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Cost</p>
+                      <p className="text-lg font-semibold">{fmtUsd(p.totalCost)}</p>
+                      <p className="text-[11px] text-muted-foreground">Parts {fmtUsd(p.partsCost)} · Labor {fmtUsd(p.laborCost)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Gross Profit</p>
+                      <p className={`text-lg font-semibold ${p.grossProfit >= 0 ? "text-green-700 dark:text-green-500" : "text-red-600 dark:text-red-500"}`}>
+                        {p.grossProfit >= 0 ? "+" : ""}{fmtUsd(p.grossProfit)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Margin</p>
+                      <p className={`text-lg font-semibold ${marginTone(p.grossMarginPct)}`}>
+                        {p.grossMarginPct.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Hours Billed / Worked</p>
+                      <p className="font-medium">{p.laborHoursBilled.toFixed(2)} / {p.laborHoursWorked.toFixed(2)} hrs</p>
+                    </div>
+                    {p.hasTimeEntries && p.techEfficiencyPct != null && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Tech Efficiency</p>
+                        <p className="font-medium">{p.techEfficiencyPct.toFixed(1)}%</p>
+                      </div>
+                    )}
+                    {p.effectiveLaborRate != null && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Effective Labor Rate</p>
+                        <p className="font-medium">{fmtUsd(p.effectiveLaborRate)}/hr</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] text-muted-foreground space-y-1 pt-1">
+                    <p>Shop labor rate: {fmtUsd(p.laborRate)}/hr.</p>
+                    {!p.hasTimeEntries && (
+                      <p className="text-amber-600 dark:text-amber-500">
+                        ⚠ No time entries yet — labor cost estimated from RO hours × shop rate.
+                      </p>
+                    )}
+                    {!p.partsCostKnown && (
+                      <p className="text-amber-600 dark:text-amber-500">
+                        ⚠ Some parts have no cost on file — parts cost may be understated.
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
         </div>
 
         {/* Sidebar */}

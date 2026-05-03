@@ -8,6 +8,7 @@
 import type { Customer } from "./customer";
 import type { Employee } from "./employee";
 import type { RepairOrderPriority } from "./repairOrderPriority";
+import type { RepairOrderProfitability } from "./repairOrderProfitability";
 import type { RepairOrderStatus } from "./repairOrderStatus";
 import type { Vehicle } from "./vehicle";
 
@@ -35,4 +36,7 @@ export interface RepairOrder {
   assignedTo?: Employee;
   createdAt: Date;
   updatedAt: Date;
+  /** Gross margin percentage (revenue - cost)/revenue*100. Only present for users with reports:view permission. */
+  marginPct?: number | null;
+  profitability?: RepairOrderProfitability;
 }

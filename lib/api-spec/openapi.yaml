@@ -681,6 +681,30 @@ paths:
                 $ref: "#/components/schemas/UsedCarReconResponse"
 
   # ---- REPORTS ----
+  /reports/repair-order-profitability:
+    get:
+      operationId: getRepairOrderProfitabilityReport
+      tags: [reports]
+      summary: Per-repair-order profitability report (top/bottom 10 by margin)
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Repair order profitability report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepairOrderProfitabilityReport"
+
   /reports/used-car-profitability:
     get:
       operationId: getUsedCarProfitabilityReport
@@ -2196,6 +2220,12 @@ components:
         updatedAt:
           type: string
           format: date-time
+        marginPct:
+          type: number
+          nullable: true
+          description: Gross margin percentage (revenue - cost)/revenue*100. Only present for users with reports:view permission.
+        profitability:
+          $ref: "#/components/schemas/RepairOrderProfitability"
       required:
         - id
         - orderNumber
@@ -2203,6 +2233,164 @@ components:
         - priority
         - createdAt
         - updatedAt
+
+    RepairOrderProfitability:
+      type: object
+      properties:
+        partsRevenue:
+          type: number
+        partsCost:
+          type: number
+        partsCostKnown:
+          type: boolean
+        laborRevenue:
+          type: number
+        laborCost:
+          type: number
+        laborHoursWorked:
+          type: number
+        laborHoursBilled:
+          type: number
+        hasTimeEntries:
+          type: boolean
+        techEfficiencyPct:
+          type: number
+          nullable: true
+        effectiveLaborRate:
+          type: number
+          nullable: true
+        grossProfit:
+          type: number
+        grossMarginPct:
+          type: number
+        totalRevenue:
+          type: number
+        totalCost:
+          type: number
+        laborRate:
+          type: number
+        laborSource:
+          type: string
+          enum: [time_entries, ro_hours_fallback]
+      required:
+        - partsRevenue
+        - partsCost
+        - partsCostKnown
+        - laborRevenue
+        - laborCost
+        - laborHoursWorked
+        - laborHoursBilled
+        - hasTimeEntries
+        - techEfficiencyPct
+        - effectiveLaborRate
+        - grossProfit
+        - grossMarginPct
+        - totalRevenue
+        - totalCost
+        - laborRate
+        - laborSource
+
+    RepairOrderProfitabilityRow:
+      type: object
+      properties:
+        id:
+          type: integer
+        orderNumber:
+          type: string
+          nullable: true
+        status:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        customer:
+          type: string
+          nullable: true
+        vehicle:
+          type: string
+          nullable: true
+        partsRevenue:
+          type: number
+        partsCost:
+          type: number
+        laborRevenue:
+          type: number
+        laborCost:
+          type: number
+        totalRevenue:
+          type: number
+        totalCost:
+          type: number
+        grossProfit:
+          type: number
+        grossMarginPct:
+          type: number
+        laborHoursWorked:
+          type: number
+        laborHoursBilled:
+          type: number
+      required:
+        - id
+        - partsRevenue
+        - partsCost
+        - laborRevenue
+        - laborCost
+        - totalRevenue
+        - totalCost
+        - grossProfit
+        - grossMarginPct
+        - laborHoursWorked
+        - laborHoursBilled
+
+    RepairOrderProfitabilityReport:
+      type: object
+      properties:
+        range:
+          type: object
+          properties:
+            from:
+              type: string
+              nullable: true
+            to:
+              type: string
+              nullable: true
+          required: [from, to]
+        laborRate:
+          type: number
+        summary:
+          type: object
+          properties:
+            orderCount:
+              type: integer
+            avgMarginPct:
+              type: number
+            totalRevenue:
+              type: number
+            totalCost:
+              type: number
+            totalProfit:
+              type: number
+          required: [orderCount, avgMarginPct, totalRevenue, totalCost, totalProfit]
+        top:
+          type: array
+          items:
+            $ref: "#/components/schemas/RepairOrderProfitabilityRow"
+        bottom:
+          type: array
+          items:
+            $ref: "#/components/schemas/RepairOrderProfitabilityRow"
+      required:
+        - range
+        - laborRate
+        - summary
+        - top
+        - bottom
 
     CreateRepairOrderInput:
       type: object

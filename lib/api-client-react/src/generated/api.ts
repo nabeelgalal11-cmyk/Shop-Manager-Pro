@@ -52,6 +52,7 @@ import type {
   GetPaymentsParams,
   GetRecentActivityParams,
   GetRemindersParams,
+  GetRepairOrderProfitabilityReportParams,
   GetRepairOrdersParams,
   GetTimeEntriesParams,
   GetTopServicesParams,
@@ -70,6 +71,7 @@ import type {
   ReminderListResponse,
   RepairOrder,
   RepairOrderListResponse,
+  RepairOrderProfitabilityReport,
   RevenueChartPoint,
   ServiceCount,
   ServiceHistoryEntry,
@@ -2789,6 +2791,116 @@ export function useGetUsedCarRecon<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetUsedCarReconQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Per-repair-order profitability report (top/bottom 10 by margin)
+ */
+export const getGetRepairOrderProfitabilityReportUrl = (
+  params?: GetRepairOrderProfitabilityReportParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/reports/repair-order-profitability?${stringifiedParams}`
+    : `/api/reports/repair-order-profitability`;
+};
+
+export const getRepairOrderProfitabilityReport = async (
+  params?: GetRepairOrderProfitabilityReportParams,
+  options?: RequestInit,
+): Promise<RepairOrderProfitabilityReport> => {
+  return customFetch<RepairOrderProfitabilityReport>(
+    getGetRepairOrderProfitabilityReportUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetRepairOrderProfitabilityReportQueryKey = (
+  params?: GetRepairOrderProfitabilityReportParams,
+) => {
+  return [
+    `/api/reports/repair-order-profitability`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetRepairOrderProfitabilityReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRepairOrderProfitabilityReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetRepairOrderProfitabilityReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRepairOrderProfitabilityReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetRepairOrderProfitabilityReportQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRepairOrderProfitabilityReport>>
+  > = ({ signal }) =>
+    getRepairOrderProfitabilityReport(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRepairOrderProfitabilityReport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetRepairOrderProfitabilityReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRepairOrderProfitabilityReport>>
+>;
+export type GetRepairOrderProfitabilityReportQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Per-repair-order profitability report (top/bottom 10 by margin)
+ */
+
+export function useGetRepairOrderProfitabilityReport<
+  TData = Awaited<ReturnType<typeof getRepairOrderProfitabilityReport>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetRepairOrderProfitabilityReportParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getRepairOrderProfitabilityReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetRepairOrderProfitabilityReportQueryOptions(
+    params,
+    options,
+  );
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

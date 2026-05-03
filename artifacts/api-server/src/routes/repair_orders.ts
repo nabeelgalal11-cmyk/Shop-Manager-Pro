@@ -6,6 +6,21 @@ import { sendTemplatedEmail } from "../lib/email.js";
 import { requirePermission } from "../lib/auth.js";
 import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
 import type { Action } from "../lib/permissions.js";
+import { getUser } from "../lib/auth.js";
+import { getPermissionsForRoles, hasPermission } from "../lib/permissions.js";
+import {
+  computeProfitability,
+  getShopLaborRate,
+  roProfitabilitySql,
+  type RoProfitRow,
+  type RoProfitability,
+} from "../lib/profitability.js";
+
+type EnrichedOrder = Record<string, unknown> & {
+  id: number;
+  marginPct?: number;
+  profitability?: RoProfitability;
+};
 
 async function maybeSendCompletionEmail(order: any, req: any) {
   try {
@@ -139,6 +154,14 @@ async function enrichOrder(order: any) {
   return { ...order, customer, vehicle, assignedTo, usedCar };
 }
 
+async function userCanViewReports(req: any): Promise<boolean> {
+  const u = getUser(req);
+  if (!u) return false;
+  if (u.roles.includes("admin")) return true;
+  const perms = await getPermissionsForRoles(u.roles);
+  return hasPermission(perms, "reports", "view");
+}
+
 // ── Routes ──────────────────────────────────────────────────────────────────
 
 router.get("/", async (req, res) => {
@@ -155,7 +178,25 @@ router.get("/", async (req, res) => {
     ? db.select({ count: sql<number>`count(*)` }).from(repairOrdersTable).where(eq(repairOrdersTable.status, status))
     : db.select({ count: sql<number>`count(*)` }).from(repairOrdersTable));
 
-  const enriched = await Promise.all(orders.map(enrichOrder));
+  const enriched = (await Promise.all(orders.map(enrichOrder))) as EnrichedOrder[];
+
+  // Add per-row marginPct in a single CTE-style query to avoid N+1.
+  if (orders.length > 0 && (await userCanViewReports(req))) {
+    const ids = orders.map(o => o.id);
+    const laborRate = await getShopLaborRate();
+    const profitRows = await db.execute(
+      sql`${roProfitabilitySql(sql`ro.id IN (${sql.join(ids.map(i => sql`${i}`), sql`,`)})`)}`
+    );
+    const profitMap = new Map<number, number>();
+    for (const r of profitRows.rows as unknown as RoProfitRow[]) {
+      profitMap.set(Number(r.id), computeProfitability(r, laborRate).grossMarginPct);
+    }
+    for (const e of enriched) {
+      const m = profitMap.get(e.id);
+      if (m !== undefined) e.marginPct = m;
+    }
+  }
+
   res.json({ data: enriched, total: Number(countResult.count), page, limit });
 });
 
@@ -208,9 +249,21 @@ router.post("/", async (req, res) => {
 });
 
 router.get("/:id", async (req, res) => {
-  const [order] = await db.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, Number(req.params.id)));
+  const id = Number(req.params.id);
+  const [order] = await db.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
   if (!order) return res.status(404).json({ error: "Repair order not found" });
-  res.json(await enrichOrder(order));
+  const enriched = (await enrichOrder(order)) as EnrichedOrder;
+
+  if (await userCanViewReports(req)) {
+    const laborRate = await getShopLaborRate();
+    const rows = await db.execute(sql`${roProfitabilitySql(sql`ro.id = ${id}`)}`);
+    const r = (rows.rows as unknown as RoProfitRow[])[0];
+    if (r) {
+      enriched.profitability = computeProfitability(r, laborRate);
+    }
+  }
+
+  res.json(enriched);
 });
 
 router.put("/:id", async (req, res) => {

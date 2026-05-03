@@ -1521,6 +1521,32 @@ export const GetRepairOrdersResponse = zod.object({
         .optional(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
+      marginPct: zod
+        .number()
+        .nullish()
+        .describe(
+          "Gross margin percentage (revenue - cost)\/revenue\*100. Only present for users with reports:view permission.",
+        ),
+      profitability: zod
+        .object({
+          partsRevenue: zod.number(),
+          partsCost: zod.number(),
+          partsCostKnown: zod.boolean(),
+          laborRevenue: zod.number(),
+          laborCost: zod.number(),
+          laborHoursWorked: zod.number(),
+          laborHoursBilled: zod.number(),
+          hasTimeEntries: zod.boolean(),
+          techEfficiencyPct: zod.number().nullable(),
+          effectiveLaborRate: zod.number().nullable(),
+          grossProfit: zod.number(),
+          grossMarginPct: zod.number(),
+          totalRevenue: zod.number(),
+          totalCost: zod.number(),
+          laborRate: zod.number(),
+          laborSource: zod.enum(["time_entries", "ro_hours_fallback"]),
+        })
+        .optional(),
     }),
   ),
   total: zod.number(),
@@ -1689,6 +1715,32 @@ export const GetRepairOrderResponse = zod.object({
     .optional(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  marginPct: zod
+    .number()
+    .nullish()
+    .describe(
+      "Gross margin percentage (revenue - cost)\/revenue\*100. Only present for users with reports:view permission.",
+    ),
+  profitability: zod
+    .object({
+      partsRevenue: zod.number(),
+      partsCost: zod.number(),
+      partsCostKnown: zod.boolean(),
+      laborRevenue: zod.number(),
+      laborCost: zod.number(),
+      laborHoursWorked: zod.number(),
+      laborHoursBilled: zod.number(),
+      hasTimeEntries: zod.boolean(),
+      techEfficiencyPct: zod.number().nullable(),
+      effectiveLaborRate: zod.number().nullable(),
+      grossProfit: zod.number(),
+      grossMarginPct: zod.number(),
+      totalRevenue: zod.number(),
+      totalCost: zod.number(),
+      laborRate: zod.number(),
+      laborSource: zod.enum(["time_entries", "ro_hours_fallback"]),
+    })
+    .optional(),
 });
 
 /**
@@ -1862,6 +1914,32 @@ export const UpdateRepairOrderResponse = zod.object({
     .optional(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
+  marginPct: zod
+    .number()
+    .nullish()
+    .describe(
+      "Gross margin percentage (revenue - cost)\/revenue\*100. Only present for users with reports:view permission.",
+    ),
+  profitability: zod
+    .object({
+      partsRevenue: zod.number(),
+      partsCost: zod.number(),
+      partsCostKnown: zod.boolean(),
+      laborRevenue: zod.number(),
+      laborCost: zod.number(),
+      laborHoursWorked: zod.number(),
+      laborHoursBilled: zod.number(),
+      hasTimeEntries: zod.boolean(),
+      techEfficiencyPct: zod.number().nullable(),
+      effectiveLaborRate: zod.number().nullable(),
+      grossProfit: zod.number(),
+      grossMarginPct: zod.number(),
+      totalRevenue: zod.number(),
+      totalCost: zod.number(),
+      laborRate: zod.number(),
+      laborSource: zod.enum(["time_entries", "ro_hours_fallback"]),
+    })
+    .optional(),
 });
 
 /**
@@ -1894,6 +1972,71 @@ export const GetUsedCarReconResponse = zod.object({
   grossMargin: zod.number().optional(),
   actualProfit: zod.number().optional(),
   marginPct: zod.number().optional(),
+});
+
+/**
+ * @summary Per-repair-order profitability report (top/bottom 10 by margin)
+ */
+export const GetRepairOrderProfitabilityReportQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+export const GetRepairOrderProfitabilityReportResponse = zod.object({
+  range: zod.object({
+    from: zod.string().nullable(),
+    to: zod.string().nullable(),
+  }),
+  laborRate: zod.number(),
+  summary: zod.object({
+    orderCount: zod.number(),
+    avgMarginPct: zod.number(),
+    totalRevenue: zod.number(),
+    totalCost: zod.number(),
+    totalProfit: zod.number(),
+  }),
+  top: zod.array(
+    zod.object({
+      id: zod.number(),
+      orderNumber: zod.string().nullish(),
+      status: zod.string().nullish(),
+      createdAt: zod.coerce.date().nullish(),
+      completedAt: zod.coerce.date().nullish(),
+      customer: zod.string().nullish(),
+      vehicle: zod.string().nullish(),
+      partsRevenue: zod.number(),
+      partsCost: zod.number(),
+      laborRevenue: zod.number(),
+      laborCost: zod.number(),
+      totalRevenue: zod.number(),
+      totalCost: zod.number(),
+      grossProfit: zod.number(),
+      grossMarginPct: zod.number(),
+      laborHoursWorked: zod.number(),
+      laborHoursBilled: zod.number(),
+    }),
+  ),
+  bottom: zod.array(
+    zod.object({
+      id: zod.number(),
+      orderNumber: zod.string().nullish(),
+      status: zod.string().nullish(),
+      createdAt: zod.coerce.date().nullish(),
+      completedAt: zod.coerce.date().nullish(),
+      customer: zod.string().nullish(),
+      vehicle: zod.string().nullish(),
+      partsRevenue: zod.number(),
+      partsCost: zod.number(),
+      laborRevenue: zod.number(),
+      laborCost: zod.number(),
+      totalRevenue: zod.number(),
+      totalCost: zod.number(),
+      grossProfit: zod.number(),
+      grossMarginPct: zod.number(),
+      laborHoursWorked: zod.number(),
+      laborHoursBilled: zod.number(),
+    }),
+  ),
 });
 
 /**

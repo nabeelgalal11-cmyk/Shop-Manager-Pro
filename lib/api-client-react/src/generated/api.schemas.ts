@@ -376,6 +376,33 @@ export interface Employee {
   updatedAt: string;
 }
 
+export type RepairOrderProfitabilityLaborSource =
+  (typeof RepairOrderProfitabilityLaborSource)[keyof typeof RepairOrderProfitabilityLaborSource];
+
+export const RepairOrderProfitabilityLaborSource = {
+  time_entries: "time_entries",
+  ro_hours_fallback: "ro_hours_fallback",
+} as const;
+
+export interface RepairOrderProfitability {
+  partsRevenue: number;
+  partsCost: number;
+  partsCostKnown: boolean;
+  laborRevenue: number;
+  laborCost: number;
+  laborHoursWorked: number;
+  laborHoursBilled: number;
+  hasTimeEntries: boolean;
+  techEfficiencyPct: number | null;
+  effectiveLaborRate: number | null;
+  grossProfit: number;
+  grossMarginPct: number;
+  totalRevenue: number;
+  totalCost: number;
+  laborRate: number;
+  laborSource: RepairOrderProfitabilityLaborSource;
+}
+
 export interface RepairOrder {
   id: number;
   orderNumber: string;
@@ -400,6 +427,50 @@ export interface RepairOrder {
   assignedTo?: Employee;
   createdAt: string;
   updatedAt: string;
+  /** Gross margin percentage (revenue - cost)/revenue*100. Only present for users with reports:view permission. */
+  marginPct?: number | null;
+  profitability?: RepairOrderProfitability;
+}
+
+export interface RepairOrderProfitabilityRow {
+  id: number;
+  orderNumber?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  completedAt?: string | null;
+  customer?: string | null;
+  vehicle?: string | null;
+  partsRevenue: number;
+  partsCost: number;
+  laborRevenue: number;
+  laborCost: number;
+  totalRevenue: number;
+  totalCost: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  laborHoursWorked: number;
+  laborHoursBilled: number;
+}
+
+export type RepairOrderProfitabilityReportRange = {
+  from: string | null;
+  to: string | null;
+};
+
+export type RepairOrderProfitabilityReportSummary = {
+  orderCount: number;
+  avgMarginPct: number;
+  totalRevenue: number;
+  totalCost: number;
+  totalProfit: number;
+};
+
+export interface RepairOrderProfitabilityReport {
+  range: RepairOrderProfitabilityReportRange;
+  laborRate: number;
+  summary: RepairOrderProfitabilityReportSummary;
+  top: RepairOrderProfitabilityRow[];
+  bottom: RepairOrderProfitabilityRow[];
 }
 
 export type CreateRepairOrderInputStatus =
@@ -1012,6 +1083,11 @@ export const GetRepairOrdersStatus = {
   delivered: "delivered",
   cancelled: "cancelled",
 } as const;
+
+export type GetRepairOrderProfitabilityReportParams = {
+  from?: string;
+  to?: string;
+};
 
 export type GetUsedCarProfitabilityReportParams = {
   from?: string;

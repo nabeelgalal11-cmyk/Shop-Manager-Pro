@@ -2,6 +2,12 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { requirePermission } from "../lib/auth.js";
+import {
+  computeProfitability,
+  getShopLaborRate,
+  roProfitabilitySql,
+  type RoProfitRow,
+} from "../lib/profitability.js";
 
 const router: Router = Router();
 
@@ -313,6 +319,112 @@ router.get("/used-car-profitability", requirePermission("used_cars", "view"), as
       totalRecon: data.reduce((s, c) => s + c.reconTotal, 0),
       netProfit: data.reduce((s, c) => s + c.netProfit, 0),
     },
+  });
+});
+
+// Per-RO profitability — top 10 most & least profitable plus average margin.
+// Scope = repair orders created within [from, to] (defaults: all-time).
+router.get("/repair-order-profitability", async (req, res) => {
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
+  const fromTs = from ? new Date(from + "T00:00:00Z") : null;
+  const toTs = to ? new Date(to + "T23:59:59Z") : null;
+
+  const laborRate = await getShopLaborRate();
+
+  const where = sql`
+    ro.internal IS NOT TRUE
+    ${fromTs ? sql`AND ro.created_at >= ${fromTs}` : sql``}
+    ${toTs ? sql`AND ro.created_at <= ${toTs}` : sql``}
+  `;
+
+  const profitRows = await db.execute(sql`${roProfitabilitySql(where)}`);
+  const meta = await db.execute(sql`
+    SELECT
+      ro.id,
+      ro.order_number,
+      ro.status,
+      ro.created_at,
+      ro.completed_at,
+      c.first_name AS customer_first,
+      c.last_name AS customer_last,
+      v.year, v.make, v.model
+    FROM repair_orders ro
+    LEFT JOIN customers c ON c.id = ro.customer_id
+    LEFT JOIN vehicles v ON v.id = ro.vehicle_id
+    WHERE ${where}
+  `);
+
+  type MetaRow = {
+    id: number;
+    order_number: string;
+    status: string;
+    created_at: string | Date;
+    completed_at: string | Date | null;
+    customer_first: string | null;
+    customer_last: string | null;
+    year: number | null;
+    make: string | null;
+    model: string | null;
+  };
+
+  const metaMap = new Map<number, MetaRow>();
+  for (const m of meta.rows as MetaRow[]) metaMap.set(Number(m.id), m);
+
+  const all = (profitRows.rows as unknown as RoProfitRow[]).map(r => {
+    const id = Number(r.id);
+    const p = computeProfitability(r, laborRate);
+    const m = metaMap.get(id);
+    const customer = m && (m.customer_first || m.customer_last)
+      ? `${m.customer_first ?? ""} ${m.customer_last ?? ""}`.trim()
+      : null;
+    const vehicle = m
+      ? [m.year, m.make, m.model].filter(Boolean).join(" ") || null
+      : null;
+    return {
+      id,
+      orderNumber: m?.order_number ?? null,
+      status: m?.status ?? null,
+      createdAt: m?.created_at ? new Date(m.created_at).toISOString() : null,
+      completedAt: m?.completed_at ? new Date(m.completed_at).toISOString() : null,
+      customer,
+      vehicle,
+      partsRevenue: p.partsRevenue,
+      partsCost: p.partsCost,
+      laborRevenue: p.laborRevenue,
+      laborCost: p.laborCost,
+      totalRevenue: p.totalRevenue,
+      totalCost: p.totalCost,
+      grossProfit: p.grossProfit,
+      grossMarginPct: p.grossMarginPct,
+      laborHoursWorked: p.laborHoursWorked,
+      laborHoursBilled: p.laborHoursBilled,
+    };
+  }).filter(r => r.totalRevenue > 0); // exclude empty/draft ROs with no revenue
+
+  const sorted = [...all].sort((a, b) => b.grossMarginPct - a.grossMarginPct);
+  const top = sorted.slice(0, 10);
+  const bottom = [...sorted].reverse().slice(0, 10);
+
+  const avgMarginPct = all.length > 0
+    ? Math.round((all.reduce((s, r) => s + r.grossMarginPct, 0) / all.length) * 10) / 10
+    : 0;
+  const totalRevenue = all.reduce((s, r) => s + r.totalRevenue, 0);
+  const totalCost = all.reduce((s, r) => s + r.totalCost, 0);
+  const totalProfit = totalRevenue - totalCost;
+
+  res.json({
+    range: { from: from ?? null, to: to ?? null },
+    laborRate,
+    summary: {
+      orderCount: all.length,
+      avgMarginPct,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalCost: Math.round(totalCost * 100) / 100,
+      totalProfit: Math.round(totalProfit * 100) / 100,
+    },
+    top,
+    bottom,
   });
 });
 

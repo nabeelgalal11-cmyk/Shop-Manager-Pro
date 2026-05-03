@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from "recharts";
-import { BarChart2, DollarSign, TrendingUp, Users, Car, Receipt, ArrowUpRight, ArrowDownRight, Package } from "lucide-react";
+import { BarChart2, DollarSign, TrendingUp, Users, Car, Receipt, ArrowUpRight, ArrowDownRight, Package, Wrench } from "lucide-react";
+import { Link } from "wouter";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
@@ -153,6 +154,51 @@ export default function Reports() {
     queryKey: ["/api/reports/used-car-profitability", profitFrom, profitTo],
     queryFn: () => apiFetch(profitabilityUrl) as Promise<ProfitabilityResponse>,
   });
+
+  // RO profitability uses the same date controls as the used-car section so
+  // the user only thinks about one date range when viewing profit reports.
+  const roProfitUrl = `/api/reports/repair-order-profitability${profitabilityQs.toString() ? `?${profitabilityQs.toString()}` : ""}`;
+  interface RoProfitRow {
+    id: number;
+    orderNumber: string | null;
+    status: string | null;
+    createdAt: string | null;
+    customer: string | null;
+    vehicle: string | null;
+    partsRevenue: number;
+    partsCost: number;
+    laborRevenue: number;
+    laborCost: number;
+    totalRevenue: number;
+    totalCost: number;
+    grossProfit: number;
+    grossMarginPct: number;
+    laborHoursWorked: number;
+    laborHoursBilled: number;
+  }
+  interface RoProfitResponse {
+    range: { from: string | null; to: string | null };
+    laborRate: number;
+    summary: {
+      orderCount: number;
+      avgMarginPct: number;
+      totalRevenue: number;
+      totalCost: number;
+      totalProfit: number;
+    };
+    top: RoProfitRow[];
+    bottom: RoProfitRow[];
+  }
+  const { data: roProfit } = useQuery<RoProfitResponse>({
+    queryKey: ["/api/reports/repair-order-profitability", profitFrom, profitTo],
+    queryFn: () => apiFetch(roProfitUrl) as Promise<RoProfitResponse>,
+  });
+
+  const roMarginColor = (pct: number) => {
+    if (pct >= 50) return "text-green-700 dark:text-green-500";
+    if (pct >= 30) return "text-amber-600 dark:text-amber-500";
+    return "text-red-600 dark:text-red-500";
+  };
 
   const totalRevenue = overview?.totalRevenue ?? 0;
   const totalExpenses = overview?.totalExpenses ?? 0;
@@ -543,6 +589,83 @@ export default function Reports() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      {/* Per-RO Profitability — same date controls as the used-car section above. */}
+      <Card className="border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+            <Wrench className="h-4 w-4" /> Repair Order Profitability
+          </CardTitle>
+          <p className="text-xs text-muted-foreground pt-1">
+            Top &amp; bottom 10 repair orders by gross margin. Uses the same date range as the used-car section above.
+          </p>
+          {roProfit?.summary && (
+            <p className="text-xs text-muted-foreground pt-2">
+              In range: {roProfit.summary.orderCount} ROs · Avg margin{" "}
+              <span className={roMarginColor(roProfit.summary.avgMarginPct)}>
+                {roProfit.summary.avgMarginPct.toFixed(1)}%
+              </span>{" "}
+              · Revenue {fmt(roProfit.summary.totalRevenue)} · Cost {fmt(roProfit.summary.totalCost)} ·{" "}
+              <span className={roProfit.summary.totalProfit >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
+                Profit {fmt(roProfit.summary.totalProfit)}
+              </span>
+            </p>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {[
+            { title: "Top 10 — Most Profitable", rows: roProfit?.top ?? [] },
+            { title: "Bottom 10 — Least Profitable", rows: roProfit?.bottom ?? [] },
+          ].map((group) => (
+            <div key={group.title}>
+              <p className="text-sm font-semibold mb-2">{group.title}</p>
+              <div className="rounded-md border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-4">RO #</TableHead>
+                      <TableHead>Customer / Vehicle</TableHead>
+                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-right">Cost</TableHead>
+                      <TableHead className="text-right">Profit</TableHead>
+                      <TableHead className="text-right pr-4">Margin</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {group.rows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+                          No repair orders in this range.
+                        </TableCell>
+                      </TableRow>
+                    ) : group.rows.map((r) => (
+                      <TableRow key={r.id} className="hover:bg-muted/50">
+                        <TableCell className="pl-4 font-mono text-sm">
+                          <Link href={`/repair-orders/${r.id}`} className="text-primary hover:underline">
+                            {r.orderNumber ?? `#${r.id}`}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="font-medium">{r.customer ?? "—"}</div>
+                          <div className="text-xs text-muted-foreground">{r.vehicle ?? ""}</div>
+                        </TableCell>
+                        <TableCell className="text-right">{fmt(r.totalRevenue)}</TableCell>
+                        <TableCell className="text-right">{fmt(r.totalCost)}</TableCell>
+                        <TableCell className={`text-right font-semibold ${r.grossProfit >= 0 ? "text-green-700" : "text-red-700"}`}>
+                          {r.grossProfit >= 0 ? "+" : ""}{fmt(r.grossProfit)}
+                        </TableCell>
+                        <TableCell className={`text-right pr-4 font-semibold ${roMarginColor(r.grossMarginPct)}`}>
+                          {r.grossMarginPct.toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ))}
         </CardContent>
       </Card>
     </div>
