@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationsBell } from "@/components/notifications-bell";
+import { GlobalSearch } from "@/components/global-search";
 
 interface NavItem { name: string; href: string; icon: any; resource?: string }
 interface NavGroup { label: string; items: NavItem[] }
@@ -150,14 +151,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <header className="h-16 flex items-center justify-between px-6 border-b bg-card text-card-foreground">
             <div className="flex items-center gap-4">
               <SidebarTrigger onClick={() => setSidebarOpen(!sidebarOpen)} />
-              <div className="relative w-64 hidden md:block">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search customers, vehicles, ROs..."
-                  className="pl-9 h-9 bg-muted/50 border-transparent focus-visible:ring-primary focus-visible:border-primary transition-all"
-                />
-              </div>
+              <GlobalSearch />
             </div>
             <div className="flex items-center gap-3">
               {user && <NotificationsBell />}
