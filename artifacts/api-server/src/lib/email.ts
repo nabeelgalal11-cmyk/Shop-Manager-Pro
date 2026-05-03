@@ -22,6 +22,18 @@ function getSmtpTransporter(): Transporter | null {
   return smtpTransporter;
 }
 
+const cardWrap = (headerColor: string, headerTitle: string, body: string) => `<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
+  <div style="background: ${headerColor}; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+    <h1 style="margin: 0;">${headerTitle}</h1>
+  </div>
+  <div style="background: #fff; padding: 20px; border: 1px solid #e5e7eb; border-radius: 0 0 8px 8px;">
+    ${body}
+  </div>
+</body>
+</html>`;
+
 const DEFAULT_TEMPLATES = [
   {
     key: "appointment_confirmed",
@@ -51,6 +63,91 @@ const DEFAULT_TEMPLATES = [
   </div>
 </body>
 </html>`,
+  },
+  {
+    key: "invoice_sent",
+    name: "Invoice Sent",
+    subject: "Invoice {{invoiceNumber}} from {{shopName}}",
+    fromName: "ShopOS",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
+    enabled: "true",
+    bodyHtml: cardWrap("#2563eb", "Invoice Ready", `
+    <p>Hi {{customerName}},</p>
+    <p>Your invoice from <strong>{{shopName}}</strong> is ready.</p>
+    <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
+      <tr><td style="padding: 8px 0; color: #6b7280;">Invoice #</td><td style="padding: 8px 0; font-weight: bold;">{{invoiceNumber}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Total</td><td style="padding: 8px 0; font-weight: bold;">{{total}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Balance Due</td><td style="padding: 8px 0; font-weight: bold;">{{balance}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Due Date</td><td style="padding: 8px 0; font-weight: bold;">{{dueDate}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Vehicle</td><td style="padding: 8px 0; font-weight: bold;">{{vehicleInfo}}</td></tr>
+    </table>
+    <p>Please reply to this email if you have any questions about the charges.</p>
+    <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      Thank you for choosing {{shopName}}!
+    </p>`),
+  },
+  {
+    key: "repair_order_completed",
+    name: "Repair Order Completed",
+    subject: "Your vehicle is ready for pickup - {{shopName}}",
+    fromName: "ShopOS",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
+    enabled: "true",
+    bodyHtml: cardWrap("#16a34a", "Your Vehicle Is Ready", `
+    <p>Hi {{customerName}},</p>
+    <p>Good news — work on your <strong>{{vehicleInfo}}</strong> is complete and your vehicle is ready for pickup.</p>
+    <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
+      <tr><td style="padding: 8px 0; color: #6b7280;">Order #</td><td style="padding: 8px 0; font-weight: bold;">{{orderNumber}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Work Done</td><td style="padding: 8px 0; font-weight: bold;">{{diagnosis}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Mileage Out</td><td style="padding: 8px 0; font-weight: bold;">{{mileageOut}}</td></tr>
+    </table>
+    <p>Please give us a call or stop by during business hours to pick up your vehicle. An invoice will follow shortly if it hasn't already.</p>
+    <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      Thanks for trusting {{shopName}} with your vehicle.
+    </p>`),
+  },
+  {
+    key: "service_reminder",
+    name: "Service Reminder",
+    subject: "Time for your {{serviceType}} - {{shopName}}",
+    fromName: "ShopOS",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
+    enabled: "true",
+    bodyHtml: cardWrap("#f59e0b", "Service Reminder", `
+    <p>Hi {{customerName}},</p>
+    <p>This is a friendly reminder from <strong>{{shopName}}</strong> that your <strong>{{vehicleInfo}}</strong> is due for service.</p>
+    <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
+      <tr><td style="padding: 8px 0; color: #6b7280;">Service</td><td style="padding: 8px 0; font-weight: bold;">{{serviceType}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Due Date</td><td style="padding: 8px 0; font-weight: bold;">{{dueDate}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Due Mileage</td><td style="padding: 8px 0; font-weight: bold;">{{dueMileage}}</td></tr>
+    </table>
+    <p>Reply to this email or give us a call to schedule your appointment.</p>
+    <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      {{shopName}}
+    </p>`),
+  },
+  {
+    key: "payment_received",
+    name: "Payment Receipt",
+    subject: "Payment received - {{shopName}}",
+    fromName: "ShopOS",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
+    enabled: "true",
+    bodyHtml: cardWrap("#0ea5e9", "Payment Received", `
+    <p>Hi {{customerName}},</p>
+    <p>We've received your payment — thank you!</p>
+    <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
+      <tr><td style="padding: 8px 0; color: #6b7280;">Invoice #</td><td style="padding: 8px 0; font-weight: bold;">{{invoiceNumber}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Amount Paid</td><td style="padding: 8px 0; font-weight: bold;">{{amount}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Method</td><td style="padding: 8px 0; font-weight: bold;">{{method}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Reference</td><td style="padding: 8px 0; font-weight: bold;">{{referenceNumber}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Remaining Balance</td><td style="padding: 8px 0; font-weight: bold;">{{balance}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Paid On</td><td style="padding: 8px 0; font-weight: bold;">{{paidAt}}</td></tr>
+    </table>
+    <p>Keep this email as your receipt.</p>
+    <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      Thank you for your business — {{shopName}}
+    </p>`),
   },
 ];
 

@@ -2,6 +2,34 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remindersTable } from "@workspace/db";
 import { eq, sql, desc, and, gte } from "drizzle-orm";
+import { sendTemplatedEmail } from "../lib/email.js";
+
+async function maybeSendCompletionEmail(order: any, req: any) {
+  try {
+    const customer = order.customer;
+    if (!customer?.email) {
+      req.log?.info({ id: order.id }, "No customer email; skipping completion email");
+      return;
+    }
+    const vehicle = order.vehicle;
+    const vehicleInfo = vehicle
+      ? [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") +
+        (vehicle.licensePlate ? ` (${vehicle.licensePlate})` : "")
+      : "your vehicle";
+    const result = await sendTemplatedEmail("repair_order_completed", customer.email, {
+      customerName: `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || "Customer",
+      customerEmail: customer.email,
+      shopName: process.env.SHOP_NAME || "Our Shop",
+      orderNumber: order.orderNumber,
+      diagnosis: order.diagnosis || order.complaint || "Service completed",
+      mileageOut: order.mileageOut ? String(order.mileageOut) : "—",
+      vehicleInfo,
+    });
+    if (!result.ok) req.log?.warn({ err: result.error, id: order.id }, "Repair order completion email failed");
+  } catch (err) {
+    req.log?.error({ err }, "maybeSendCompletionEmail crashed");
+  }
+}
 
 const router: Router = Router();
 
@@ -183,12 +211,15 @@ router.put("/:id", async (req, res) => {
 
   if (!order) return res.status(404).json({ error: "Repair order not found" });
 
-  // Auto-create reminders when transitioning to completed
+  const enriched = await enrichOrder(order);
+
+  // Auto-create reminders + send completion email when transitioning to completed
   if (status === "completed" && prev?.status !== "completed") {
     await autoCreateReminders(order).catch(() => {});
+    await maybeSendCompletionEmail(enriched, req);
   }
 
-  res.json(await enrichOrder(order));
+  res.json(enriched);
 });
 
 router.delete("/:id", async (req, res) => {

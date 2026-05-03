@@ -2,8 +2,44 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
+import { sendTemplatedEmail } from "../lib/email.js";
 
 const router: Router = Router();
+
+function vehicleInfoStr(vehicle: any): string {
+  if (!vehicle) return "Not specified";
+  const base = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ");
+  return base + (vehicle.licensePlate ? ` (${vehicle.licensePlate})` : "");
+}
+
+function customerName(customer: any): string {
+  return `${customer?.firstName ?? ""} ${customer?.lastName ?? ""}`.trim() || "Customer";
+}
+
+async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, req: any) {
+  try {
+    if (invoice.status !== "sent") return;
+    if (prevStatus === "sent") return;
+    const customer = invoice.customer;
+    if (!customer?.email) {
+      req.log?.info({ id: invoice.id }, "No customer email; skipping invoice email");
+      return;
+    }
+    const result = await sendTemplatedEmail("invoice_sent", customer.email, {
+      customerName: customerName(customer),
+      customerEmail: customer.email,
+      shopName: process.env.SHOP_NAME || "Our Shop",
+      invoiceNumber: invoice.invoiceNumber,
+      total: `$${Number(invoice.total).toFixed(2)}`,
+      balance: `$${Number(invoice.balance).toFixed(2)}`,
+      dueDate: invoice.dueDate || "On receipt",
+      vehicleInfo: vehicleInfoStr(invoice.vehicle),
+    });
+    if (!result.ok) req.log?.warn({ err: result.error, id: invoice.id }, "Invoice email failed");
+  } catch (err) {
+    req.log?.error({ err }, "maybeSendInvoiceEmail crashed");
+  }
+}
 
 async function enrichInvoice(invoice: any) {
   const [lineItems, payments, customer, vehicle] = await Promise.all([
@@ -65,7 +101,9 @@ router.post("/", async (req, res) => {
     })));
   }
 
-  res.status(201).json(await enrichInvoice(invoice));
+  const enriched = await enrichInvoice(invoice);
+  await maybeSendInvoiceEmail(null, enriched, req);
+  res.status(201).json(enriched);
 });
 
 router.get("/:id", async (req, res) => {
@@ -76,6 +114,7 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
+  const [prev] = await db.select({ status: invoicesTable.status }).from(invoicesTable).where(eq(invoicesTable.id, id));
   const { customerId, vehicleId, status, notes, taxRate, discountAmount, dueDate, lineItems } = req.body;
   const tax = taxRate ?? 0;
   const discount = discountAmount ?? 0;
@@ -104,7 +143,9 @@ router.put("/:id", async (req, res) => {
     }
   }
 
-  res.json(await enrichInvoice(invoice));
+  const enriched = await enrichInvoice(invoice);
+  await maybeSendInvoiceEmail(prev?.status ?? null, enriched, req);
+  res.json(enriched);
 });
 
 router.delete("/:id", async (req, res) => {

@@ -1,9 +1,34 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { paymentsTable, invoicesTable } from "@workspace/db";
+import { paymentsTable, invoicesTable, customersTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
+import { sendTemplatedEmail } from "../lib/email.js";
 
 const router: Router = Router();
+
+async function maybeSendPaymentReceipt(payment: any, invoice: any, balance: number, req: any) {
+  try {
+    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, invoice.customerId));
+    if (!customer?.email) {
+      req.log?.info({ id: payment.id }, "No customer email; skipping payment receipt");
+      return;
+    }
+    const result = await sendTemplatedEmail("payment_received", customer.email, {
+      customerName: `${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || "Customer",
+      customerEmail: customer.email,
+      shopName: process.env.SHOP_NAME || "Our Shop",
+      invoiceNumber: invoice.invoiceNumber,
+      amount: `$${Number(payment.amount).toFixed(2)}`,
+      method: payment.method || "—",
+      referenceNumber: payment.referenceNumber || "—",
+      balance: `$${Math.max(0, balance).toFixed(2)}`,
+      paidAt: payment.paidAt ? new Date(payment.paidAt).toLocaleString() : new Date().toLocaleString(),
+    });
+    if (!result.ok) req.log?.warn({ err: result.error, id: payment.id }, "Payment receipt email failed");
+  } catch (err) {
+    req.log?.error({ err }, "maybeSendPaymentReceipt crashed");
+  }
+}
 
 router.get("/", async (req, res) => {
   const page = Number(req.query.page) || 1;
@@ -27,7 +52,7 @@ router.post("/", async (req, res) => {
 
   const allPayments = await db.select().from(paymentsTable).where(eq(paymentsTable.invoiceId, invoiceId));
   const amountPaid = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const [invoice] = await db.select({ total: invoicesTable.total }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+  const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
   const balance = Number(invoice.total) - amountPaid;
   await db.update(invoicesTable).set({
     amountPaid: amountPaid.toString(),
@@ -35,6 +60,8 @@ router.post("/", async (req, res) => {
     status: balance <= 0 ? "paid" : "sent",
     updatedAt: new Date(),
   }).where(eq(invoicesTable.id, invoiceId));
+
+  await maybeSendPaymentReceipt(payment, invoice, balance, req);
 
   res.status(201).json(payment);
 });
