@@ -565,7 +565,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
+            enum: [pending, in_progress, waiting_parts, awaiting_approval, completed, delivered, cancelled]
         - name: assignedTo
           in: query
           schema:
@@ -2184,7 +2184,7 @@ components:
           type: integer
         status:
           type: string
-          enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
+          enum: [pending, in_progress, waiting_parts, awaiting_approval, completed, delivered, cancelled]
         priority:
           type: string
           enum: [low, normal, high, urgent]
@@ -2411,7 +2411,7 @@ components:
           nullable: true
         status:
           type: string
-          enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
+          enum: [pending, in_progress, waiting_parts, awaiting_approval, completed, delivered, cancelled]
         priority:
           type: string
           enum: [low, normal, high, urgent]
@@ -2421,6 +2421,22 @@ components:
           type: string
         notes:
           type: string
+        parts:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              partNumber:
+                type: string
+              quantity:
+                type: number
+              unitPrice:
+                type: number
+              fromInventory:
+                type: boolean
+            required: [name, quantity, unitPrice]
         estimatedHours:
           type: number
           nullable: true
@@ -2443,7 +2459,7 @@ components:
           nullable: true
         status:
           type: string
-          enum: [pending, in_progress, waiting_parts, completed, delivered, cancelled]
+          enum: [pending, in_progress, waiting_parts, awaiting_approval, completed, delivered, cancelled]
         priority:
           type: string
           enum: [low, normal, high, urgent]

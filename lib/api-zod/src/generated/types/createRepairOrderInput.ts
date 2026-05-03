@@ -5,6 +5,7 @@
  * ShopOS Auto Repair Management API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateRepairOrderInputPartsItem } from "./createRepairOrderInputPartsItem";
 import type { CreateRepairOrderInputPriority } from "./createRepairOrderInputPriority";
 import type { CreateRepairOrderInputStatus } from "./createRepairOrderInputStatus";
 
@@ -19,6 +20,7 @@ export interface CreateRepairOrderInput {
   complaint?: string;
   diagnosis?: string;
   notes?: string;
+  parts?: CreateRepairOrderInputPartsItem[];
   estimatedHours?: number | null;
   mileageIn?: number | null;
   promisedDate?: Date;

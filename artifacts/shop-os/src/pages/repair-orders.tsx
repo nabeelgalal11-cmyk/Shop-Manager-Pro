@@ -1,12 +1,12 @@
 import { useGetRepairOrders, getGetRepairOrdersQueryKey, getRepairOrder } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft, Printer } from "lucide-react";
+import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft, Printer, List, LayoutGrid } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -118,6 +118,16 @@ export default function RepairOrders() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [printing, setPrinting] = useState(false);
   const [search, setSearch] = useState("");
+
+  // If the user previously chose the board view, send them there.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("repairOrdersView") === "board") {
+        setLocation("/repair-orders/board");
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data, isLoading } = useGetRepairOrders(
     { limit: PAGE_SIZE, page },
@@ -249,9 +259,27 @@ export default function RepairOrders() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Repair Orders</h1>
           <p className="text-muted-foreground mt-1">Manage active jobs and service history.</p>
         </div>
-        <Button onClick={() => setLocation("/repair-orders/new")} className="shadow-sm font-medium">
-          <Plus className="mr-2 h-4 w-4" /> New Repair Order
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex items-center rounded-md border bg-background p-0.5">
+            <Button variant="default" size="sm" className="h-8 px-2">
+              <List className="h-4 w-4 mr-1.5" /> List
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-muted-foreground"
+              onClick={() => {
+                try { localStorage.setItem("repairOrdersView", "board"); } catch {}
+                setLocation("/repair-orders/board");
+              }}
+            >
+              <LayoutGrid className="h-4 w-4 mr-1.5" /> Board
+            </Button>
+          </div>
+          <Button onClick={() => setLocation("/repair-orders/new")} className="shadow-sm font-medium">
+            <Plus className="mr-2 h-4 w-4" /> New Repair Order
+          </Button>
+        </div>
       </div>
 
       <Card className="shadow-sm border-border">

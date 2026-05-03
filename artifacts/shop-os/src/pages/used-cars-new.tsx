@@ -261,7 +261,7 @@ export default function UsedCarsNew() {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => setLocation(`/repair-orders/new?usedCarId=${id}`)}
+                  onClick={() => setLocation(`/repair-orders/new?usedCarId=${id}&internal=true`)}
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> New Recon Job
                 </Button>

@@ -1,4 +1,5 @@
-import { useLocation } from "wouter";
+import { useEffect, useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useCreateRepairOrder, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetEmployees, getGetEmployeesQueryKey, type CreateRepairOrderInput } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
@@ -11,9 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Wrench } from "lucide-react";
+import { ArrowLeft, Wrench, Package, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
+
+type ROPart = { name: string; partNumber?: string; quantity: number; unitPrice: number };
 
 const formSchema = z.object({
   internal: z.boolean().default(false),
@@ -21,7 +25,7 @@ const formSchema = z.object({
   vehicleId: z.coerce.number().optional(),
   usedCarId: z.coerce.number().optional(),
   assignedToId: z.coerce.number().optional(),
-  status: z.enum(["pending", "in_progress", "waiting_parts", "completed", "delivered", "cancelled"]).default("pending"),
+  status: z.enum(["pending", "in_progress", "waiting_parts", "awaiting_approval", "completed", "delivered", "cancelled"]).default("pending"),
   priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
   complaint: z.string().optional(),
   estimatedHours: z.coerce.number().optional(),
@@ -34,7 +38,10 @@ const formSchema = z.object({
 
 export default function RepairOrdersNew() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const { toast } = useToast();
+  const [cannedOpen, setCannedOpen] = useState(false);
+  const [parts, setParts] = useState<ROPart[]>([]);
 
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
   const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
@@ -49,13 +56,20 @@ export default function RepairOrdersNew() {
   });
   const usedCars = (usedCarsData?.data ?? []).filter((c: any) => c.status !== "sold");
 
+  // Read query params for prefill (used by "New Recon Job" deep link from used-car detail page).
+  const params = new URLSearchParams(search);
+  const qsUsedCarId = params.get("usedCarId");
+  const qsInternal = params.get("internal") === "true";
+  const initialInternal = qsInternal || (!!qsUsedCarId);
+  const initialUsedCarId = qsUsedCarId ? Number(qsUsedCarId) : undefined;
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      internal: false,
+      internal: initialInternal,
       customerId: undefined,
       vehicleId: undefined,
-      usedCarId: undefined,
+      usedCarId: initialUsedCarId,
       status: "pending",
       priority: "normal",
       complaint: "",
@@ -64,8 +78,52 @@ export default function RepairOrdersNew() {
     },
   });
 
+  // Re-apply prefill if the query string changes after mount.
+  useEffect(() => {
+    if (qsInternal || qsUsedCarId) form.setValue("internal", true);
+    if (qsUsedCarId) form.setValue("usedCarId", Number(qsUsedCarId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
   const internal = form.watch("internal");
   const createRepairOrder = useCreateRepairOrder();
+
+  function handleCannedJob(job: CannedJob) {
+    const items = job.items || [];
+    const laborHours = items
+      .filter(it => it.type === "labor")
+      .reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+    const newParts: ROPart[] = items
+      .filter(it => it.type === "part")
+      .map(it => ({
+        name: it.description,
+        quantity: Number(it.quantity) || 1,
+        unitPrice: Number(it.unitPrice) || 0,
+      }));
+
+    if (newParts.length > 0) {
+      setParts(prev => [...prev, ...newParts]);
+    }
+
+    if (laborHours > 0) {
+      const cur = Number(form.getValues("estimatedHours") || 0);
+      form.setValue("estimatedHours", Number((cur + laborHours).toFixed(2)));
+    }
+
+    if (job.description) {
+      const cur = form.getValues("complaint") ?? "";
+      form.setValue("complaint", cur ? `${cur}\n${job.description}` : job.description);
+    }
+
+    toast({
+      title: `Added "${job.name}"`,
+      description: `${newParts.length} part${newParts.length === 1 ? "" : "s"}${laborHours > 0 ? ` · ${laborHours} labor hr${laborHours === 1 ? "" : "s"}` : ""}.`,
+    });
+  }
+
+  function removePart(index: number) {
+    setParts(prev => prev.filter((_, i) => i !== index));
+  }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const payload: CreateRepairOrderInput = {
@@ -77,6 +135,9 @@ export default function RepairOrdersNew() {
       estimatedHours: values.estimatedHours,
       mileageIn: values.mileageIn,
     };
+    if (parts.length > 0) {
+      payload.parts = parts;
+    }
     if (values.internal) {
       payload.usedCarId = values.usedCarId;
     } else {
@@ -106,10 +167,13 @@ export default function RepairOrdersNew() {
         <Button variant="ghost" size="icon" onClick={() => setLocation("/repair-orders")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold tracking-tight">New Repair Order</h1>
           <p className="text-sm text-muted-foreground">Create a new job card for the shop floor.</p>
         </div>
+        <Button type="button" variant="outline" onClick={() => setCannedOpen(true)}>
+          <Wrench className="h-4 w-4 mr-2" /> Canned Job
+        </Button>
       </div>
 
       <Card className="shadow-sm">
@@ -262,6 +326,28 @@ export default function RepairOrdersNew() {
                 )}
               />
 
+              {parts.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Package className="h-4 w-4" /> Parts ({parts.length})
+                  </div>
+                  <div className="rounded-md border divide-y">
+                    {parts.map((p, i) => (
+                      <div key={i} className="flex items-center gap-3 p-2 text-sm">
+                        <div className="flex-1">
+                          <div className="font-medium">{p.name}</div>
+                          <div className="text-xs text-muted-foreground">Qty {p.quantity} · ${Number(p.unitPrice).toFixed(2)} ea</div>
+                        </div>
+                        <div className="font-semibold tabular-nums">${(Number(p.quantity) * Number(p.unitPrice)).toFixed(2)}</div>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removePart(i)} className="text-destructive h-8 w-8">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <Separator />
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -333,6 +419,8 @@ export default function RepairOrdersNew() {
           </Form>
         </CardContent>
       </Card>
+
+      <CannedJobPicker open={cannedOpen} onClose={() => setCannedOpen(false)} onPick={handleCannedJob} />
     </div>
   );
 }

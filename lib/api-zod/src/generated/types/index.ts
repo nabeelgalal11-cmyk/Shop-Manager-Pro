@@ -30,6 +30,7 @@ export * from "./createPaymentInput";
 export * from "./createPaymentInputMethod";
 export * from "./createReminderInput";
 export * from "./createRepairOrderInput";
+export * from "./createRepairOrderInputPartsItem";
 export * from "./createRepairOrderInputPriority";
 export * from "./createRepairOrderInputStatus";
 export * from "./createVehicleInput";

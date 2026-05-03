@@ -23,6 +23,7 @@ import InvoicesNew from "@/pages/invoices-new";
 import InvoiceDetail from "@/pages/invoice-detail";
 import RepairOrders from "@/pages/repair-orders";
 import RepairOrdersNew from "@/pages/repair-orders-new";
+import RepairOrdersBoard from "@/pages/repair-orders-board";
 import RepairOrderDetail from "@/pages/repair-order-detail";
 import Inventory from "@/pages/inventory";
 import InventoryDetail from "@/pages/inventory-detail";
@@ -81,6 +82,7 @@ function Router() {
         <Route path="/invoices/:id" component={InvoiceDetail} />
 
         <Route path="/repair-orders" component={RepairOrders} />
+        <Route path="/repair-orders/board" component={RepairOrdersBoard} />
         <Route path="/repair-orders/new" component={RepairOrdersNew} />
         <Route path="/repair-orders/:id" component={RepairOrderDetail} />
 

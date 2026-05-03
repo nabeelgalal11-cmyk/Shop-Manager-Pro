@@ -319,6 +319,7 @@ export const RepairOrderStatus = {
   pending: "pending",
   in_progress: "in_progress",
   waiting_parts: "waiting_parts",
+  awaiting_approval: "awaiting_approval",
   completed: "completed",
   delivered: "delivered",
   cancelled: "cancelled",
@@ -480,6 +481,7 @@ export const CreateRepairOrderInputStatus = {
   pending: "pending",
   in_progress: "in_progress",
   waiting_parts: "waiting_parts",
+  awaiting_approval: "awaiting_approval",
   completed: "completed",
   delivered: "delivered",
   cancelled: "cancelled",
@@ -495,6 +497,14 @@ export const CreateRepairOrderInputPriority = {
   urgent: "urgent",
 } as const;
 
+export type CreateRepairOrderInputPartsItem = {
+  name: string;
+  partNumber?: string;
+  quantity: number;
+  unitPrice: number;
+  fromInventory?: boolean;
+};
+
 export interface CreateRepairOrderInput {
   internal?: boolean;
   customerId?: number | null;
@@ -506,6 +516,7 @@ export interface CreateRepairOrderInput {
   complaint?: string;
   diagnosis?: string;
   notes?: string;
+  parts?: CreateRepairOrderInputPartsItem[];
   estimatedHours?: number | null;
   mileageIn?: number | null;
   promisedDate?: string;
@@ -518,6 +529,7 @@ export const UpdateRepairOrderInputStatus = {
   pending: "pending",
   in_progress: "in_progress",
   waiting_parts: "waiting_parts",
+  awaiting_approval: "awaiting_approval",
   completed: "completed",
   delivered: "delivered",
   cancelled: "cancelled",
@@ -1079,6 +1091,7 @@ export const GetRepairOrdersStatus = {
   pending: "pending",
   in_progress: "in_progress",
   waiting_parts: "waiting_parts",
+  awaiting_approval: "awaiting_approval",
   completed: "completed",
   delivered: "delivered",
   cancelled: "cancelled",

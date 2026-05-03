@@ -13,6 +13,7 @@ export const CreateRepairOrderInputStatus = {
   pending: "pending",
   in_progress: "in_progress",
   waiting_parts: "waiting_parts",
+  awaiting_approval: "awaiting_approval",
   completed: "completed",
   delivered: "delivered",
   cancelled: "cancelled",
