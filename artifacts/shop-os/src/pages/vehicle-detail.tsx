@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetVehicle, getGetVehicleQueryKey,
   useGetVehicleServiceHistory, getGetVehicleServiceHistoryQueryKey,
+  useGetVehicleWarranties, getGetVehicleWarrantiesQueryKey,
   useDeleteVehicle, useUpdateVehicle,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,10 @@ export default function VehicleDetail() {
 
   const { data: history } = useGetVehicleServiceHistory(id, {
     query: { enabled: !!id, queryKey: getGetVehicleServiceHistoryQueryKey(id) },
+  });
+
+  const { data: warranties } = useGetVehicleWarranties(id, {
+    query: { enabled: !!id, queryKey: getGetVehicleWarrantiesQueryKey(id) },
   });
 
   const deleteVehicle = useDeleteVehicle();
@@ -248,6 +253,50 @@ export default function VehicleDetail() {
               )}
             </TableBody>
           </Table>
+        </Card>
+
+        <Card className="shadow-sm border-border md:col-span-3">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Wrench className="h-4 w-4" /> Active Warranties
+              {(warranties?.length ?? 0) > 0 && <Badge variant="secondary">{warranties!.length}</Badge>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!warranties || warranties.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No active warranties for this vehicle.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Started</TableHead>
+                    <TableHead>Expires</TableHead>
+                    <TableHead>Mileage Limit</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {warranties.map((w: any, i: number) => (
+                    <TableRow key={i}
+                      className={w.source === "repair_order" ? "cursor-pointer hover:bg-muted/40" : ""}
+                      onClick={() => w.source === "repair_order" && setLocation(`/repair-orders/${w.sourceId}`)}>
+                      <TableCell className="font-medium">
+                        {w.description}
+                        {w.partNumber && <span className="text-xs text-muted-foreground font-mono ml-2">{w.partNumber}</span>}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">{w.sourceNumber || (w.source === "invoice" ? "Invoice" : "RO")}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{new Date(w.startDate).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-sm">{w.expiresOn ? new Date(w.expiresOn).toLocaleDateString() : "—"}</TableCell>
+                      <TableCell className="text-sm">{w.expiresAtMileage != null ? `${w.expiresAtMileage.toLocaleString()} mi` : "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
         </Card>
 
         {id > 0 && (

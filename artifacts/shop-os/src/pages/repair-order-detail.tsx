@@ -35,7 +35,14 @@ function fmtUsd(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
 }
 
-type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean; inventoryId?: number; unitCost?: number };
+type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean; inventoryId?: number; unitCost?: number; warrantyMonths?: number | null; warrantyMiles?: number | null };
+
+function formatWarranty(months?: number | null, miles?: number | null): string {
+  const parts: string[] = [];
+  if (months != null && months > 0) parts.push(`${months} mo`);
+  if (miles != null && miles > 0) parts.push(`${miles.toLocaleString()} mi`);
+  return parts.join(" / ");
+}
 
 type CompatResult = "compatible" | "universal" | "incompatible";
 
@@ -303,6 +310,8 @@ export default function RepairOrderDetail() {
       fromInventory: true,
       inventoryId: item.id,
       unitCost: Number(item.costPrice),
+      warrantyMonths: (item as any).defaultWarrantyMonths ?? null,
+      warrantyMiles: (item as any).defaultWarrantyMiles ?? null,
     });
     setSearchQuery(item.name);
     setShowDropdown(false);
@@ -502,6 +511,7 @@ export default function RepairOrderDetail() {
                         <th className="text-left px-3 py-2 font-medium">Part #</th>
                         <th className="text-right px-3 py-2 font-medium">Qty</th>
                         <th className="text-right px-3 py-2 font-medium">Unit Price</th>
+                        <th className="text-left px-3 py-2 font-medium">Warranty</th>
                         <th className="text-right px-3 py-2 font-medium">Total</th>
                         <th className="px-3 py-2" />
                       </tr>
@@ -520,6 +530,9 @@ export default function RepairOrderDetail() {
                           <td className="px-3 py-2 text-muted-foreground font-mono text-xs">{part.partNumber || "—"}</td>
                           <td className="px-3 py-2 text-right">{part.quantity}</td>
                           <td className="px-3 py-2 text-right">${Number(part.unitPrice).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">
+                            {formatWarranty(part.warrantyMonths, part.warrantyMiles) || "—"}
+                          </td>
                           <td className="px-3 py-2 text-right font-medium">
                             ${(part.quantity * Number(part.unitPrice)).toFixed(2)}
                           </td>
@@ -538,7 +551,7 @@ export default function RepairOrderDetail() {
                     </tbody>
                     <tfoot>
                       <tr className="border-t bg-muted/20">
-                        <td colSpan={4} className="px-3 py-2 font-semibold text-right">Parts Total</td>
+                        <td colSpan={5} className="px-3 py-2 font-semibold text-right">Parts Total</td>
                         <td className="px-3 py-2 font-bold text-right">${partsTotal.toFixed(2)}</td>
                         <td />
                       </tr>
@@ -660,6 +673,22 @@ export default function RepairOrderDetail() {
                     step={0.01}
                     value={newPart.unitPrice || ""}
                     onChange={(e) => setNewPart(p => ({ ...p, unitPrice: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Warranty months"
+                    min={0}
+                    value={newPart.warrantyMonths ?? ""}
+                    onChange={(e) => setNewPart(p => ({ ...p, warrantyMonths: e.target.value === "" ? null : Number(e.target.value) }))}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Warranty miles"
+                    min={0}
+                    value={newPart.warrantyMiles ?? ""}
+                    onChange={(e) => setNewPart(p => ({ ...p, warrantyMiles: e.target.value === "" ? null : Number(e.target.value) }))}
                   />
                 </div>
                 <div className="flex items-center gap-2">

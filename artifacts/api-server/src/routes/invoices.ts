@@ -8,6 +8,7 @@ import { sendTemplatedEmail } from "../lib/email.js";
 import { sendSms } from "../lib/sms.js";
 import { recordActivity } from "../lib/activity.js";
 import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
+import { fillLineItemWarranties } from "../lib/warranty.js";
 import { getStripeClient, getStripeSettings } from "../lib/stripe.js";
 
 const CONSUMPTION_STATUSES = new Set(["sent", "paid"]);
@@ -195,7 +196,8 @@ router.post("/", async (req, res) => {
       }).returning();
 
       if (lineItems?.length) {
-        await tx.insert(lineItemsTable).values(lineItems.map((item: any) => ({
+        const enriched = await fillLineItemWarranties(lineItems);
+        await tx.insert(lineItemsTable).values(enriched.map((item: any) => ({
           invoiceId: created.id,
           type: item.type,
           description: item.description,
@@ -205,6 +207,8 @@ router.post("/", async (req, res) => {
           partNumber: item.partNumber,
           inventoryItemId: item.inventoryItemId ?? null,
           unitCost: item.unitCost != null ? String(item.unitCost) : null,
+          warrantyMonths: item.warrantyMonths ?? null,
+          warrantyMiles: item.warrantyMiles ?? null,
         })));
       }
 
@@ -272,12 +276,15 @@ router.put("/:id", async (req, res) => {
         if (wasConsumed) await reverseInvoiceConsumption(id, tx);
         await tx.delete(lineItemsTable).where(eq(lineItemsTable.invoiceId, id));
         if (lineItems.length) {
-          await tx.insert(lineItemsTable).values(lineItems.map((item: any) => ({
+          const enriched = await fillLineItemWarranties(lineItems);
+          await tx.insert(lineItemsTable).values(enriched.map((item: any) => ({
             invoiceId: id, type: item.type, description: item.description,
             quantity: item.quantity.toString(), unitPrice: item.unitPrice.toString(),
             total: (Number(item.quantity) * Number(item.unitPrice)).toString(), partNumber: item.partNumber,
             inventoryItemId: item.inventoryItemId ?? null,
             unitCost: item.unitCost != null ? String(item.unitCost) : null,
+            warrantyMonths: item.warrantyMonths ?? null,
+            warrantyMiles: item.warrantyMiles ?? null,
           })));
         }
         if (isConsumed) await applyInvoiceConsumption(id, tx);

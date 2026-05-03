@@ -18,6 +18,8 @@ export const lineItemsTable = pgTable("line_items", {
   unitCost: numeric("unit_cost", { precision: 10, scale: 2 }),
   customerDecision: text("customer_decision").notNull().default("pending"),
   decidedAt: timestamp("decided_at"),
+  warrantyMonths: integer("warranty_months"),
+  warrantyMiles: integer("warranty_miles"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

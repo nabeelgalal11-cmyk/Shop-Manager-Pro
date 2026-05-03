@@ -19,4 +19,6 @@ export interface LineItem {
   inventoryItemId?: number;
   unitCost?: number;
   customerDecision?: LineItemCustomerDecision;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
 }

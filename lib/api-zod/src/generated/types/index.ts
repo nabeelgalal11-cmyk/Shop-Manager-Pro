@@ -153,3 +153,6 @@ export * from "./usedCarReconResponseRepairOrdersItem";
 export * from "./usedCarReconResponseTimeEntriesItem";
 export * from "./vehicle";
 export * from "./vehicleListResponse";
+export * from "./vehicleWarrantyEntry";
+export * from "./vehicleWarrantyEntryItemType";
+export * from "./vehicleWarrantyEntrySource";

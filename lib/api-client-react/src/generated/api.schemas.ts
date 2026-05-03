@@ -133,6 +133,8 @@ export interface LineItem {
   inventoryItemId?: number;
   unitCost?: number;
   customerDecision?: LineItemCustomerDecision;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
 }
 
 export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
@@ -246,6 +248,39 @@ export interface ServiceHistoryEntry {
   repairOrderId?: number;
 }
 
+export type VehicleWarrantyEntrySource =
+  (typeof VehicleWarrantyEntrySource)[keyof typeof VehicleWarrantyEntrySource];
+
+export const VehicleWarrantyEntrySource = {
+  repair_order: "repair_order",
+  invoice: "invoice",
+} as const;
+
+export type VehicleWarrantyEntryItemType =
+  (typeof VehicleWarrantyEntryItemType)[keyof typeof VehicleWarrantyEntryItemType];
+
+export const VehicleWarrantyEntryItemType = {
+  part: "part",
+  labor: "labor",
+} as const;
+
+export interface VehicleWarrantyEntry {
+  source: VehicleWarrantyEntrySource;
+  sourceId: number;
+  sourceNumber?: string | null;
+  itemType: VehicleWarrantyEntryItemType;
+  description: string;
+  partNumber?: string | null;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
+  startDate: string;
+  startMileage?: number | null;
+  expiresOn?: string | null;
+  expiresAtMileage?: number | null;
+  active: boolean;
+  matchesComplaint?: boolean;
+}
+
 export type CreateLineItemInputType =
   (typeof CreateLineItemInputType)[keyof typeof CreateLineItemInputType];
 
@@ -264,6 +299,8 @@ export interface CreateLineItemInput {
   partNumber?: string;
   inventoryItemId?: number;
   unitCost?: number;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
 }
 
 export type EstimateStatus =
@@ -554,6 +591,9 @@ export type CreateRepairOrderInputPartsItem = {
   quantity: number;
   unitPrice: number;
   fromInventory?: boolean;
+  inventoryId?: number;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
 };
 
 export interface CreateRepairOrderInput {
@@ -602,6 +642,9 @@ export type UpdateRepairOrderInputPartsItem = {
   quantity: number;
   unitPrice: number;
   fromInventory?: boolean;
+  inventoryId?: number;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
 };
 
 export interface UpdateRepairOrderInput {
@@ -709,6 +752,8 @@ export interface InventoryItem {
   minQuantity: number;
   location?: string;
   notes?: string;
+  defaultWarrantyMonths?: number | null;
+  defaultWarrantyMiles?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -726,6 +771,8 @@ export interface CreateInventoryItemInput {
   minQuantity: number;
   location?: string;
   notes?: string;
+  defaultWarrantyMonths?: number | null;
+  defaultWarrantyMiles?: number | null;
 }
 
 export type StockMovementReason =

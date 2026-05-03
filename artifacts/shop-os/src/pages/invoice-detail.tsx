@@ -215,15 +215,30 @@ export default function InvoiceDetail() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.lineItems?.map(item => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.description}</TableCell>
-                  <TableCell className="capitalize">{item.type}</TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(Number(item.unitPrice))}</TableCell>
-                  <TableCell className="text-right font-medium">{formatCurrency(Number(item.total))}</TableCell>
-                </TableRow>
-              ))}
+              {invoice.lineItems?.map(item => {
+                const wm = (item as any).warrantyMonths as number | null | undefined;
+                const wmi = (item as any).warrantyMiles as number | null | undefined;
+                const warrantyText = [
+                  wm != null && wm > 0 ? `${wm} mo` : null,
+                  wmi != null && wmi > 0 ? `${wmi.toLocaleString()} mi` : null,
+                ].filter(Boolean).join(" / ");
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">
+                      {item.description}
+                      {warrantyText && (
+                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[10px] font-medium text-blue-700 align-middle">
+                          Warranty {warrantyText}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="capitalize">{item.type}</TableCell>
+                    <TableCell className="text-right">{item.quantity}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(Number(item.unitPrice))}</TableCell>
+                    <TableCell className="text-right font-medium">{formatCurrency(Number(item.total))}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
 

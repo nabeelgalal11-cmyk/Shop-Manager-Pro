@@ -12,4 +12,7 @@ export type CreateRepairOrderInputPartsItem = {
   quantity: number;
   unitPrice: number;
   fromInventory?: boolean;
+  inventoryId?: number;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
 };

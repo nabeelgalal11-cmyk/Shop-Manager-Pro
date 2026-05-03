@@ -402,6 +402,27 @@ paths:
         "204":
           description: Deleted
 
+  /vehicles/{id}/warranties:
+    get:
+      operationId: getVehicleWarranties
+      tags: [vehicles]
+      summary: Get active warranties for a vehicle
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Active warranties. Optional `?complaint=` query string (not part of the typed contract) annotates each entry with `matchesComplaint` for UI highlighting.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleWarrantyEntry"
+
   /vehicles/{id}/service-history:
     get:
       operationId: getVehicleServiceHistory
@@ -2259,6 +2280,56 @@ components:
         - date
         - serviceType
 
+    VehicleWarrantyEntry:
+      type: object
+      properties:
+        source:
+          type: string
+          enum: [repair_order, invoice]
+        sourceId:
+          type: integer
+        sourceNumber:
+          type: string
+          nullable: true
+        itemType:
+          type: string
+          enum: [part, labor]
+        description:
+          type: string
+        partNumber:
+          type: string
+          nullable: true
+        warrantyMonths:
+          type: integer
+          nullable: true
+        warrantyMiles:
+          type: integer
+          nullable: true
+        startDate:
+          type: string
+          format: date-time
+        startMileage:
+          type: integer
+          nullable: true
+        expiresOn:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAtMileage:
+          type: integer
+          nullable: true
+        active:
+          type: boolean
+        matchesComplaint:
+          type: boolean
+      required:
+        - source
+        - sourceId
+        - itemType
+        - description
+        - startDate
+        - active
+
     LineItem:
       type: object
       properties:
@@ -2284,6 +2355,12 @@ components:
         customerDecision:
           type: string
           enum: [pending, approved, declined]
+        warrantyMonths:
+          type: integer
+          nullable: true
+        warrantyMiles:
+          type: integer
+          nullable: true
       required:
         - type
         - description
@@ -2309,6 +2386,12 @@ components:
           type: integer
         unitCost:
           type: number
+        warrantyMonths:
+          type: integer
+          nullable: true
+        warrantyMiles:
+          type: integer
+          nullable: true
       required:
         - type
         - description
@@ -2825,6 +2908,14 @@ components:
                 type: number
               fromInventory:
                 type: boolean
+              inventoryId:
+                type: integer
+              warrantyMonths:
+                type: integer
+                nullable: true
+              warrantyMiles:
+                type: integer
+                nullable: true
             required: [name, quantity, unitPrice]
         estimatedHours:
           type: number
@@ -2873,6 +2964,14 @@ components:
                 type: number
               fromInventory:
                 type: boolean
+              inventoryId:
+                type: integer
+              warrantyMonths:
+                type: integer
+                nullable: true
+              warrantyMiles:
+                type: integer
+                nullable: true
             required: [name, quantity, unitPrice]
         estimatedHours:
           type: number
@@ -3081,6 +3180,12 @@ components:
           type: string
         notes:
           type: string
+        defaultWarrantyMonths:
+          type: integer
+          nullable: true
+        defaultWarrantyMiles:
+          type: integer
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -3126,6 +3231,12 @@ components:
           type: string
         notes:
           type: string
+        defaultWarrantyMonths:
+          type: integer
+          nullable: true
+        defaultWarrantyMiles:
+          type: integer
+          nullable: true
       required:
         - name
         - category

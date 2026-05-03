@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { vehiclesTable, customersTable, repairOrdersTable, invoicesTable } from "@workspace/db";
 import { eq, ilike, or, sql, desc } from "drizzle-orm";
+import { findActiveWarrantiesForVehicle } from "../lib/warranty.js";
 
 const router: Router = Router();
 
@@ -62,6 +63,14 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   await db.delete(vehiclesTable).where(eq(vehiclesTable.id, Number(req.params.id)));
   res.status(204).send();
+});
+
+router.get("/:id/warranties", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "Invalid vehicle id" });
+  const complaint = typeof req.query.complaint === "string" ? req.query.complaint : undefined;
+  const entries = await findActiveWarrantiesForVehicle(id, complaint);
+  res.json(entries);
 });
 
 router.get("/:id/service-history", async (req, res) => {

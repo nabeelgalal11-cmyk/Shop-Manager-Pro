@@ -7,6 +7,8 @@ export type CannedJobItem = {
   description: string;
   quantity: number;
   unitPrice: number;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
 };
 
 export const cannedJobsTable = pgTable("canned_jobs", {

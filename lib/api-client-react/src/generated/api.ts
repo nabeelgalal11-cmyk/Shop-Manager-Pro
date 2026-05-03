@@ -104,6 +104,7 @@ import type {
   UsedCarReconResponse,
   Vehicle,
   VehicleListResponse,
+  VehicleWarrantyEntry,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1734,6 +1735,94 @@ export const useDeleteVehicle = <
 > => {
   return useMutation(getDeleteVehicleMutationOptions(options));
 };
+
+/**
+ * @summary Get active warranties for a vehicle
+ */
+export const getGetVehicleWarrantiesUrl = (id: number) => {
+  return `/api/vehicles/${id}/warranties`;
+};
+
+export const getVehicleWarranties = async (
+  id: number,
+  options?: RequestInit,
+): Promise<VehicleWarrantyEntry[]> => {
+  return customFetch<VehicleWarrantyEntry[]>(getGetVehicleWarrantiesUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetVehicleWarrantiesQueryKey = (id: number) => {
+  return [`/api/vehicles/${id}/warranties`] as const;
+};
+
+export const getGetVehicleWarrantiesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getVehicleWarranties>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVehicleWarranties>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetVehicleWarrantiesQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getVehicleWarranties>>
+  > = ({ signal }) => getVehicleWarranties(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getVehicleWarranties>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetVehicleWarrantiesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getVehicleWarranties>>
+>;
+export type GetVehicleWarrantiesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get active warranties for a vehicle
+ */
+
+export function useGetVehicleWarranties<
+  TData = Awaited<ReturnType<typeof getVehicleWarranties>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getVehicleWarranties>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetVehicleWarrantiesQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get vehicle service history

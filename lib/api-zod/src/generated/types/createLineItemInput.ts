@@ -15,4 +15,6 @@ export interface CreateLineItemInput {
   partNumber?: string;
   inventoryItemId?: number;
   unitCost?: number;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
 }

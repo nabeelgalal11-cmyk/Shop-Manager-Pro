@@ -302,6 +302,8 @@ export const GetCustomerStatementResponse = zod.object({
             customerDecision: zod
               .enum(["pending", "approved", "declined"])
               .optional(),
+            warrantyMonths: zod.number().nullish(),
+            warrantyMiles: zod.number().nullish(),
           }),
         )
         .optional(),
@@ -601,6 +603,33 @@ export const DeleteVehicleParams = zod.object({
 });
 
 /**
+ * @summary Get active warranties for a vehicle
+ */
+export const GetVehicleWarrantiesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetVehicleWarrantiesResponseItem = zod.object({
+  source: zod.enum(["repair_order", "invoice"]),
+  sourceId: zod.number(),
+  sourceNumber: zod.string().nullish(),
+  itemType: zod.enum(["part", "labor"]),
+  description: zod.string(),
+  partNumber: zod.string().nullish(),
+  warrantyMonths: zod.number().nullish(),
+  warrantyMiles: zod.number().nullish(),
+  startDate: zod.coerce.date(),
+  startMileage: zod.number().nullish(),
+  expiresOn: zod.coerce.date().nullish(),
+  expiresAtMileage: zod.number().nullish(),
+  active: zod.boolean(),
+  matchesComplaint: zod.boolean().optional(),
+});
+export const GetVehicleWarrantiesResponse = zod.array(
+  GetVehicleWarrantiesResponseItem,
+);
+
+/**
  * @summary Get vehicle service history
  */
 export const GetVehicleServiceHistoryParams = zod.object({
@@ -678,6 +707,8 @@ export const GetEstimatesResponse = zod.object({
             customerDecision: zod
               .enum(["pending", "approved", "declined"])
               .optional(),
+            warrantyMonths: zod.number().nullish(),
+            warrantyMiles: zod.number().nullish(),
           }),
         )
         .optional(),
@@ -775,6 +806,8 @@ export const CreateEstimateBody = zod.object({
       partNumber: zod.string().optional(),
       inventoryItemId: zod.number().optional(),
       unitCost: zod.number().optional(),
+      warrantyMonths: zod.number().nullish(),
+      warrantyMiles: zod.number().nullish(),
     }),
   ),
 });
@@ -826,6 +859,8 @@ export const GetEstimateResponse = zod.object({
         customerDecision: zod
           .enum(["pending", "approved", "declined"])
           .optional(),
+        warrantyMonths: zod.number().nullish(),
+        warrantyMiles: zod.number().nullish(),
       }),
     )
     .optional(),
@@ -922,6 +957,8 @@ export const UpdateEstimateBody = zod.object({
       partNumber: zod.string().optional(),
       inventoryItemId: zod.number().optional(),
       unitCost: zod.number().optional(),
+      warrantyMonths: zod.number().nullish(),
+      warrantyMiles: zod.number().nullish(),
     }),
   ),
 });
@@ -966,6 +1003,8 @@ export const UpdateEstimateResponse = zod.object({
         customerDecision: zod
           .enum(["pending", "approved", "declined"])
           .optional(),
+        warrantyMonths: zod.number().nullish(),
+        warrantyMiles: zod.number().nullish(),
       }),
     )
     .optional(),
@@ -1121,6 +1160,8 @@ export const GetInvoicesResponse = zod.object({
             customerDecision: zod
               .enum(["pending", "approved", "declined"])
               .optional(),
+            warrantyMonths: zod.number().nullish(),
+            warrantyMiles: zod.number().nullish(),
           }),
         )
         .optional(),
@@ -1242,6 +1283,8 @@ export const CreateInvoiceBody = zod.object({
       partNumber: zod.string().optional(),
       inventoryItemId: zod.number().optional(),
       unitCost: zod.number().optional(),
+      warrantyMonths: zod.number().nullish(),
+      warrantyMiles: zod.number().nullish(),
     }),
   ),
 });
@@ -1285,6 +1328,8 @@ export const GetInvoiceResponse = zod.object({
         customerDecision: zod
           .enum(["pending", "approved", "declined"])
           .optional(),
+        warrantyMonths: zod.number().nullish(),
+        warrantyMiles: zod.number().nullish(),
       }),
     )
     .optional(),
@@ -1405,6 +1450,8 @@ export const UpdateInvoiceBody = zod.object({
       partNumber: zod.string().optional(),
       inventoryItemId: zod.number().optional(),
       unitCost: zod.number().optional(),
+      warrantyMonths: zod.number().nullish(),
+      warrantyMiles: zod.number().nullish(),
     }),
   ),
 });
@@ -1441,6 +1488,8 @@ export const UpdateInvoiceResponse = zod.object({
         customerDecision: zod
           .enum(["pending", "approved", "declined"])
           .optional(),
+        warrantyMonths: zod.number().nullish(),
+        warrantyMiles: zod.number().nullish(),
       }),
     )
     .optional(),
@@ -1763,6 +1812,9 @@ export const CreateRepairOrderBody = zod.object({
         quantity: zod.number(),
         unitPrice: zod.number(),
         fromInventory: zod.boolean().optional(),
+        inventoryId: zod.number().optional(),
+        warrantyMonths: zod.number().nullish(),
+        warrantyMiles: zod.number().nullish(),
       }),
     )
     .optional(),
@@ -1971,6 +2023,9 @@ export const UpdateRepairOrderBody = zod.object({
         quantity: zod.number(),
         unitPrice: zod.number(),
         fromInventory: zod.boolean().optional(),
+        inventoryId: zod.number().optional(),
+        warrantyMonths: zod.number().nullish(),
+        warrantyMiles: zod.number().nullish(),
       }),
     )
     .optional(),
@@ -2311,6 +2366,8 @@ export const GetInventoryResponse = zod.object({
       minQuantity: zod.number(),
       location: zod.string().optional(),
       notes: zod.string().optional(),
+      defaultWarrantyMonths: zod.number().nullish(),
+      defaultWarrantyMiles: zod.number().nullish(),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -2336,6 +2393,8 @@ export const CreateInventoryItemBody = zod.object({
   minQuantity: zod.number(),
   location: zod.string().optional(),
   notes: zod.string().optional(),
+  defaultWarrantyMonths: zod.number().nullish(),
+  defaultWarrantyMiles: zod.number().nullish(),
 });
 
 /**
@@ -2360,6 +2419,8 @@ export const GetInventoryItemResponse = zod.object({
   minQuantity: zod.number(),
   location: zod.string().optional(),
   notes: zod.string().optional(),
+  defaultWarrantyMonths: zod.number().nullish(),
+  defaultWarrantyMiles: zod.number().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -2384,6 +2445,8 @@ export const UpdateInventoryItemBody = zod.object({
   minQuantity: zod.number(),
   location: zod.string().optional(),
   notes: zod.string().optional(),
+  defaultWarrantyMonths: zod.number().nullish(),
+  defaultWarrantyMiles: zod.number().nullish(),
 });
 
 export const UpdateInventoryItemResponse = zod.object({
@@ -2401,6 +2464,8 @@ export const UpdateInventoryItemResponse = zod.object({
   minQuantity: zod.number(),
   location: zod.string().optional(),
   notes: zod.string().optional(),
+  defaultWarrantyMonths: zod.number().nullish(),
+  defaultWarrantyMiles: zod.number().nullish(),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });

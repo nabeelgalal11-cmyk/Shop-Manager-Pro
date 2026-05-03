@@ -30,6 +30,8 @@ router.get("/", async (req, res) => {
       location: inventoryTable.location,
       notes: inventoryTable.notes,
       compatibleVehicles: inventoryTable.compatibleVehicles,
+      defaultWarrantyMonths: inventoryTable.defaultWarrantyMonths,
+      defaultWarrantyMiles: inventoryTable.defaultWarrantyMiles,
       createdAt: inventoryTable.createdAt,
       updatedAt: inventoryTable.updatedAt,
     })
@@ -54,12 +56,14 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { partNumber, name, description, category, vendor, preferredSupplierId, costPrice, sellPrice, quantity, minQuantity, location, notes, compatibleVehicles } = req.body;
+  const { partNumber, name, description, category, vendor, preferredSupplierId, costPrice, sellPrice, quantity, minQuantity, location, notes, compatibleVehicles, defaultWarrantyMonths, defaultWarrantyMiles } = req.body;
   const [item] = await db.insert(inventoryTable).values({
     partNumber, name, description, category, vendor,
     preferredSupplierId: preferredSupplierId ? Number(preferredSupplierId) : null,
     costPrice: costPrice.toString(), sellPrice: sellPrice.toString(),
     quantity, minQuantity, location, notes, compatibleVehicles,
+    defaultWarrantyMonths: defaultWarrantyMonths === "" || defaultWarrantyMonths == null ? null : Number(defaultWarrantyMonths),
+    defaultWarrantyMiles: defaultWarrantyMiles === "" || defaultWarrantyMiles == null ? null : Number(defaultWarrantyMiles),
   }).returning();
   res.status(201).json(item);
 });
@@ -108,7 +112,7 @@ router.get("/:id/movements", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { partNumber, name, description, category, vendor, preferredSupplierId, costPrice, sellPrice, quantity, minQuantity, location, notes, compatibleVehicles } = req.body;
+  const { partNumber, name, description, category, vendor, preferredSupplierId, costPrice, sellPrice, quantity, minQuantity, location, notes, compatibleVehicles, defaultWarrantyMonths, defaultWarrantyMiles } = req.body;
   const [item] = await db.update(inventoryTable).set({
     partNumber, name, description, category, vendor,
     ...(preferredSupplierId !== undefined && {
@@ -117,7 +121,10 @@ router.put("/:id", async (req, res) => {
         : Number(preferredSupplierId),
     }),
     costPrice: costPrice?.toString(), sellPrice: sellPrice?.toString(),
-    quantity, minQuantity, location, notes, compatibleVehicles, updatedAt: new Date(),
+    quantity, minQuantity, location, notes, compatibleVehicles,
+    ...(defaultWarrantyMonths !== undefined && { defaultWarrantyMonths: defaultWarrantyMonths === null || defaultWarrantyMonths === "" ? null : Number(defaultWarrantyMonths) }),
+    ...(defaultWarrantyMiles !== undefined && { defaultWarrantyMiles: defaultWarrantyMiles === null || defaultWarrantyMiles === "" ? null : Number(defaultWarrantyMiles) }),
+    updatedAt: new Date(),
   }).where(eq(inventoryTable.id, id)).returning();
   if (!item) return res.status(404).json({ error: "Item not found" });
   res.json(item);

@@ -17,7 +17,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
 
-type ROPart = { name: string; partNumber?: string; quantity: number; unitPrice: number };
+type ROPart = { name: string; partNumber?: string; quantity: number; unitPrice: number; warrantyMonths?: number | null; warrantyMiles?: number | null };
+
+type WarrantyEntry = {
+  source: "repair_order" | "invoice"; sourceId: number; sourceNumber?: string | null;
+  itemType: "part" | "labor"; description: string; partNumber?: string | null;
+  warrantyMonths?: number | null; warrantyMiles?: number | null;
+  startDate: string; expiresOn?: string | null; expiresAtMileage?: number | null;
+  matchesComplaint?: boolean;
+};
 
 const formSchema = z.object({
   internal: z.boolean().default(false),
@@ -86,7 +94,21 @@ export default function RepairOrdersNew() {
   }, [search]);
 
   const internal = form.watch("internal");
+  const watchedVehicleId = form.watch("vehicleId");
+  const watchedComplaint = form.watch("complaint");
   const createRepairOrder = useCreateRepairOrder();
+
+  const { data: activeWarranties } = useQuery<WarrantyEntry[]>({
+    queryKey: ["/api/vehicles", watchedVehicleId, "warranties", watchedComplaint],
+    enabled: !internal && !!watchedVehicleId,
+    queryFn: async () => {
+      const qs = watchedComplaint ? `?complaint=${encodeURIComponent(watchedComplaint)}` : "";
+      const r = await fetch(`/api/vehicles/${watchedVehicleId}/warranties${qs}`);
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+  const matchingWarranties = (activeWarranties ?? []).filter(w => w.matchesComplaint);
 
   function handleCannedJob(job: CannedJob) {
     const items = job.items || [];
@@ -99,6 +121,8 @@ export default function RepairOrdersNew() {
         name: it.description,
         quantity: Number(it.quantity) || 1,
         unitPrice: Number(it.unitPrice) || 0,
+        warrantyMonths: it.warrantyMonths ?? null,
+        warrantyMiles: it.warrantyMiles ?? null,
       }));
 
     if (newParts.length > 0) {
@@ -309,6 +333,26 @@ export default function RepairOrdersNew() {
                       </FormItem>
                     )}
                   />
+                </div>
+              )}
+
+              {!internal && (activeWarranties?.length ?? 0) > 0 && (
+                <div className={`rounded-md border p-3 text-sm ${matchingWarranties.length > 0 ? "border-amber-300 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>
+                  <div className="font-semibold mb-1">
+                    {matchingWarranties.length > 0
+                      ? `⚠ ${matchingWarranties.length} active warrant${matchingWarranties.length === 1 ? "y" : "ies"} may cover this complaint`
+                      : `${activeWarranties!.length} active warrant${activeWarranties!.length === 1 ? "y" : "ies"} on this vehicle`}
+                  </div>
+                  <ul className="space-y-0.5 text-xs">
+                    {(matchingWarranties.length > 0 ? matchingWarranties : activeWarranties!).slice(0, 5).map((w, i) => (
+                      <li key={i}>
+                        • <span className="font-medium">{w.description}</span>
+                        {w.sourceNumber ? ` (${w.sourceNumber})` : ""}
+                        {w.expiresOn ? ` — expires ${new Date(w.expiresOn).toLocaleDateString()}` : ""}
+                        {w.expiresAtMileage != null ? ` or ${w.expiresAtMileage.toLocaleString()} mi` : ""}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
 

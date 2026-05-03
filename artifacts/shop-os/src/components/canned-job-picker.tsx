@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Wrench } from "lucide-react";
 
-export type CannedJobItem = { type: "labor" | "part" | "fee" | "discount"; description: string; quantity: number; unitPrice: number };
+export type CannedJobItem = { type: "labor" | "part" | "fee" | "discount"; description: string; quantity: number; unitPrice: number; warrantyMonths?: number | null; warrantyMiles?: number | null };
 export type CannedJob = { id: number; name: string; category?: string | null; description?: string | null; estimatedHours?: string | null; items: CannedJobItem[] };
 
 interface Props {

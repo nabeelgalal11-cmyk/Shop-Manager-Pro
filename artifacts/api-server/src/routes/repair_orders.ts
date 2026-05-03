@@ -7,6 +7,7 @@ import { sendSms } from "../lib/sms.js";
 import { recordActivity } from "../lib/activity.js";
 import { requirePermission } from "../lib/auth.js";
 import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
+import { fillRoPartsWarranties } from "../lib/warranty.js";
 import type { Action } from "../lib/permissions.js";
 import { getUser } from "../lib/auth.js";
 import { getPermissionsForRoles, hasPermission } from "../lib/permissions.js";
@@ -259,6 +260,7 @@ router.post("/", async (req, res) => {
       const orderNumber = `RO-${nextNum}`;
 
       const initialStatus = status || "pending";
+      const partsEnriched = parts ? await fillRoPartsWarranties(parts) : parts;
       const [created] = await tx.insert(repairOrdersTable).values({
         orderNumber,
         customerId: customerId || null,
@@ -267,7 +269,7 @@ router.post("/", async (req, res) => {
         internal: isInternal,
         assignedToId, status: initialStatus, priority: priority || "normal",
         complaint, diagnosis, notes,
-        parts: parts ?? undefined,
+        parts: partsEnriched ?? undefined,
         estimatedHours, mileageIn,
         promisedDate: promisedDate ? new Date(promisedDate) : null,
         completedAt: initialStatus === "completed" ? new Date() : null,
@@ -364,7 +366,7 @@ router.put("/:id", async (req, res) => {
       if (complaint !== undefined) updates.complaint = complaint;
       if (diagnosis !== undefined) updates.diagnosis = diagnosis;
       if (notes !== undefined) updates.notes = notes;
-      if (parts !== undefined) updates.parts = parts;
+      if (parts !== undefined) updates.parts = await fillRoPartsWarranties(parts ?? []);
       if (estimatedHours !== undefined) updates.estimatedHours = estimatedHours === null || estimatedHours === "" ? null : estimatedHours;
       if (actualHours !== undefined) updates.actualHours = actualHours === null || actualHours === "" ? null : actualHours;
       if (mileageIn !== undefined) updates.mileageIn = mileageIn === null || mileageIn === "" ? null : Number(mileageIn);

@@ -29,6 +29,8 @@ const formSchema = z.object({
   location: z.string().optional(),
   notes: z.string().optional(),
   compatibleVehicles: z.string().optional(),
+  defaultWarrantyMonths: z.coerce.number().min(0).optional().nullable(),
+  defaultWarrantyMiles: z.coerce.number().min(0).optional().nullable(),
 });
 
 const CUSTOM_KEY = "__custom__";
@@ -61,6 +63,8 @@ export default function InventoryNew() {
       location: "",
       notes: "",
       compatibleVehicles: "",
+      defaultWarrantyMonths: null,
+      defaultWarrantyMiles: null,
     },
   });
 
@@ -327,6 +331,47 @@ export default function InventoryNew() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <Separator />
+
+              <div>
+                <p className="text-sm font-medium mb-2">Default Warranty (optional)</p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Auto-applied as the default warranty whenever this part is added to a repair order or invoice. Leave blank for no warranty.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="defaultWarrantyMonths"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Months</FormLabel>
+                        <FormControl>
+                          <Input type="number" min="0" placeholder="e.g. 12"
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="defaultWarrantyMiles"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Miles</FormLabel>
+                        <FormControl>
+                          <Input type="number" min="0" placeholder="e.g. 12000"
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

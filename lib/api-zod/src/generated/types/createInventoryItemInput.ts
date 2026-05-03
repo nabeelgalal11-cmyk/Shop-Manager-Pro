@@ -19,4 +19,6 @@ export interface CreateInventoryItemInput {
   minQuantity: number;
   location?: string;
   notes?: string;
+  defaultWarrantyMonths?: number | null;
+  defaultWarrantyMiles?: number | null;
 }

@@ -66,6 +66,8 @@ export default function InventoryDetail() {
       location: item.location ?? "",
       notes: item.notes ?? "",
       compatibleVehicles: (item as any).compatibleVehicles ?? "",
+      defaultWarrantyMonths: (item as any).defaultWarrantyMonths ?? "",
+      defaultWarrantyMiles: (item as any).defaultWarrantyMiles ?? "",
     });
     setCategoryMode("select");
     setCustomCategory("");
@@ -384,6 +386,19 @@ export default function InventoryDetail() {
                   <Label>Storage Location</Label>
                   <Input placeholder="e.g. Shelf A2, Bin 14" value={form.location} onChange={e => set("location", e.target.value)} />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Default Warranty (months)</Label>
+                    <Input type="number" min="0" placeholder="Blank = none" value={form.defaultWarrantyMonths ?? ""} onChange={e => set("defaultWarrantyMonths", e.target.value === "" ? null : Number(e.target.value))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Default Warranty (miles)</Label>
+                    <Input type="number" min="0" placeholder="Blank = none" value={form.defaultWarrantyMiles ?? ""} onChange={e => set("defaultWarrantyMiles", e.target.value === "" ? null : Number(e.target.value))} />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Auto-applied as the default warranty when this part is added to a repair order or invoice.
+                </p>
               </CardContent>
             </Card>
           )}
