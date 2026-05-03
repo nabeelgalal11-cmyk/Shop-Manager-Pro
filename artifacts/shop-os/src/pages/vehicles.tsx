@@ -1,5 +1,6 @@
 import { useGetVehicles, getGetVehiclesQueryKey } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -10,11 +11,27 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Vehicles() {
   const [, setLocation] = useLocation();
-  
+  const [search, setSearch] = useState("");
+
   const { data, isLoading } = useGetVehicles(
     { limit: 50 },
     { query: { queryKey: getGetVehiclesQueryKey({ limit: 50 }) } }
   );
+
+  const q = search.trim().toLowerCase();
+  const filtered = (data?.data || []).filter((v: any) => {
+    if (!q) return true;
+    const customerName = v.customer ? `${v.customer.firstName || ""} ${v.customer.lastName || ""}` : "";
+    return (
+      (v.vin || "").toLowerCase().includes(q) ||
+      (v.licensePlate || "").toLowerCase().includes(q) ||
+      (v.fleetNumber || "").toLowerCase().includes(q) ||
+      (v.make || "").toLowerCase().includes(q) ||
+      (v.model || "").toLowerCase().includes(q) ||
+      String(v.year || "").includes(q) ||
+      customerName.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -34,6 +51,8 @@ export default function Vehicles() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by VIN, plate, fleet #, make, model..."
               className="pl-9 bg-background"
             />
@@ -60,8 +79,8 @@ export default function Vehicles() {
                   <TableCell></TableCell>
                 </TableRow>
               ))
-            ) : data?.data && data.data.length > 0 ? (
-              data.data.map((vehicle) => (
+            ) : filtered.length > 0 ? (
+              filtered.map((vehicle) => (
                 <TableRow 
                   key={vehicle.id} 
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -121,7 +140,7 @@ export default function Vehicles() {
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                  No vehicles found.
+                  {q ? `No vehicles match "${search}".` : "No vehicles found."}
                 </TableCell>
               </TableRow>
             )}

@@ -1,4 +1,4 @@
-import { useState } from "wouter"; // this is just to get wouter location
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useGetCustomers, getGetCustomersQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,15 +11,24 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Customers() {
   const [, setLocation] = useLocation();
-  // const [search, setSearch] = useState("");
-  // const [page, setPage] = useState(1);
-  
+  const [search, setSearch] = useState("");
+
   const { data, isLoading } = useGetCustomers(
     { limit: 50 },
     { query: { queryKey: getGetCustomersQueryKey({ limit: 50 }) } }
   );
 
   const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+
+  const q = search.trim().toLowerCase();
+  const filtered = (data?.data || []).filter((c: any) => {
+    if (!q) return true;
+    return (
+      `${c.firstName || ""} ${c.lastName || ""}`.toLowerCase().includes(q) ||
+      (c.email || "").toLowerCase().includes(q) ||
+      (c.phone || "").toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -39,6 +48,8 @@ export default function Customers() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, email, phone..."
               className="pl-9 bg-background"
             />
@@ -65,8 +76,8 @@ export default function Customers() {
                   <TableCell></TableCell>
                 </TableRow>
               ))
-            ) : data?.data && data.data.length > 0 ? (
-              data.data.map((customer) => (
+            ) : filtered.length > 0 ? (
+              filtered.map((customer) => (
                 <TableRow 
                   key={customer.id} 
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -107,7 +118,7 @@ export default function Customers() {
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                  No customers found. Create your first one.
+                  {q ? `No customers match "${search}".` : "No customers found. Create your first one."}
                 </TableCell>
               </TableRow>
             )}

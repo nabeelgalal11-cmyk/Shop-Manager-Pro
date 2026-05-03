@@ -108,6 +108,7 @@ export default function RepairOrders() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [printing, setPrinting] = useState(false);
+  const [search, setSearch] = useState("");
 
   const { data, isLoading } = useGetRepairOrders(
     { limit: PAGE_SIZE, page },
@@ -118,7 +119,26 @@ export default function RepairOrders() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const startIdx = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const endIdx = Math.min(page * PAGE_SIZE, total);
-  const rows = data?.data ?? [];
+  const allRows = data?.data ?? [];
+  const q = search.trim().toLowerCase();
+  const rows = q
+    ? allRows.filter((ro: any) => {
+        const customerName = ro.customer
+          ? `${ro.customer.firstName || ""} ${ro.customer.lastName || ""}`
+          : "";
+        const vehicleStr = ro.vehicle
+          ? `${ro.vehicle.year || ""} ${ro.vehicle.make || ""} ${ro.vehicle.model || ""} ${ro.vehicle.licensePlate || ""} ${ro.vehicle.fleetNumber || ""}`
+          : "";
+        return (
+          (ro.orderNumber || "").toLowerCase().includes(q) ||
+          (ro.complaint || "").toLowerCase().includes(q) ||
+          (ro.diagnosis || "").toLowerCase().includes(q) ||
+          (ro.status || "").toLowerCase().includes(q) ||
+          customerName.toLowerCase().includes(q) ||
+          vehicleStr.toLowerCase().includes(q)
+        );
+      })
+    : allRows;
   const pageIds = rows.map((r) => r.id);
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const someOnPageSelected = pageIds.some((id) => selected.has(id));
@@ -231,6 +251,8 @@ export default function RepairOrders() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search RO number, customer, vehicle..."
               className="pl-9 bg-background"
             />
