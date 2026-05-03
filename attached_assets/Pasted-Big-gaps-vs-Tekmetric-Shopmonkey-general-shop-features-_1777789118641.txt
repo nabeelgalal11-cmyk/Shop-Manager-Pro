@@ -1,0 +1,27 @@
+Big gaps vs Tekmetric / Shopmonkey (general shop features)
+Two‑way SMS (Twilio) — Status updates, "your bus is ready", estimate approval link. This is the #1 feature customers cite when switching to Tekmetric. You already have email; SMS is the missing half.
+Digital Vehicle Inspection with photo per item + customer approval link — Today inspections are checkboxes only. The industry standard is: tech checks each item with green/yellow/red + photo + voice‑to‑text note → one link is texted/emailed → customer taps Approve/Decline per line → signed and timestamped. This is the single highest‑ROI feature in the industry.
+VIN decoder — Free NHTSA API; paste VIN, auto‑fill year/make/model/engine/trim. Saves 20 sec per vehicle and prevents typos.
+Canned jobs / service packages — Pre‑built jobs ("front brake pads + rotors", "DOT annual", "oil & filter") with default labor hours, parts list, price. One click adds to an RO/estimate. You'd use these constantly for fleet PM.
+Labor guide / parts catalog integration — Mitchell 1 ProDemand or MOTOR for OEM labor times; PartsTech / NAPA PROLink / WorldPac for live parts pricing & availability. Even a manual "labor time lookup table" you maintain would help.
+Repair order Kanban board — Drag ROs between columns (Awaiting / In Progress / Awaiting Parts / Awaiting Approval / Done). You already have status; just needs a board view.
+Profitability per RO — Show gross profit, parts margin %, labor $/hr effective, tech efficiency. You have the data, just not the rollup.
+Estimate approval workflow — Send estimate → customer gets link → approves whole estimate or per‑line → e‑signature captured → status flips automatically.
+Online deposit / card‑on‑file — Stripe integration so fleets can pay invoices online (and so retail can leave a deposit when approving).
+QuickBooks Online export — At minimum, a CSV journal export (invoices, payments, expenses, COGS) that QBO can import. Almost all shops still do their books in QBO.
+Audit log — Who edited what and when. Useful for permission disputes and DOT audits.
+CARFAX service history reporting — Free for shops; sends RO completions to CARFAX so they show up on the vehicle history report. Marketing benefit.
+Inventory / purchasing fixes (you're close, just incomplete)
+Receiving a PO should auto‑increase inventory qty. Currently POST /purchases writes line items but doesn't bump inventory.quantity. Should happen when status flips to received.
+Adding a part to an RO/invoice should auto‑decrement inventory and record the cost as COGS. Without this, your inventory drifts and reports lie.
+Suppliers as first‑class records — currently purchases.supplier is free text. A suppliers table → terms, account #, default contact, history.
+Reorder report — auto-generate a draft PO from items below minQuantity, grouped by vendor.
+Barcode / QR scan for receiving and for picking parts on an RO. Phone camera works.
+Polish gaps that show up in every demo
+Search bar — global search (customer name, phone, plate, VIN, RO #, invoice #). You have /api/search — does the UI expose it prominently?
+Recent / favorites — recent customers, favorite vehicles for fleet techs.
+Calendar view for appointments with tech swimlanes and drag‑to‑reschedule.
+Tech mobile view — read‑only RO list on phone, clock in/out per job, mark complete with photo. Even a responsive layout, not a separate app.
+Warranty tracking — parts/labor warranty period per line item; alert if a return visit falls inside.
+Declined work follow‑up — when an inspection item is declined, save it; surface "X declined items aging > 30 days" so service writers can call back.
+Activity timeline on each RO/customer — every status change, message, payment, attachment, in one feed.
