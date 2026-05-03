@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import twilio from "twilio";
 import { db, messagesTable, customersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, or } from "drizzle-orm";
 import {
   applyOptOutKeyword,
   findCustomerByPhone,
@@ -59,6 +59,31 @@ router.post("/inbound", async (req, res) => {
     return res.status(200).type("text/xml").send("<Response/>");
   }
 
+  // Thread inheritance: link this inbound reply to whatever record the most
+  // recent outbound message to this customer was about (RO/estimate/invoice).
+  // This makes replies show up on the originating record's thread, not just
+  // the customer-level thread.
+  const [lastOutbound] = await db
+    .select({
+      repairOrderId: messagesTable.repairOrderId,
+      estimateId: messagesTable.estimateId,
+      invoiceId: messagesTable.invoiceId,
+    })
+    .from(messagesTable)
+    .where(
+      and(
+        eq(messagesTable.customerId, matched.id),
+        eq(messagesTable.direction, "outbound"),
+        or(
+          isNotNull(messagesTable.repairOrderId),
+          isNotNull(messagesTable.estimateId),
+          isNotNull(messagesTable.invoiceId),
+        ),
+      ),
+    )
+    .orderBy(desc(messagesTable.createdAt))
+    .limit(1);
+
   await db.insert(messagesTable).values({
     customerId: matched.id,
     direction: "inbound",
@@ -68,6 +93,9 @@ router.post("/inbound", async (req, res) => {
     body,
     status: "received",
     twilioSid: sid || null,
+    repairOrderId: lastOutbound?.repairOrderId ?? null,
+    estimateId: lastOutbound?.estimateId ?? null,
+    invoiceId: lastOutbound?.invoiceId ?? null,
   });
 
   // Honor STOP / START in the same lambda so the next outbound is gated.
