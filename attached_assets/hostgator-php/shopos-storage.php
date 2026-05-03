@@ -1,4 +1,28 @@
 <?php
+// Show PHP errors as JSON instead of HTML so we can debug from the client.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+set_error_handler(function ($severity, $message, $file, $line) {
+    if (!(error_reporting() & $severity)) return false;
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+set_exception_handler(function ($e) {
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json');
+    }
+    echo json_encode([
+        'ok' => false,
+        'error' => 'php_exception',
+        'type' => get_class($e),
+        'message' => $e->getMessage(),
+        'file' => basename($e->getFile()),
+        'line' => $e->getLine(),
+    ]);
+    exit;
+});
+
 /**
  * ShopOS storage gateway — runs on HostGator (PHP), called over HTTPS by the
  * ShopOS backend. Files are stored OUTSIDE public_html so they are not
