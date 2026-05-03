@@ -13,6 +13,8 @@ export interface InventoryItem {
   description?: string;
   category: string;
   vendor?: string;
+  preferredSupplierId?: number | null;
+  preferredSupplierName?: string | null;
   costPrice: number;
   sellPrice: number;
   quantity: number;

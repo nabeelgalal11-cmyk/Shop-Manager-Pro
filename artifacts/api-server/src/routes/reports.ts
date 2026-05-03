@@ -441,4 +441,75 @@ router.get("/repair-order-profitability", async (req, res) => {
   });
 });
 
+// GET /api/reports/reorder — items at or below their min-quantity grouped by
+// preferred supplier. The "Unassigned" group collects items with no preferred
+// supplier so they can still be acted on (assign + reorder).
+router.get("/reorder", async (_req, res) => {
+  const rows = await db.execute(sql`
+    SELECT
+      i.id,
+      i.part_number AS "partNumber",
+      i.name,
+      i.category,
+      i.quantity,
+      i.min_quantity AS "minQuantity",
+      i.cost_price AS "costPrice",
+      i.preferred_supplier_id AS "preferredSupplierId",
+      s.name AS "supplierName",
+      s.account_number AS "supplierAccountNumber",
+      s.contact_email AS "supplierEmail"
+    FROM inventory i
+    LEFT JOIN suppliers s ON s.id = i.preferred_supplier_id
+    WHERE i.quantity <= i.min_quantity AND i.min_quantity > 0
+    ORDER BY s.name NULLS LAST, i.name
+  `);
+
+  const groups = new Map<string, {
+    supplierId: number | null;
+    supplierName: string | null;
+    accountNumber: string | null;
+    contactEmail: string | null;
+    items: any[];
+    estimatedCost: number;
+  }>();
+
+  for (const r of rows.rows as any[]) {
+    const key = r.preferredSupplierId === null ? "unassigned" : `s${r.preferredSupplierId}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        supplierId: r.preferredSupplierId ?? null,
+        supplierName: r.supplierName ?? null,
+        accountNumber: r.supplierAccountNumber ?? null,
+        contactEmail: r.supplierEmail ?? null,
+        items: [],
+        estimatedCost: 0,
+      });
+    }
+    const g = groups.get(key)!;
+    const reorderQty = Math.max(1, Number(r.minQuantity) - Number(r.quantity));
+    const lineCost = reorderQty * Number(r.costPrice ?? 0);
+    g.items.push({
+      id: r.id,
+      partNumber: r.partNumber,
+      name: r.name,
+      category: r.category,
+      quantity: Number(r.quantity),
+      minQuantity: Number(r.minQuantity),
+      costPrice: Number(r.costPrice ?? 0),
+      reorderQty,
+      lineCost,
+    });
+    g.estimatedCost += lineCost;
+  }
+
+  res.json({
+    groups: Array.from(groups.values()).map((g) => ({
+      ...g,
+      estimatedCost: Math.round(g.estimatedCost * 100) / 100,
+      itemCount: g.items.length,
+    })),
+    totalItems: Array.from(groups.values()).reduce((s, g) => s + g.items.length, 0),
+  });
+});
+
 export default router;

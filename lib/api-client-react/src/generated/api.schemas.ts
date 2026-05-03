@@ -701,6 +701,8 @@ export interface InventoryItem {
   description?: string;
   category: string;
   vendor?: string;
+  preferredSupplierId?: number | null;
+  preferredSupplierName?: string | null;
   costPrice: number;
   sellPrice: number;
   quantity: number;
@@ -717,6 +719,7 @@ export interface CreateInventoryItemInput {
   description?: string;
   category: string;
   vendor?: string;
+  preferredSupplierId?: number | null;
   costPrice: number;
   sellPrice: number;
   quantity: number;
@@ -1110,6 +1113,97 @@ export interface ServiceCount {
   revenue: number;
 }
 
+export interface Supplier {
+  id: number;
+  name: string;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  accountNumber?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  paymentTerms?: string | null;
+  archived?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SupplierWithCounts = Supplier & {
+  purchaseCount?: number;
+  inventoryCount?: number;
+  totalSpend?: number;
+};
+
+export interface SupplierListResponse {
+  data: SupplierWithCounts[];
+}
+
+export interface CreateSupplierInput {
+  name: string;
+  contactName?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  accountNumber?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  paymentTerms?: string | null;
+  archived?: boolean;
+}
+
+export type FromReorderInputItemsItem = {
+  inventoryId: number;
+  quantity?: number;
+};
+
+export interface FromReorderInput {
+  supplierId: number;
+  items: FromReorderInputItemsItem[];
+}
+
+export type SupplierDetailStats = {
+  purchaseCount?: number;
+  totalSpend?: number;
+  inventoryCount?: number;
+  lastPurchaseDate?: string | null;
+};
+
+export type SupplierDetailRecentPurchasesItem = { [key: string]: unknown };
+
+export type SupplierDetailLinkedInventoryItem = { [key: string]: unknown };
+
+export type SupplierDetail = Supplier & {
+  stats?: SupplierDetailStats;
+  recentPurchases?: SupplierDetailRecentPurchasesItem[];
+  linkedInventory?: SupplierDetailLinkedInventoryItem[];
+};
+
+export interface ReorderReportItem {
+  id?: number;
+  partNumber?: string;
+  name?: string;
+  category?: string | null;
+  quantity?: number;
+  minQuantity?: number;
+  costPrice?: number;
+  reorderQty?: number;
+  lineCost?: number;
+}
+
+export interface ReorderReportGroup {
+  supplierId?: number | null;
+  supplierName?: string | null;
+  accountNumber?: string | null;
+  contactEmail?: string | null;
+  items?: ReorderReportItem[];
+  itemCount?: number;
+  estimatedCost?: number;
+}
+
+export interface ReorderReport {
+  groups?: ReorderReportGroup[];
+  totalItems?: number;
+}
+
 export type GetCustomersParams = {
   search?: string;
   page?: number;
@@ -1234,6 +1328,14 @@ export const GetAppointmentsStatus = {
   cancelled: "cancelled",
   no_show: "no_show",
 } as const;
+
+export type GetSuppliersParams = {
+  search?: string;
+  includeArchived?: boolean;
+  limit?: number;
+};
+
+export type CreatePurchaseFromReorder201 = { [key: string]: unknown };
 
 export type GetPaymentsParams = {
   invoiceId?: number;

@@ -2263,6 +2263,8 @@ export const GetInventoryResponse = zod.object({
       description: zod.string().optional(),
       category: zod.string(),
       vendor: zod.string().optional(),
+      preferredSupplierId: zod.number().nullish(),
+      preferredSupplierName: zod.string().nullish(),
       costPrice: zod.number(),
       sellPrice: zod.number(),
       quantity: zod.number(),
@@ -2287,6 +2289,7 @@ export const CreateInventoryItemBody = zod.object({
   description: zod.string().optional(),
   category: zod.string(),
   vendor: zod.string().optional(),
+  preferredSupplierId: zod.number().nullish(),
   costPrice: zod.number(),
   sellPrice: zod.number(),
   quantity: zod.number(),
@@ -2309,6 +2312,8 @@ export const GetInventoryItemResponse = zod.object({
   description: zod.string().optional(),
   category: zod.string(),
   vendor: zod.string().optional(),
+  preferredSupplierId: zod.number().nullish(),
+  preferredSupplierName: zod.string().nullish(),
   costPrice: zod.number(),
   sellPrice: zod.number(),
   quantity: zod.number(),
@@ -2332,6 +2337,7 @@ export const UpdateInventoryItemBody = zod.object({
   description: zod.string().optional(),
   category: zod.string(),
   vendor: zod.string().optional(),
+  preferredSupplierId: zod.number().nullish(),
   costPrice: zod.number(),
   sellPrice: zod.number(),
   quantity: zod.number(),
@@ -2347,6 +2353,8 @@ export const UpdateInventoryItemResponse = zod.object({
   description: zod.string().optional(),
   category: zod.string(),
   vendor: zod.string().optional(),
+  preferredSupplierId: zod.number().nullish(),
+  preferredSupplierName: zod.string().nullish(),
   costPrice: zod.number(),
   sellPrice: zod.number(),
   quantity: zod.number(),
@@ -3247,6 +3255,184 @@ export const UpdateAppointmentResponse = zod.object({
  */
 export const DeleteAppointmentParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary List suppliers
+ */
+export const getSuppliersQueryLimitDefault = 100;
+
+export const GetSuppliersQueryParams = zod.object({
+  search: zod.coerce.string().optional(),
+  includeArchived: zod.coerce.boolean().optional(),
+  limit: zod.coerce.number().default(getSuppliersQueryLimitDefault),
+});
+
+export const GetSuppliersResponse = zod.object({
+  data: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        name: zod.string(),
+        contactName: zod.string().nullish(),
+        contactEmail: zod.string().nullish(),
+        contactPhone: zod.string().nullish(),
+        accountNumber: zod.string().nullish(),
+        address: zod.string().nullish(),
+        notes: zod.string().nullish(),
+        paymentTerms: zod.string().nullish(),
+        archived: zod.boolean().optional(),
+        createdAt: zod.string(),
+        updatedAt: zod.string(),
+      })
+      .and(
+        zod.object({
+          purchaseCount: zod.number().optional(),
+          inventoryCount: zod.number().optional(),
+          totalSpend: zod.number().optional(),
+        }),
+      ),
+  ),
+});
+
+/**
+ * @summary Create supplier
+ */
+export const CreateSupplierBody = zod.object({
+  name: zod.string(),
+  contactName: zod.string().nullish(),
+  contactEmail: zod.string().nullish(),
+  contactPhone: zod.string().nullish(),
+  accountNumber: zod.string().nullish(),
+  address: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  paymentTerms: zod.string().nullish(),
+  archived: zod.boolean().optional(),
+});
+
+/**
+ * @summary Supplier detail
+ */
+export const GetSupplierParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetSupplierResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    contactName: zod.string().nullish(),
+    contactEmail: zod.string().nullish(),
+    contactPhone: zod.string().nullish(),
+    accountNumber: zod.string().nullish(),
+    address: zod.string().nullish(),
+    notes: zod.string().nullish(),
+    paymentTerms: zod.string().nullish(),
+    archived: zod.boolean().optional(),
+    createdAt: zod.string(),
+    updatedAt: zod.string(),
+  })
+  .and(
+    zod.object({
+      stats: zod
+        .object({
+          purchaseCount: zod.number().optional(),
+          totalSpend: zod.number().optional(),
+          inventoryCount: zod.number().optional(),
+          lastPurchaseDate: zod.string().nullish(),
+        })
+        .optional(),
+      recentPurchases: zod.array(zod.object({}).passthrough()).optional(),
+      linkedInventory: zod.array(zod.object({}).passthrough()).optional(),
+    }),
+  );
+
+/**
+ * @summary Update supplier
+ */
+export const UpdateSupplierParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateSupplierBody = zod.object({
+  name: zod.string(),
+  contactName: zod.string().nullish(),
+  contactEmail: zod.string().nullish(),
+  contactPhone: zod.string().nullish(),
+  accountNumber: zod.string().nullish(),
+  address: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  paymentTerms: zod.string().nullish(),
+  archived: zod.boolean().optional(),
+});
+
+export const UpdateSupplierResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  contactName: zod.string().nullish(),
+  contactEmail: zod.string().nullish(),
+  contactPhone: zod.string().nullish(),
+  accountNumber: zod.string().nullish(),
+  address: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  paymentTerms: zod.string().nullish(),
+  archived: zod.boolean().optional(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete supplier (only when unreferenced)
+ */
+export const DeleteSupplierParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Items at or below their reorder point, grouped by preferred supplier
+ */
+export const GetReorderReportResponse = zod.object({
+  groups: zod
+    .array(
+      zod.object({
+        supplierId: zod.number().nullish(),
+        supplierName: zod.string().nullish(),
+        accountNumber: zod.string().nullish(),
+        contactEmail: zod.string().nullish(),
+        items: zod
+          .array(
+            zod.object({
+              id: zod.number().optional(),
+              partNumber: zod.string().optional(),
+              name: zod.string().optional(),
+              category: zod.string().nullish(),
+              quantity: zod.number().optional(),
+              minQuantity: zod.number().optional(),
+              costPrice: zod.number().optional(),
+              reorderQty: zod.number().optional(),
+              lineCost: zod.number().optional(),
+            }),
+          )
+          .optional(),
+        itemCount: zod.number().optional(),
+        estimatedCost: zod.number().optional(),
+      }),
+    )
+    .optional(),
+  totalItems: zod.number().optional(),
+});
+
+/**
+ * @summary Create a draft purchase from a list of inventory items for one supplier
+ */
+export const CreatePurchaseFromReorderBody = zod.object({
+  supplierId: zod.number(),
+  items: zod.array(
+    zod.object({
+      inventoryId: zod.number(),
+      quantity: zod.number().optional(),
+    }),
+  ),
 });
 
 /**

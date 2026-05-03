@@ -1,8 +1,16 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { purchasesTable, purchaseLineItemsTable, inventoryTable, usedCarsTable } from "@workspace/db";
-import { eq, desc, ilike, or, sql } from "drizzle-orm";
+import {
+  purchasesTable,
+  purchaseLineItemsTable,
+  inventoryTable,
+  usedCarsTable,
+  suppliersTable,
+} from "@workspace/db";
+import { eq, desc, ilike, or, sql, and, inArray } from "drizzle-orm";
 import { applyStockMovement, reverseStockMovement, type DbExecutor } from "../lib/inventory.js";
+import { recordActivity } from "../lib/activity.js";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
 
@@ -14,7 +22,7 @@ async function enrichPurchase(purchase: any) {
 
   const enrichedItems = await Promise.all(
     lineItems.map(async (item) => {
-      let linkedItem = null;
+      let linkedItem: unknown = null;
       if (item.itemType === "inventory" && item.inventoryId) {
         const [inv] = await db.select().from(inventoryTable).where(eq(inventoryTable.id, item.inventoryId));
         linkedItem = inv;
@@ -26,34 +34,82 @@ async function enrichPurchase(purchase: any) {
     })
   );
 
-  return { ...purchase, lineItems: enrichedItems };
+  let supplier: { id: number; name: string } | null = null;
+  if (purchase.supplierId) {
+    const [s] = await db
+      .select({ id: suppliersTable.id, name: suppliersTable.name })
+      .from(suppliersTable)
+      .where(eq(suppliersTable.id, purchase.supplierId));
+    if (s) supplier = s;
+  }
+
+  // For UI convenience expose a single `supplier` display name regardless
+  // of whether the legacy text or new FK is populated.
+  const supplierName = supplier?.name ?? purchase.supplierLegacy ?? null;
+
+  return { ...purchase, supplier: supplierName, supplierRecord: supplier, lineItems: enrichedItems };
 }
 
 // GET /api/purchases
 router.get("/", async (req, res) => {
   const search = req.query.search as string | undefined;
   const status = req.query.status as string | undefined;
+  const supplierIdParam = req.query.supplierId ? Number(req.query.supplierId) : null;
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(100, Number(req.query.limit) || 50);
   const offset = (page - 1) * limit;
 
-  let query = db.select().from(purchasesTable);
+  const filters: any[] = [];
   if (search) {
-    query = query.where(
+    filters.push(
       or(
-        ilike(purchasesTable.supplier, `%${search}%`),
-        ilike(purchasesTable.invoiceNumber, `%${search}%`)
-      )
-    ) as any;
+        ilike(purchasesTable.supplierLegacy, `%${search}%`),
+        ilike(purchasesTable.invoiceNumber, `%${search}%`),
+        sql`exists (select 1 from suppliers s where s.id = ${purchasesTable.supplierId} and s.name ilike ${"%" + search + "%"})`,
+      ),
+    );
   }
-  if (status) {
-    query = query.where(eq(purchasesTable.status, status)) as any;
-  }
+  if (status) filters.push(eq(purchasesTable.status, status));
+  if (supplierIdParam) filters.push(eq(purchasesTable.supplierId, supplierIdParam));
 
-  const [purchases, [{ count }]] = await Promise.all([
-    query.orderBy(desc(purchasesTable.purchaseDate)).limit(limit).offset(offset),
-    db.select({ count: sql<number>`count(*)` }).from(purchasesTable),
+  const where = filters.length > 0 ? and(...filters) : undefined;
+
+  const [rows, [{ count }]] = await Promise.all([
+    db
+      .select({
+        id: purchasesTable.id,
+        supplierId: purchasesTable.supplierId,
+        supplierLegacy: purchasesTable.supplierLegacy,
+        supplierName: suppliersTable.name,
+        supplierContact: purchasesTable.supplierContact,
+        supplierEmail: purchasesTable.supplierEmail,
+        supplierPhone: purchasesTable.supplierPhone,
+        invoiceNumber: purchasesTable.invoiceNumber,
+        amount: purchasesTable.amount,
+        tax: purchasesTable.tax,
+        shipping: purchasesTable.shipping,
+        status: purchasesTable.status,
+        purchaseDate: purchasesTable.purchaseDate,
+        notes: purchasesTable.notes,
+        invoiceFilePath: purchasesTable.invoiceFilePath,
+        invoiceFileName: purchasesTable.invoiceFileName,
+        invoiceFileType: purchasesTable.invoiceFileType,
+        createdAt: purchasesTable.createdAt,
+        updatedAt: purchasesTable.updatedAt,
+      })
+      .from(purchasesTable)
+      .leftJoin(suppliersTable, eq(suppliersTable.id, purchasesTable.supplierId))
+      .where(where)
+      .orderBy(desc(purchasesTable.purchaseDate))
+      .limit(limit)
+      .offset(offset),
+    db.select({ count: sql<number>`count(*)` }).from(purchasesTable).where(where),
   ]);
+
+  const purchases = rows.map((r) => ({
+    ...r,
+    supplier: r.supplierName ?? r.supplierLegacy ?? "",
+  }));
 
   const [stats] = await db.select({
     totalAmount: sql<number>`coalesce(sum(amount), 0)::numeric`,
@@ -80,23 +136,42 @@ router.get("/", async (req, res) => {
   });
 });
 
+async function resolveSupplierId(input: {
+  supplierId?: number | null;
+  supplierName?: string | null;
+}): Promise<number | null> {
+  if (input.supplierId) return Number(input.supplierId);
+  const name = input.supplierName?.trim();
+  if (!name) return null;
+  // Find or create by case-insensitive name. Used when the form types a
+  // free-text supplier instead of picking from the dropdown.
+  const [existing] = await db
+    .select({ id: suppliersTable.id })
+    .from(suppliersTable)
+    .where(sql`lower(${suppliersTable.name}) = lower(${name})`);
+  if (existing) return existing.id;
+  const [created] = await db.insert(suppliersTable).values({ name }).returning({ id: suppliersTable.id });
+  return created.id;
+}
+
 // POST /api/purchases
 router.post("/", async (req, res) => {
   const {
-    supplier, supplierContact, supplierEmail, supplierPhone,
+    supplierId: supplierIdRaw, supplier: supplierName,
+    supplierContact, supplierEmail, supplierPhone,
     invoiceNumber, amount, tax, shipping, status, purchaseDate, notes,
     invoiceFilePath, invoiceFileName, invoiceFileType,
     lineItems = [],
   } = req.body;
 
-  // Wrap purchase row + line items + receive movements in one transaction
-  // so a partial failure (e.g. movement write) cannot leave a half-saved
-  // purchase whose retry would duplicate rows.
+  const supplierId = await resolveSupplierId({ supplierId: supplierIdRaw, supplierName });
+  if (!supplierId) return res.status(400).json({ error: "Supplier is required" });
+
   let purchase: any;
   try {
     purchase = await db.transaction(async (tx) => {
       const [created] = await tx.insert(purchasesTable).values({
-        supplier,
+        supplierId,
         supplierContact,
         supplierEmail,
         supplierPhone,
@@ -134,6 +209,14 @@ router.post("/", async (req, res) => {
     req.log?.error({ err }, "Purchase create transaction failed");
     return res.status(500).json({ error: "Failed to create purchase" });
   }
+
+  await recordActivity({
+    entityType: "purchase",
+    entityId: purchase.id,
+    eventType: "created",
+    meta: { supplierId, status: purchase.status, amount: purchase.amount },
+    req,
+  });
 
   res.status(201).json(await enrichPurchase(purchase));
 });
@@ -185,11 +268,20 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
   const {
-    supplier, supplierContact, supplierEmail, supplierPhone,
+    supplierId: supplierIdRaw, supplier: supplierName,
+    supplierContact, supplierEmail, supplierPhone,
     invoiceNumber, amount, tax, shipping, status, purchaseDate, notes,
     invoiceFilePath, invoiceFileName, invoiceFileType,
     lineItems,
   } = req.body;
+
+  const supplierId =
+    supplierIdRaw === undefined && supplierName === undefined
+      ? undefined
+      : await resolveSupplierId({ supplierId: supplierIdRaw, supplierName });
+  if (supplierId === null) {
+    return res.status(400).json({ error: "Supplier is required" });
+  }
 
   let purchase: any | null = null;
   try {
@@ -197,10 +289,6 @@ router.put("/:id", async (req, res) => {
       const [prev] = await tx.select({ status: purchasesTable.status })
         .from(purchasesTable).where(eq(purchasesTable.id, id));
 
-      // Reverse existing receive movements before lines are deleted/rewritten
-      // OR before status leaves received. Doing this for prior `received` is
-      // safe (reverseStockMovement is a no-op when there is nothing to
-      // reverse) and prevents double counts on re-saves while still received.
       const wasReceived = prev?.status === "received";
       const willStayReceived = (status ?? prev?.status) === "received";
       const lineItemsRewritten = Array.isArray(lineItems);
@@ -209,7 +297,7 @@ router.put("/:id", async (req, res) => {
       }
 
       const [updated] = await tx.update(purchasesTable).set({
-        supplier,
+        ...(supplierId !== undefined && { supplierId }),
         supplierContact,
         supplierEmail,
         supplierPhone,
@@ -258,6 +346,13 @@ router.put("/:id", async (req, res) => {
   }
 
   if (!purchase) return res.status(404).json({ error: "Purchase not found" });
+  await recordActivity({
+    entityType: "purchase",
+    entityId: id,
+    eventType: status !== undefined ? "status_changed" : "updated",
+    meta: { status: purchase.status },
+    req,
+  });
   res.json(await enrichPurchase(purchase));
 });
 
@@ -273,6 +368,12 @@ router.delete("/:id", async (req, res) => {
     req.log?.error({ err, id }, "Purchase delete transaction failed");
     return res.status(500).json({ error: "Failed to delete purchase" });
   }
+  await recordActivity({
+    entityType: "purchase",
+    entityId: id,
+    eventType: "deleted",
+    req,
+  });
   res.status(204).send();
 });
 
@@ -286,6 +387,81 @@ router.patch("/:id/invoice", async (req, res) => {
     .returning();
   if (!purchase) return res.status(404).json({ error: "Purchase not found" });
   res.json(purchase);
+});
+
+// POST /api/purchases/from-reorder — create a draft purchase for one supplier
+// from a list of inventory items (qty defaults to minQuantity - quantity).
+router.post("/from-reorder", requirePermission("purchases", "create"), async (req, res) => {
+  const supplierId = Number(req.body.supplierId);
+  if (!supplierId) return res.status(400).json({ error: "supplierId is required" });
+  const items: Array<{ inventoryId: number; quantity?: number }> = Array.isArray(req.body.items)
+    ? req.body.items
+    : [];
+  if (items.length === 0) return res.status(400).json({ error: "items must not be empty" });
+
+  const inventoryIds = items.map((i) => Number(i.inventoryId)).filter((n) => Number.isFinite(n));
+  if (inventoryIds.length === 0) return res.status(400).json({ error: "no valid inventory ids" });
+
+  const invRows = await db
+    .select()
+    .from(inventoryTable)
+    .where(inArray(inventoryTable.id, inventoryIds));
+  const invById = new Map(invRows.map((r) => [r.id, r]));
+
+  const lineItems = items
+    .map((it) => {
+      const inv = invById.get(Number(it.inventoryId));
+      if (!inv) return null;
+      const requested = Number(it.quantity);
+      const qty = Number.isFinite(requested) && requested > 0
+        ? Math.round(requested)
+        : Math.max(1, (inv.minQuantity ?? 0) - (inv.quantity ?? 0));
+      return {
+        itemType: "inventory" as const,
+        inventoryId: inv.id,
+        description: inv.name + (inv.partNumber ? ` (${inv.partNumber})` : ""),
+        quantity: String(qty),
+        unitCost: String(inv.costPrice ?? "0"),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  if (lineItems.length === 0) return res.status(400).json({ error: "no inventory items found" });
+
+  const subtotal = lineItems.reduce(
+    (s, l) => s + Number(l.quantity) * Number(l.unitCost),
+    0,
+  );
+
+  const today = new Date().toISOString().slice(0, 10);
+  let created: any;
+  try {
+    created = await db.transaction(async (tx) => {
+      const [p] = await tx.insert(purchasesTable).values({
+        supplierId,
+        amount: subtotal.toFixed(2),
+        status: "pending",
+        purchaseDate: today,
+        notes: "Created from reorder report",
+      }).returning();
+      await tx.insert(purchaseLineItemsTable).values(
+        lineItems.map((li) => ({ purchaseId: p.id, ...li })),
+      );
+      return p;
+    });
+  } catch (err) {
+    req.log?.error({ err }, "from-reorder create failed");
+    return res.status(500).json({ error: "Failed to create draft purchase" });
+  }
+
+  await recordActivity({
+    entityType: "purchase",
+    entityId: created.id,
+    eventType: "created",
+    meta: { supplierId, source: "reorder", lineCount: lineItems.length },
+    req,
+  });
+  res.status(201).json(await enrichPurchase(created));
 });
 
 export default router;

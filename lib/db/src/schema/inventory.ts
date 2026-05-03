@@ -1,6 +1,7 @@
 import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { suppliersTable } from "./suppliers";
 
 export const inventoryTable = pgTable("inventory", {
   id: serial("id").primaryKey(),
@@ -9,6 +10,7 @@ export const inventoryTable = pgTable("inventory", {
   description: text("description"),
   category: text("category").notNull(),
   vendor: text("vendor"),
+  preferredSupplierId: integer("preferred_supplier_id").references(() => suppliersTable.id, { onDelete: "set null" }),
   costPrice: numeric("cost_price", { precision: 10, scale: 2 }).notNull().default("0"),
   sellPrice: numeric("sell_price", { precision: 10, scale: 2 }).notNull().default("0"),
   quantity: integer("quantity").notNull().default(0),

@@ -12,6 +12,7 @@ export interface CreateInventoryItemInput {
   description?: string;
   category: string;
   vendor?: string;
+  preferredSupplierId?: number | null;
   costPrice: number;
   sellPrice: number;
   quantity: number;

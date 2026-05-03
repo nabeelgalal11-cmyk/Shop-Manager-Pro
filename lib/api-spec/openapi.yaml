@@ -45,6 +45,8 @@ tags:
     description: Per-user UI preferences
   - name: activity
     description: Per-entity activity timeline
+  - name: suppliers
+    description: Parts suppliers / vendors
 
 paths:
   /healthz:
@@ -1107,6 +1109,130 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  # ---- SUPPLIERS ----
+  /suppliers:
+    get:
+      operationId: getSuppliers
+      tags: [suppliers]
+      summary: List suppliers
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: includeArchived
+          in: query
+          schema: { type: boolean }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 100 }
+      responses:
+        "200":
+          description: List of suppliers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierListResponse"
+    post:
+      operationId: createSupplier
+      tags: [suppliers]
+      summary: Create supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupplierInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+  /suppliers/{id}:
+    get:
+      operationId: getSupplier
+      tags: [suppliers]
+      summary: Supplier detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Supplier detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierDetail"
+    put:
+      operationId: updateSupplier
+      tags: [suppliers]
+      summary: Update supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSupplierInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+    delete:
+      operationId: deleteSupplier
+      tags: [suppliers]
+      summary: Delete supplier (only when unreferenced)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Deleted }
+        "409": { description: Supplier still referenced; archive instead }
+
+  /reports/reorder:
+    get:
+      operationId: getReorderReport
+      tags: [reports]
+      summary: Items at or below their reorder point, grouped by preferred supplier
+      responses:
+        "200":
+          description: Reorder report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReorderReport"
+
+  /purchases/from-reorder:
+    post:
+      operationId: createPurchaseFromReorder
+      tags: [purchases]
+      summary: Create a draft purchase from a list of inventory items for one supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FromReorderInput"
+      responses:
+        "201":
+          description: Draft purchase created
+          content:
+            application/json:
+              schema:
+                type: object
 
   # ---- PAYMENTS ----
   /payments:
@@ -2843,6 +2969,12 @@ components:
           type: string
         vendor:
           type: string
+        preferredSupplierId:
+          type: integer
+          nullable: true
+        preferredSupplierName:
+          type: string
+          nullable: true
         costPrice:
           type: number
         sellPrice:
@@ -2885,6 +3017,9 @@ components:
           type: string
         vendor:
           type: string
+        preferredSupplierId:
+          type: integer
+          nullable: true
         costPrice:
           type: number
         sellPrice:
@@ -3720,3 +3855,125 @@ components:
         - service
         - count
         - revenue
+
+    Supplier:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        contactName: { type: string, nullable: true }
+        contactEmail: { type: string, nullable: true }
+        contactPhone: { type: string, nullable: true }
+        accountNumber: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        paymentTerms: { type: string, nullable: true }
+        archived: { type: boolean }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+      required: [id, name, createdAt, updatedAt]
+
+    SupplierWithCounts:
+      allOf:
+        - $ref: "#/components/schemas/Supplier"
+        - type: object
+          properties:
+            purchaseCount: { type: integer }
+            inventoryCount: { type: integer }
+            totalSpend: { type: number }
+
+    SupplierListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupplierWithCounts"
+      required: [data]
+
+    CreateSupplierInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        contactName: { type: string, nullable: true }
+        contactEmail: { type: string, nullable: true }
+        contactPhone: { type: string, nullable: true }
+        accountNumber: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        notes: { type: string, nullable: true }
+        paymentTerms: { type: string, nullable: true }
+        archived: { type: boolean }
+
+    FromReorderInput:
+      type: object
+      required: [supplierId, items]
+      properties:
+        supplierId: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            required: [inventoryId]
+            properties:
+              inventoryId: { type: integer }
+              quantity: { type: integer }
+
+    SupplierDetail:
+      allOf:
+        - $ref: "#/components/schemas/Supplier"
+        - type: object
+          properties:
+            stats:
+              type: object
+              properties:
+                purchaseCount: { type: integer }
+                totalSpend: { type: number }
+                inventoryCount: { type: integer }
+                lastPurchaseDate:
+                  type: string
+                  nullable: true
+            recentPurchases:
+              type: array
+              items:
+                type: object
+            linkedInventory:
+              type: array
+              items:
+                type: object
+
+    ReorderReportItem:
+      type: object
+      properties:
+        id: { type: integer }
+        partNumber: { type: string }
+        name: { type: string }
+        category: { type: string, nullable: true }
+        quantity: { type: number }
+        minQuantity: { type: number }
+        costPrice: { type: number }
+        reorderQty: { type: integer }
+        lineCost: { type: number }
+
+    ReorderReportGroup:
+      type: object
+      properties:
+        supplierId: { type: integer, nullable: true }
+        supplierName: { type: string, nullable: true }
+        accountNumber: { type: string, nullable: true }
+        contactEmail: { type: string, nullable: true }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReorderReportItem"
+        itemCount: { type: integer }
+        estimatedCost: { type: number }
+
+    ReorderReport:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReorderReportGroup"
+        totalItems: { type: integer }

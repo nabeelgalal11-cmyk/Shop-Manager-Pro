@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
   Wrench, Package, ClipboardCheck, Calendar, CreditCard,
   UserCircle, Clock, Receipt, Bell, Search, BarChart2, Tags, CarFront, ShoppingCart, Settings2,
-  LogOut, Shield, KeyRound, Mail,
+  LogOut, Shield, KeyRound, Mail, Truck, AlertTriangle,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -39,12 +39,14 @@ const navGroups: NavGroup[] = [
       { name: "Customers", href: "/customers", icon: Users, resource: "customers" },
       { name: "Vehicles", href: "/vehicles", icon: Car, resource: "vehicles" },
       { name: "Inventory", href: "/inventory", icon: Package, resource: "inventory" },
+      { name: "Suppliers", href: "/suppliers", icon: Truck, resource: "suppliers" },
       { name: "Payments", href: "/payments", icon: CreditCard, resource: "payments" },
       { name: "Used Cars", href: "/used-cars", icon: CarFront, resource: "used_cars" },
     ]
   },
   { label: "Reports", items: [
       { name: "Purchases", href: "/purchases", icon: ShoppingCart, resource: "purchases" },
+      { name: "Reorder Report", href: "/reports/reorder", icon: AlertTriangle, resource: "reports" },
       { name: "Reports", href: "/reports", icon: BarChart2, resource: "reports" },
     ]
   },

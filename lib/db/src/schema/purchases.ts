@@ -1,13 +1,16 @@
 import { pgTable, serial, text, numeric, integer, date, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { customersTable } from "./customers";
 import { inventoryTable } from "./inventory";
 import { usedCarsTable } from "./used_cars";
+import { suppliersTable } from "./suppliers";
 
 export const purchasesTable = pgTable("purchases", {
   id: serial("id").primaryKey(),
-  supplier: text("supplier").notNull(),
+  // Free-text supplier value preserved from before the suppliers table existed.
+  // New purchases set supplierId; supplierLegacy is kept for historical audit.
+  supplierLegacy: text("supplier_legacy"),
+  supplierId: integer("supplier_id").references(() => suppliersTable.id, { onDelete: "set null" }),
   supplierContact: text("supplier_contact"),
   supplierEmail: text("supplier_email"),
   supplierPhone: text("supplier_phone"),

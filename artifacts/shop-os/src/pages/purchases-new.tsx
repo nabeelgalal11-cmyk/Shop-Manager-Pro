@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { SupplierPicker } from "@/components/supplier-picker";
 import { useUpload } from "@workspace/object-storage-web";
 import { AttachmentsPanel } from "@/components/attachments-panel";
 import {
@@ -37,7 +38,7 @@ interface LineItem {
 }
 
 const emptyForm = {
-  supplier: "",
+  supplierId: null as number | null,
   supplierContact: "",
   supplierEmail: "",
   supplierPhone: "",
@@ -100,7 +101,7 @@ export default function PurchasesNew() {
   useEffect(() => {
     if (existing) {
       setForm({
-        supplier: existing.supplier || "",
+        supplierId: existing.supplierId ?? null,
         supplierContact: existing.supplierContact || "",
         supplierEmail: existing.supplierEmail || "",
         supplierPhone: existing.supplierPhone || "",
@@ -144,7 +145,7 @@ export default function PurchasesNew() {
     },
   });
 
-  function set(key: keyof typeof emptyForm, val: string) {
+  function set<K extends keyof typeof emptyForm>(key: K, val: typeof emptyForm[K]) {
     setForm(p => ({ ...p, [key]: val }));
   }
 
@@ -172,6 +173,10 @@ export default function PurchasesNew() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.supplierId) {
+      toast({ title: "Supplier required", description: "Please select or create a supplier.", variant: "destructive" });
+      return;
+    }
     save.mutate({
       ...form,
       amount: Number(form.amount) || 0,
@@ -224,8 +229,8 @@ export default function PurchasesNew() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2 md:col-span-2">
-              <Label>Supplier Name *</Label>
-              <Input required placeholder="NAPA Auto Parts" value={form.supplier} onChange={e => set("supplier", e.target.value)} />
+              <Label>Supplier *</Label>
+              <SupplierPicker value={form.supplierId} onChange={(id) => set("supplierId", id)} placeholder="Select or create supplier..." />
             </div>
             <div className="space-y-2">
               <Label>Contact Name</Label>

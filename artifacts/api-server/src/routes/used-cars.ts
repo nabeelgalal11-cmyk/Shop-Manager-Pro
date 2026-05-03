@@ -31,7 +31,7 @@ async function computeRecon(carId: number, defaultLaborRate: number) {
       unitCost: purchaseLineItemsTable.unitCost,
       itemType: purchaseLineItemsTable.itemType,
       purchaseDate: purchasesTable.purchaseDate,
-      supplier: purchasesTable.supplier,
+      supplier: purchasesTable.supplierLegacy,
     })
     .from(purchaseLineItemsTable)
     .leftJoin(purchasesTable, eq(purchaseLineItemsTable.purchaseId, purchasesTable.id))

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Plus, Car } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { SupplierPicker } from "@/components/supplier-picker";
 
 const formSchema = z.object({
   partNumber: z.string().optional(),
@@ -24,6 +25,7 @@ const formSchema = z.object({
   quantity: z.coerce.number().min(0, "Must be 0 or more"),
   minQuantity: z.coerce.number().min(0, "Must be 0 or more"),
   vendor: z.string().optional(),
+  preferredSupplierId: z.number().nullable().optional(),
   location: z.string().optional(),
   notes: z.string().optional(),
   compatibleVehicles: z.string().optional(),
@@ -55,6 +57,7 @@ export default function InventoryNew() {
       quantity: 0,
       minQuantity: 5,
       vendor: "",
+      preferredSupplierId: null,
       location: "",
       notes: "",
       compatibleVehicles: "",
@@ -218,6 +221,30 @@ export default function InventoryNew() {
                   <p className="text-xs text-destructive">Category name is required</p>
                 )}
               </div>
+
+              <Separator />
+
+              <FormField
+                control={form.control}
+                name="preferredSupplierId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Preferred Supplier</FormLabel>
+                    <FormControl>
+                      <SupplierPicker
+                        value={field.value ?? null}
+                        onChange={(id) => field.onChange(id)}
+                        allowClear
+                        placeholder="Select or create supplier..."
+                      />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      Used to group items in the reorder report.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <Separator />
 

@@ -15,6 +15,9 @@ const ENTITY_PERMISSIONS: Record<ActivityEntityType, Resource> = {
   vehicle: "vehicles",
   inspection: "inspections",
   appointment: "appointments",
+  supplier: "suppliers",
+  payment: "payments",
+  purchase: "purchases",
 };
 
 const ALLOWED_ENTITY_TYPES = new Set<string>(Object.keys(ENTITY_PERMISSIONS));

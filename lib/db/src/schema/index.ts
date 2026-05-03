@@ -1,4 +1,5 @@
 export * from "./customer_categories";
+export * from "./suppliers";
 export * from "./customers";
 export * from "./used_cars";
 export * from "./purchases";

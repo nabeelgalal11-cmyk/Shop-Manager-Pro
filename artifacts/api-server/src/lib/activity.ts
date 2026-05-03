@@ -8,7 +8,10 @@ export type ActivityEntityType =
   | "customer"
   | "vehicle"
   | "inspection"
-  | "appointment";
+  | "appointment"
+  | "supplier"
+  | "payment"
+  | "purchase";
 
 export type ActivityEventType =
   | "created"

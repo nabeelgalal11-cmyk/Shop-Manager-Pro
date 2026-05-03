@@ -47,6 +47,9 @@ import Reports from "@/pages/reports";
 import Purchases from "@/pages/purchases";
 import PurchasesNew from "@/pages/purchases-new";
 import PurchaseDetail from "@/pages/purchase-detail";
+import Suppliers from "@/pages/suppliers";
+import SupplierDetail from "@/pages/supplier-detail";
+import ReorderReport from "@/pages/reorder-report";
 import NjmvcInspections from "@/pages/njmvc";
 import NjmvcNew from "@/pages/njmvc-new";
 import NjmvcPrint from "@/pages/njmvc-print";
@@ -122,6 +125,9 @@ function Router() {
         <Route path="/purchases" component={Purchases} />
         <Route path="/purchases/new" component={PurchasesNew} />
         <Route path="/purchases/:id" component={PurchaseDetail} />
+        <Route path="/suppliers" component={Suppliers} />
+        <Route path="/suppliers/:id" component={SupplierDetail} />
+        <Route path="/reports/reorder" component={ReorderReport} />
 
         <Route path="/canned-jobs" component={CannedJobs} />
 
