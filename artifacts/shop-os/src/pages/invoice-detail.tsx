@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Printer, CreditCard, Link as LinkIcon, ExternalLink, MessageSquare } from "lucide-react";
 import { CustomerMessageThread } from "@/components/customer-message-thread";
+import { ActivityTimeline } from "@/components/activity-timeline";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -367,6 +368,12 @@ export default function InvoiceDetail() {
           title="Messages on this Invoice"
         />
       ) : null}
+
+      <ActivityTimeline
+        entityType="invoice"
+        entityId={invoice.id}
+        description="Status changes, payments, and communications for this invoice."
+      />
 
       <div ref={printRef} style={{ display: "none" }}>
         <h1>Invoice: {invoice.invoiceNumber}</h1>

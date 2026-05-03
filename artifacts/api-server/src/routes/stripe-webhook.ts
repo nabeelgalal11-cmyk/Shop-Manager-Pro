@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { getStripeClient, getStripeSettings } from "../lib/stripe.js";
 import { applyStockMovement, getInventoryUnitCost } from "../lib/inventory.js";
 import type { DbExecutor } from "../lib/inventory.js";
+import { recordActivity } from "../lib/activity.js";
 
 async function applyConsumptionIfNeeded(invoiceId: number, executor: DbExecutor = db) {
   // Mirrors logic in routes/invoices.ts. Idempotent at the caller level via stripe_event_id.
@@ -187,7 +188,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         ? session.payment_intent
         : session.payment_intent?.id ?? null;
 
-      await recordSuccessfulPayment({
+      const checkoutResult = await recordSuccessfulPayment({
         invoiceId,
         amountCents: session.amount_total ?? 0,
         paymentIntentId,
@@ -196,6 +197,18 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         note: "Online payment via Stripe Checkout",
       });
 
+      if (!checkoutResult.duplicate) {
+        const [inv] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+        await recordActivity({
+          entityType: "invoice",
+          entityId: invoiceId,
+          eventType: "payment_received",
+          meta: { source: "stripe_checkout", amount: (session.amount_total ?? 0) / 100, sessionId: session.id, paymentIntentId },
+          actorId: null,
+          actorLabel: "stripe",
+          customerId: inv?.customerId ?? null,
+        });
+      }
       req.log?.info({ invoiceId, event: event.id }, "Stripe checkout completed (recorded)");
       return res.json({ received: true });
     }
@@ -215,7 +228,7 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         return res.json({ received: true, idempotent: true });
       }
 
-      await recordSuccessfulPayment({
+      const intentResult = await recordSuccessfulPayment({
         invoiceId,
         amountCents: intent.amount_received ?? intent.amount ?? 0,
         paymentIntentId: intent.id,
@@ -224,6 +237,18 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         note: "Online payment via Stripe (payment_intent.succeeded)",
       });
 
+      if (!intentResult.duplicate) {
+        const [inv] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+        await recordActivity({
+          entityType: "invoice",
+          entityId: invoiceId,
+          eventType: "payment_received",
+          meta: { source: "stripe_payment_intent", amount: (intent.amount_received ?? intent.amount ?? 0) / 100, paymentIntentId: intent.id },
+          actorId: null,
+          actorLabel: "stripe",
+          customerId: inv?.customerId ?? null,
+        });
+      }
       req.log?.info({ invoiceId, event: event.id }, "Stripe payment_intent succeeded (recorded)");
       return res.json({ received: true });
     }
@@ -268,6 +293,16 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
         paidAt: new Date(),
       });
 
+      const [invForFail] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+      await recordActivity({
+        entityType: "invoice",
+        entityId: invoiceId,
+        eventType: "payment_failed",
+        meta: { reason, type: event.type, paymentIntentId },
+        actorId: null,
+        actorLabel: "stripe",
+        customerId: invForFail?.customerId ?? null,
+      });
       req.log?.warn({ invoiceId, event: event.id, reason }, "Stripe payment attempt failed (recorded)");
       // Invoice stays in `sent` — nothing to recompute.
       return res.json({ received: true });

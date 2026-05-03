@@ -26,6 +26,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AttachmentsPanel } from "@/components/attachments-panel";
+import { ActivityTimeline } from "@/components/activity-timeline";
 import { CustomerMessageThread } from "@/components/customer-message-thread";
 
 export default function CustomerDetail() {
@@ -355,6 +356,14 @@ export default function CustomerDetail() {
           ownerId={id}
           title="Photos & Documents"
           description="Driver's license, insurance card, signed forms, or any related PDFs/photos."
+        />
+      )}
+
+      {id > 0 && (
+        <ActivityTimeline
+          entityType="customer"
+          entityId={id}
+          description="Recent activity touching this customer's records."
         />
       )}
 

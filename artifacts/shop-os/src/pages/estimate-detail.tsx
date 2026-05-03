@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Printer, FileCheck, Send, Wrench, Check, X, MinusCircle, Copy } from "lucide-react";
 import { CustomerMessageThread } from "@/components/customer-message-thread";
+import { ActivityTimeline } from "@/components/activity-timeline";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 
@@ -331,6 +332,12 @@ export default function EstimateDetail() {
           title="Messages on this Estimate"
         />
       ) : null}
+
+      <ActivityTimeline
+        entityType="estimate"
+        entityId={estimate.id}
+        description="Sends, customer decisions, conversions, and communications for this estimate."
+      />
 
       <div ref={printRef} style={{ display: "none" }}>
         <h1>Estimate: {estimate.estimateNumber}</h1>

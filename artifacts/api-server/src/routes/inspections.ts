@@ -5,6 +5,7 @@ import { inspectionsTable, vehiclesTable, employeesTable, customersTable } from 
 import { eq, sql, desc, and, isNull } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { sendSms } from "../lib/sms.js";
+import { recordActivity } from "../lib/activity.js";
 
 const router: Router = Router();
 
@@ -143,6 +144,34 @@ router.post("/:id/send", async (req, res) => {
 
   if (emailed || smsed) {
     await db.update(inspectionsTable).set({ sentAt: new Date(), updatedAt: new Date() }).where(eq(inspectionsTable.id, id));
+    await recordActivity({
+      entityType: "inspection",
+      entityId: id,
+      eventType: "inspection_sent",
+      meta: { emailed, smsed, channel },
+      customerId: customer.id ?? null,
+      req,
+    });
+    if (emailed) {
+      await recordActivity({
+        entityType: "inspection",
+        entityId: id,
+        eventType: "email_sent",
+        meta: { template: "inspection_sent", to: customer.email },
+        customerId: customer.id ?? null,
+        req,
+      });
+    }
+    if (smsed) {
+      await recordActivity({
+        entityType: "inspection",
+        entityId: id,
+        eventType: "sms_sent",
+        meta: { context: "inspection_sent" },
+        customerId: customer.id ?? null,
+        req,
+      });
+    }
   }
 
   res.json({ ok: emailed || smsed, emailed, smsed, channel, url, token, errors });

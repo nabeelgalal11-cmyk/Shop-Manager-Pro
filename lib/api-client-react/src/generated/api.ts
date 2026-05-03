@@ -17,6 +17,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ActivityEventsPage,
   ActivityItem,
   Appointment,
   AppointmentListResponse,
@@ -43,6 +44,7 @@ import type {
   EstimateListResponse,
   Expense,
   ExpenseListResponse,
+  GetActivityParams,
   GetAppointmentsParams,
   GetCustomersParams,
   GetEmployeesParams,
@@ -7038,3 +7040,97 @@ export const useUpdateBoardPreference = <
 > => {
   return useMutation(getUpdateBoardPreferenceMutationOptions(options));
 };
+
+/**
+ * @summary Get activity timeline events for an entity
+ */
+export const getGetActivityUrl = (params: GetActivityParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/activity?${stringifiedParams}`
+    : `/api/activity`;
+};
+
+export const getActivity = async (
+  params: GetActivityParams,
+  options?: RequestInit,
+): Promise<ActivityEventsPage> => {
+  return customFetch<ActivityEventsPage>(getGetActivityUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetActivityQueryKey = (params?: GetActivityParams) => {
+  return [`/api/activity`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetActivityQueryOptions = <
+  TData = Awaited<ReturnType<typeof getActivity>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetActivityParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getActivity>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetActivityQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getActivity>>> = ({
+    signal,
+  }) => getActivity(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getActivity>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetActivityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getActivity>>
+>;
+export type GetActivityQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get activity timeline events for an entity
+ */
+
+export function useGetActivity<
+  TData = Awaited<ReturnType<typeof getActivity>>,
+  TError = ErrorType<unknown>,
+>(
+  params: GetActivityParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getActivity>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetActivityQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

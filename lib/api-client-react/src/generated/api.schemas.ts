@@ -1084,6 +1084,26 @@ export interface UpdateBoardPreferenceInput {
   hiddenColumns: string[];
 }
 
+export type ActivityEventMeta = { [key: string]: unknown } | null;
+
+export interface ActivityEvent {
+  id: number;
+  entityType: string;
+  entityId: number;
+  eventType: string;
+  actorId?: number | null;
+  actorLabel?: string | null;
+  actorName?: string | null;
+  meta?: ActivityEventMeta;
+  createdAt: string;
+}
+
+export interface ActivityEventsPage {
+  data: ActivityEvent[];
+  hasMore: boolean;
+  nextBeforeId?: number | null;
+}
+
 export interface ServiceCount {
   service: string;
   count: number;
@@ -1257,3 +1277,29 @@ export type GetRecentActivityParams = {
 export type GetTopServicesParams = {
   limit?: number;
 };
+
+export type GetActivityParams = {
+  entityType: GetActivityEntityType;
+  entityId: number;
+  /**
+   * @maximum 200
+   */
+  limit?: number;
+  /**
+   * Return events with id strictly less than this (cursor for older pages)
+   */
+  beforeId?: number;
+};
+
+export type GetActivityEntityType =
+  (typeof GetActivityEntityType)[keyof typeof GetActivityEntityType];
+
+export const GetActivityEntityType = {
+  repair_order: "repair_order",
+  invoice: "invoice",
+  estimate: "estimate",
+  customer: "customer",
+  vehicle: "vehicle",
+  inspection: "inspection",
+  appointment: "appointment",
+} as const;

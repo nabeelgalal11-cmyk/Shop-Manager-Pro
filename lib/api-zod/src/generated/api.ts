@@ -4152,3 +4152,50 @@ export const UpdateBoardPreferenceResponse = zod.object({
   columnOrder: zod.array(zod.string()),
   hiddenColumns: zod.array(zod.string()),
 });
+
+/**
+ * @summary Get activity timeline events for an entity
+ */
+export const getActivityQueryLimitDefault = 50;
+export const getActivityQueryLimitMax = 200;
+
+export const GetActivityQueryParams = zod.object({
+  entityType: zod.enum([
+    "repair_order",
+    "invoice",
+    "estimate",
+    "customer",
+    "vehicle",
+    "inspection",
+    "appointment",
+  ]),
+  entityId: zod.coerce.number(),
+  limit: zod.coerce
+    .number()
+    .max(getActivityQueryLimitMax)
+    .default(getActivityQueryLimitDefault),
+  beforeId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Return events with id strictly less than this (cursor for older pages)",
+    ),
+});
+
+export const GetActivityResponse = zod.object({
+  data: zod.array(
+    zod.object({
+      id: zod.number(),
+      entityType: zod.string(),
+      entityId: zod.number(),
+      eventType: zod.string(),
+      actorId: zod.number().nullish(),
+      actorLabel: zod.string().nullish(),
+      actorName: zod.string().nullish(),
+      meta: zod.record(zod.string(), zod.unknown()).nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  hasMore: zod.boolean(),
+  nextBeforeId: zod.number().nullish(),
+});

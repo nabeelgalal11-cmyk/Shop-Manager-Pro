@@ -5,6 +5,7 @@ import { eq, sql, desc } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { sendSms } from "../lib/sms.js";
 import { sendTemplatedEmail } from "../lib/email.js";
+import { recordActivity } from "../lib/activity.js";
 
 const router: Router = Router();
 
@@ -66,6 +67,15 @@ router.post("/", async (req, res) => {
       inventoryItemId: item.inventoryItemId,
     })));
   }
+
+  await recordActivity({
+    entityType: "estimate",
+    entityId: estimate.id,
+    eventType: "created",
+    meta: { estimateNumber: estimate.estimateNumber, total: Number(estimate.total) },
+    customerId: estimate.customerId ?? null,
+    req,
+  });
 
   res.status(201).json(await enrichEstimate(estimate));
 });
@@ -187,6 +197,34 @@ router.post("/:id/send", async (req, res) => {
       actor: (req as any).user?.username ?? "shop",
       metadata: { emailed, smsed, channel, estimateUrl },
     });
+    await recordActivity({
+      entityType: "estimate",
+      entityId: id,
+      eventType: "estimate_sent",
+      meta: { emailed, smsed, channel },
+      customerId: existing.customerId ?? null,
+      req,
+    });
+    if (emailed) {
+      await recordActivity({
+        entityType: "estimate",
+        entityId: id,
+        eventType: "email_sent",
+        meta: { template: "estimate_sent", to: customer.email },
+        customerId: existing.customerId ?? null,
+        req,
+      });
+    }
+    if (smsed) {
+      await recordActivity({
+        entityType: "estimate",
+        entityId: id,
+        eventType: "sms_sent",
+        meta: { context: "estimate_sent" },
+        customerId: existing.customerId ?? null,
+        req,
+      });
+    }
   }
   res.json({ emailed, smsed, channel, errors, estimateUrl, publicToken: token });
 });
@@ -223,6 +261,23 @@ router.post("/:id/convert", async (req, res) => {
     event: "converted_to_invoice",
     actor: (req as any).user?.username ?? "shop",
     metadata: { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber },
+  });
+
+  await recordActivity({
+    entityType: "estimate",
+    entityId: id,
+    eventType: "estimate_converted",
+    meta: { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber, target: "invoice" },
+    customerId: estimate.customerId,
+    req,
+  });
+  await recordActivity({
+    entityType: "invoice",
+    entityId: invoice.id,
+    eventType: "created",
+    meta: { invoiceNumber: invoice.invoiceNumber, fromEstimate: id, fromEstimateNumber: estimate.estimateNumber },
+    customerId: estimate.customerId,
+    req,
   });
 
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, invoice.customerId));
@@ -313,6 +368,22 @@ router.post("/:id/convert-to-ro", async (req, res) => {
       });
 
       return created;
+    });
+    await recordActivity({
+      entityType: "estimate",
+      entityId: id,
+      eventType: "estimate_converted",
+      meta: { repairOrderId: order.id, orderNumber: order.orderNumber, approvedLineCount: approved.length, target: "repair_order" },
+      customerId: estimate.customerId ?? null,
+      req,
+    });
+    await recordActivity({
+      entityType: "repair_order",
+      entityId: order.id,
+      eventType: "created",
+      meta: { fromEstimateId: id, fromEstimateNumber: estimate.estimateNumber, orderNumber: order.orderNumber },
+      customerId: estimate.customerId ?? null,
+      req,
     });
   } catch (err: any) {
     req.log?.error({ err: err?.message, id }, "Estimate convert-to-RO failed");

@@ -6,6 +6,7 @@ import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesT
 import { eq, sql, desc } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { sendSms } from "../lib/sms.js";
+import { recordActivity } from "../lib/activity.js";
 import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
 import { getStripeClient, getStripeSettings } from "../lib/stripe.js";
 
@@ -88,7 +89,17 @@ async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, re
 
     if (wantsSms) {
       const smsBody = `${process.env.SHOP_NAME || "Our Shop"}: Invoice ${invoice.invoiceNumber} for $${Number(invoice.total).toFixed(2)} is ready.${payUrl ? ` Pay: ${payUrl}` : ""} Reply STOP to opt out.`;
-      await sendSms({ customerId: invoice.customerId, body: smsBody, invoiceId: invoice.id });
+      const smsResult = await sendSms({ customerId: invoice.customerId, body: smsBody, invoiceId: invoice.id });
+      if (smsResult.ok) {
+        await recordActivity({
+          entityType: "invoice",
+          entityId: invoice.id,
+          eventType: "sms_sent",
+          meta: { context: "invoice_sent" },
+          customerId: invoice.customerId ?? null,
+          req,
+        });
+      }
     }
 
     if (!wantsEmail) return;
@@ -117,6 +128,16 @@ async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, re
       payLinkSection,
     });
     if (!result.ok) req.log?.warn({ err: result.error, id: invoice.id }, "Invoice email failed");
+    else {
+      await recordActivity({
+        entityType: "invoice",
+        entityId: invoice.id,
+        eventType: "email_sent",
+        meta: { template: "invoice_sent", to: customer.email, hasPayLink: !!payUrl },
+        customerId: invoice.customerId ?? null,
+        req,
+      });
+    }
   } catch (err) {
     req.log?.error({ err }, "maybeSendInvoiceEmail crashed");
   }
@@ -199,6 +220,14 @@ router.post("/", async (req, res) => {
   }
 
   const enriched = await enrichInvoice(invoice);
+  await recordActivity({
+    entityType: "invoice",
+    entityId: invoice.id,
+    eventType: "created",
+    meta: { invoiceNumber: invoice.invoiceNumber, status: invoice.status, total: Number(invoice.total) },
+    customerId: invoice.customerId ?? null,
+    req,
+  });
   await maybeSendInvoiceEmail(null, enriched, req);
   res.status(201).json(enriched);
 });
@@ -266,6 +295,17 @@ router.put("/:id", async (req, res) => {
 
   if (result.kind === "error") return res.status(result.status).json({ error: result.error });
 
+  if (status !== undefined && status !== result.prevStatus) {
+    await recordActivity({
+      entityType: "invoice",
+      entityId: result.invoice.id,
+      eventType: "status_changed",
+      meta: { from: result.prevStatus ?? null, to: result.invoice.status },
+      customerId: result.invoice.customerId ?? null,
+      req,
+    });
+  }
+
   const enriched = await enrichInvoice(result.invoice);
   await maybeSendInvoiceEmail(result.prevStatus, enriched, req);
   res.json(enriched);
@@ -327,6 +367,14 @@ router.post("/:id/pay-link-sms", async (req, res) => {
       500;
     return res.status(status).json({ error: result.error, reason: result.reason });
   }
+  await recordActivity({
+    entityType: "invoice",
+    entityId: id,
+    eventType: "sms_sent",
+    meta: { context: "pay_link", url },
+    customerId: invoice.customerId ?? null,
+    req,
+  });
   res.json({ ok: true, url, messageId: result.messageId });
 });
 

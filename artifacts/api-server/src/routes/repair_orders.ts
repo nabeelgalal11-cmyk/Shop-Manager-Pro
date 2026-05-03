@@ -4,6 +4,7 @@ import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remin
 import { eq, sql, desc, and, gte } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { sendSms } from "../lib/sms.js";
+import { recordActivity } from "../lib/activity.js";
 import { requirePermission } from "../lib/auth.js";
 import { applyStockMovement, reverseStockMovement, getInventoryUnitCost, type DbExecutor } from "../lib/inventory.js";
 import type { Action } from "../lib/permissions.js";
@@ -49,6 +50,16 @@ async function maybeSendCompletionEmail(order: any, req: any) {
         vehicleInfo,
       });
       if (!result.ok) req.log?.warn({ err: result.error, id: order.id }, "Repair order completion email failed");
+      else {
+        await recordActivity({
+          entityType: "repair_order",
+          entityId: order.id,
+          eventType: "email_sent",
+          meta: { template: "repair_order_completed", to: customer.email },
+          customerId: customer.id ?? null,
+          req,
+        });
+      }
     }
 
     if (wantsSms && customer.phone && customer.id) {
@@ -60,6 +71,15 @@ async function maybeSendCompletionEmail(order: any, req: any) {
       });
       if (!result.ok) {
         req.log?.warn({ err: result.error, reason: result.reason, id: order.id }, "RO completion SMS failed");
+      } else {
+        await recordActivity({
+          entityType: "repair_order",
+          entityId: order.id,
+          eventType: "sms_sent",
+          meta: { to: customer.phone },
+          customerId: customer.id ?? null,
+          req,
+        });
       }
     }
   } catch (err) {
@@ -263,6 +283,25 @@ router.post("/", async (req, res) => {
     return res.status(500).json({ error: "Failed to create repair order" });
   }
 
+  await recordActivity({
+    entityType: "repair_order",
+    entityId: order.id,
+    eventType: "created",
+    meta: { orderNumber: order.orderNumber, status: order.status, customerId: order.customerId, vehicleId: order.vehicleId },
+    customerId: order.customerId ?? null,
+    req,
+  });
+  if (order.assignedToId) {
+    await recordActivity({
+      entityType: "repair_order",
+      entityId: order.id,
+      eventType: "assigned",
+      meta: { assignedToId: order.assignedToId },
+      customerId: order.customerId ?? null,
+      req,
+    });
+  }
+
   res.status(201).json(await enrichOrder(order));
 });
 
@@ -374,6 +413,38 @@ router.put("/:id", async (req, res) => {
 
   const { order, prevStatus } = result;
   const enriched = await enrichOrder(order);
+
+  // Audit: emit specific events for the fields that actually changed.
+  if (status !== undefined && status !== prevStatus) {
+    await recordActivity({
+      entityType: "repair_order",
+      entityId: order.id,
+      eventType: "status_changed",
+      meta: { from: prevStatus ?? null, to: order.status },
+      customerId: order.customerId ?? null,
+      req,
+    });
+  }
+  if (assignedToId !== undefined) {
+    await recordActivity({
+      entityType: "repair_order",
+      entityId: order.id,
+      eventType: "assigned",
+      meta: { assignedToId: order.assignedToId ?? null },
+      customerId: order.customerId ?? null,
+      req,
+    });
+  }
+  if (notes !== undefined && notes !== null && String(notes).trim().length > 0) {
+    await recordActivity({
+      entityType: "repair_order",
+      entityId: order.id,
+      eventType: "note_added",
+      meta: { length: String(notes).length },
+      customerId: order.customerId ?? null,
+      req,
+    });
+  }
 
   // Side effects that do NOT need to be transactional with the status
   // update (email send / reminder creation) run after commit.

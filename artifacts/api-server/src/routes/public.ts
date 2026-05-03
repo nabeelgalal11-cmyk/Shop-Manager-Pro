@@ -5,6 +5,7 @@ import { createCheckoutSessionForInvoice } from "./invoices.js";
 import { getStripeSettings } from "../lib/stripe.js";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
 import { Readable } from "stream";
+import { recordActivity } from "../lib/activity.js";
 
 const router: Router = Router();
 
@@ -501,6 +502,21 @@ router.post("/inspections/:token/sign", inspRateLimit, async (req, res) => {
     return res.status(409).json({ error: "Inspection already signed" });
   }
 
+  let inspectionCustomerId: number | null = null;
+  if (inspection.vehicleId) {
+    const [v] = await db.select({ customerId: vehiclesTable.customerId }).from(vehiclesTable).where(eq(vehiclesTable.id, inspection.vehicleId));
+    inspectionCustomerId = v?.customerId ?? null;
+  }
+  await recordActivity({
+    entityType: "inspection",
+    entityId: inspection.id,
+    eventType: "inspection_approved",
+    meta: { signerName, signatureUrl },
+    actorId: null,
+    actorLabel: "customer",
+    customerId: inspectionCustomerId,
+  });
+
   req.log?.info({ inspectionId: inspection.id, signerName }, "Inspection signed by customer");
   res.json({ ok: true, signedAt: now.toISOString(), signerName, signatureUrl });
 });
@@ -719,6 +735,15 @@ router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
       actor: "customer",
       metadata: { reason: declineReason, ip: clientIp(req) },
     });
+    await recordActivity({
+      entityType: "estimate",
+      entityId: estimate.id,
+      eventType: "estimate_declined",
+      meta: { reason: declineReason },
+      actorId: null,
+      actorLabel: "customer",
+      customerId: estimate.customerId ?? null,
+    });
 
     req.log?.info({ estimateId: estimate.id }, "Estimate declined by customer");
     return res.json({ ok: true, status: "declined", declinedAt: now.toISOString() });
@@ -811,6 +836,16 @@ router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
       ip: clientIp(req),
       decisions: finalLines,
     },
+  });
+
+  await recordActivity({
+    entityType: "estimate",
+    entityId: estimate.id,
+    eventType: "estimate_approved",
+    meta: { signerName, signatureUrl, decisions: finalLines },
+    actorId: null,
+    actorLabel: "customer",
+    customerId: estimate.customerId ?? null,
   });
 
   req.log?.info({ estimateId: estimate.id, signerName }, "Estimate signed by customer");

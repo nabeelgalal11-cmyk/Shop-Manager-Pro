@@ -37,6 +37,7 @@ import vinRouter from "./vin.js";
 import cannedJobsRouter from "./canned-jobs.js";
 import settingsRouter from "./settings.js";
 import userPreferencesRouter from "./user_preferences.js";
+import activityRouter from "./activity.js";
 
 const router: IRouter = Router();
 
@@ -82,5 +83,6 @@ router.use("/canned-jobs", cannedJobsRouter);
 router.use("/settings", settingsRouter);
 router.use("/user-preferences", userPreferencesRouter);
 router.use("/messages", messagesRouter);
+router.use("/activity", activityRouter);
 
 export default router;

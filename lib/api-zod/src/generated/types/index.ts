@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./activityEvent";
+export * from "./activityEventMeta";
+export * from "./activityEventsPage";
 export * from "./activityItem";
 export * from "./appointment";
 export * from "./appointmentListResponse";
@@ -50,6 +53,8 @@ export * from "./estimateListResponse";
 export * from "./estimateStatus";
 export * from "./expense";
 export * from "./expenseListResponse";
+export * from "./getActivityEntityType";
+export * from "./getActivityParams";
 export * from "./getAppointmentsParams";
 export * from "./getAppointmentsStatus";
 export * from "./getCustomersParams";

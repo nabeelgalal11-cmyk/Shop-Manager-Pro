@@ -43,6 +43,8 @@ tags:
     description: Business reports
   - name: user-preferences
     description: Per-user UI preferences
+  - name: activity
+    description: Per-entity activity timeline
 
 paths:
   /healthz:
@@ -1706,6 +1708,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BoardPreference"
+
+  /activity:
+    get:
+      operationId: getActivity
+      tags: [activity]
+      summary: Get activity timeline events for an entity
+      parameters:
+        - name: entityType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [repair_order, invoice, estimate, customer, vehicle, inspection, appointment]
+        - name: entityId
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: beforeId
+          in: query
+          description: Return events with id strictly less than this (cursor for older pages)
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Activity events page (newest first)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityEventsPage"
 
 components:
   schemas:
@@ -3618,6 +3656,56 @@ components:
       required:
         - columnOrder
         - hiddenColumns
+
+    ActivityEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        entityType:
+          type: string
+        entityId:
+          type: integer
+        eventType:
+          type: string
+        actorId:
+          type: integer
+          nullable: true
+        actorLabel:
+          type: string
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+        meta:
+          type: object
+          additionalProperties: true
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - entityType
+        - entityId
+        - eventType
+        - createdAt
+
+    ActivityEventsPage:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityEvent"
+        hasMore:
+          type: boolean
+        nextBeforeId:
+          type: integer
+          nullable: true
+      required:
+        - data
+        - hasMore
 
     ServiceCount:
       type: object

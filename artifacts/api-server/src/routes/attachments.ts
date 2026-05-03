@@ -1,6 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import multer from "multer";
-import { db, attachmentsTable, employeesTable } from "@workspace/db";
+import {
+  db, attachmentsTable, employeesTable,
+  repairOrdersTable, invoicesTable, estimatesTable, inspectionsTable, vehiclesTable,
+} from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import {
   uploadBuffer,
@@ -9,6 +12,16 @@ import {
   isConfigured,
   HostgatorStorageError,
 } from "../lib/hostgatorStorage.js";
+import { recordActivity, type ActivityEntityType } from "../lib/activity.js";
+
+const OWNER_TO_ACTIVITY_ENTITY: Partial<Record<string, ActivityEntityType>> = {
+  repair_order: "repair_order",
+  inspection: "inspection",
+  estimate: "estimate",
+  invoice: "invoice",
+  vehicle: "vehicle",
+  customer: "customer",
+};
 
 const router: IRouter = Router();
 
@@ -56,6 +69,40 @@ function validateOwnerType(t: unknown): asserts t is string {
   if (typeof t !== "string" || !ALLOWED_OWNER_TYPES.has(t)) {
     throw Object.assign(new Error("Invalid ownerType"), { status: 400 });
   }
+}
+
+async function resolveCustomerIdForOwner(
+  ownerType: string,
+  ownerId: number,
+): Promise<number | null> {
+  try {
+    if (ownerType === "customer") return ownerId;
+    if (ownerType === "repair_order") {
+      const [r] = await db.select({ customerId: repairOrdersTable.customerId }).from(repairOrdersTable).where(eq(repairOrdersTable.id, ownerId));
+      return r?.customerId ?? null;
+    }
+    if (ownerType === "invoice") {
+      const [r] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, ownerId));
+      return r?.customerId ?? null;
+    }
+    if (ownerType === "estimate") {
+      const [r] = await db.select({ customerId: estimatesTable.customerId }).from(estimatesTable).where(eq(estimatesTable.id, ownerId));
+      return r?.customerId ?? null;
+    }
+    if (ownerType === "inspection") {
+      const [r] = await db.select({ vehicleId: inspectionsTable.vehicleId }).from(inspectionsTable).where(eq(inspectionsTable.id, ownerId));
+      if (!r?.vehicleId) return null;
+      const [v] = await db.select({ customerId: vehiclesTable.customerId }).from(vehiclesTable).where(eq(vehiclesTable.id, r.vehicleId));
+      return v?.customerId ?? null;
+    }
+    if (ownerType === "vehicle") {
+      const [r] = await db.select({ customerId: vehiclesTable.customerId }).from(vehiclesTable).where(eq(vehiclesTable.id, ownerId));
+      return r?.customerId ?? null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -139,6 +186,19 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
         uploadedById: req.session?.userId ?? null,
       })
       .returning();
+
+    const activityEntity = OWNER_TO_ACTIVITY_ENTITY[ownerType];
+    if (activityEntity) {
+      const customerId = await resolveCustomerIdForOwner(ownerType, ownerId);
+      await recordActivity({
+        entityType: activityEntity,
+        entityId: ownerId,
+        eventType: "attachment_uploaded",
+        meta: { attachmentId: row.id, fileName: row.fileName, mimeType: row.mimeType, size: row.size },
+        customerId,
+        req,
+      });
+    }
 
     res.status(201).json(row);
   } catch (err: any) {
@@ -251,6 +311,19 @@ router.delete("/:id", async (req: Request, res: Response) => {
     req.log?.warn({ err, storagePath: row.storagePath }, "storage delete failed; removing DB row anyway");
   }
   await db.delete(attachmentsTable).where(eq(attachmentsTable.id, id));
+
+  const activityEntity = OWNER_TO_ACTIVITY_ENTITY[ownerType];
+  if (activityEntity) {
+    const customerId = await resolveCustomerIdForOwner(ownerType, ownerId);
+    await recordActivity({
+      entityType: activityEntity,
+      entityId: ownerId,
+      eventType: "attachment_deleted",
+      meta: { attachmentId: id, fileName: row.fileName },
+      customerId,
+      req,
+    });
+  }
   res.status(204).end();
 });
 

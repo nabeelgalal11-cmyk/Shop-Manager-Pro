@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AttachmentsPanel } from "@/components/attachments-panel";
+import { ActivityTimeline } from "@/components/activity-timeline";
 import { CustomerMessageThread } from "@/components/customer-message-thread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -1013,6 +1014,12 @@ export default function RepairOrderDetail() {
         ownerId={ro.id}
         title="Photos & Documents"
         description="Before/after photos, photos of failed parts, customer signatures, supporting PDFs."
+      />
+
+      <ActivityTimeline
+        entityType="repair_order"
+        entityId={ro.id}
+        description="Status changes, notes, assignments, customer communications, and attachments for this RO."
       />
 
       {/* Print Template (hidden) */}

@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { paymentsTable, invoicesTable, customersTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
+import { recordActivity } from "../lib/activity.js";
 
 const router: Router = Router();
 
@@ -25,6 +26,16 @@ async function maybeSendPaymentReceipt(payment: any, invoice: any, balance: numb
       paidAt: payment.paidAt ? new Date(payment.paidAt).toLocaleString() : new Date().toLocaleString(),
     });
     if (!result.ok) req.log?.warn({ err: result.error, id: payment.id }, "Payment receipt email failed");
+    else {
+      await recordActivity({
+        entityType: "invoice",
+        entityId: invoice.id,
+        eventType: "email_sent",
+        meta: { template: "payment_received", paymentId: payment.id, to: customer.email },
+        customerId: invoice.customerId ?? null,
+        req,
+      });
+    }
   } catch (err) {
     req.log?.error({ err }, "maybeSendPaymentReceipt crashed");
   }
@@ -60,6 +71,21 @@ router.post("/", async (req, res) => {
     status: balance <= 0 ? "paid" : "sent",
     updatedAt: new Date(),
   }).where(eq(invoicesTable.id, invoiceId));
+
+  await recordActivity({
+    entityType: "invoice",
+    entityId: invoiceId,
+    eventType: "payment_received",
+    meta: {
+      paymentId: payment.id,
+      amount: Number(payment.amount),
+      method: payment.method,
+      referenceNumber: payment.referenceNumber ?? null,
+      remainingBalance: Math.max(0, balance),
+    },
+    customerId: invoice?.customerId ?? null,
+    req,
+  });
 
   await maybeSendPaymentReceipt(payment, invoice, balance, req);
 
