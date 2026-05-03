@@ -81,6 +81,7 @@ const DEFAULT_TEMPLATES = [
       <tr><td style="padding: 8px 0; color: #6b7280;">Due Date</td><td style="padding: 8px 0; font-weight: bold;">{{dueDate}}</td></tr>
       <tr><td style="padding: 8px 0; color: #6b7280;">Vehicle</td><td style="padding: 8px 0; font-weight: bold;">{{vehicleInfo}}</td></tr>
     </table>
+    {{payLinkSection}}
     <p>Please reply to this email if you have any questions about the charges.</p>
     <p style="color: #6b7280; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
       Thank you for choosing {{shopName}}!
@@ -157,6 +158,14 @@ export async function seedEmailTemplates() {
     if (!existing) {
       await db.insert(emailTemplatesTable).values(tpl);
       logger.info({ key: tpl.key }, "Seeded email template");
+    } else if (
+      tpl.key === "invoice_sent" &&
+      !existing.bodyHtml.includes("{{payLinkSection}}") &&
+      existing.bodyHtml.includes("</table>")
+    ) {
+      const upgraded = existing.bodyHtml.replace("</table>", "</table>\n    {{payLinkSection}}");
+      await db.update(emailTemplatesTable).set({ bodyHtml: upgraded }).where(eq(emailTemplatesTable.key, tpl.key));
+      logger.info({ key: tpl.key }, "Upgraded invoice_sent template with pay link section");
     }
   }
 }

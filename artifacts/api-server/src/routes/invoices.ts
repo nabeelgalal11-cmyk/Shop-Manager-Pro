@@ -66,6 +66,28 @@ async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, re
       req.log?.info({ id: invoice.id }, "No customer email; skipping invoice email");
       return;
     }
+
+    let payLinkSection = "";
+    try {
+      const balance = Number(invoice.balance);
+      if (Number.isFinite(balance) && balance > 0) {
+        const { secretKey } = await getStripeSettings();
+        if (secretKey) {
+          const token = await ensurePublicToken(invoice.id);
+          const base = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "")
+            || (req.headers?.["x-forwarded-host"] && `${req.protocol}://${req.headers["x-forwarded-host"]}`)
+            || `${req.protocol}://${req.get?.("host")}`;
+          const payUrl = `${base}/pay/${token}`;
+          payLinkSection = `<div style="text-align: center; margin: 24px 0;">
+              <a href="${payUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold;">Pay online</a>
+              <p style="color: #6b7280; font-size: 13px; margin-top: 8px;">Or paste this link into your browser:<br><span style="word-break: break-all;">${payUrl}</span></p>
+            </div>`;
+        }
+      }
+    } catch (err) {
+      req.log?.warn({ err, id: invoice.id }, "Failed to build pay link section; sending email without it");
+    }
+
     const result = await sendTemplatedEmail("invoice_sent", customer.email, {
       customerName: customerName(customer),
       customerEmail: customer.email,
@@ -75,6 +97,7 @@ async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, re
       balance: `$${Number(invoice.balance).toFixed(2)}`,
       dueDate: invoice.dueDate || "On receipt",
       vehicleInfo: vehicleInfoStr(invoice.vehicle),
+      payLinkSection,
     });
     if (!result.ok) req.log?.warn({ err: result.error, id: invoice.id }, "Invoice email failed");
   } catch (err) {
