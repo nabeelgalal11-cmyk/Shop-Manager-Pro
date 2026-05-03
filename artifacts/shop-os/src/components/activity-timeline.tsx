@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGetActivity, getGetActivityQueryKey, type ActivityEvent } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -139,14 +138,35 @@ export function ActivityTimeline({ entityType, entityId, title = "Activity", des
 
   const initialEvents = !beforeId && data ? data.data : [];
   const events: ActivityEvent[] = beforeId ? [...accumulated, ...(data?.data ?? [])] : initialEvents;
-  const hasMore = data?.hasMore && !exhausted;
+  const hasMore = !!data?.hasMore && !exhausted;
 
-  const loadMore = () => {
-    if (!data || !data.hasMore || !data.nextBeforeId) return;
-    setAccumulated((prev) => [...prev, ...(data?.data ?? [])]);
-    setBeforeId(data.nextBeforeId);
-    if (!data.hasMore) setExhausted(true);
-  };
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadingRef = useRef(false);
+
+  // IntersectionObserver-driven infinite scroll: when the sentinel at the
+  // bottom of the list enters the viewport, fetch the next page using the
+  // server's id-cursor (`nextBeforeId`).
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node || !hasMore) return;
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[0];
+      if (!entry || !entry.isIntersecting) return;
+      if (loadingRef.current || isFetching) return;
+      if (!data || !data.nextBeforeId) return;
+      loadingRef.current = true;
+      setAccumulated((prev) => [...prev, ...(data?.data ?? [])]);
+      setBeforeId(data.nextBeforeId);
+      if (!data.hasMore) setExhausted(true);
+    }, { rootMargin: "120px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [data, hasMore, isFetching]);
+
+  // Reset the loading guard once the new page lands.
+  useEffect(() => {
+    if (!isFetching) loadingRef.current = false;
+  }, [isFetching]);
 
   return (
     <Card>
@@ -193,11 +213,11 @@ export function ActivityTimeline({ entityType, entityId, title = "Activity", des
         )}
 
         {hasMore ? (
-          <div className="mt-4 flex justify-center">
-            <Button variant="outline" size="sm" onClick={loadMore} disabled={isFetching}>
-              {isFetching ? "Loading…" : "Load older"}
-            </Button>
+          <div ref={sentinelRef} className="mt-4 flex justify-center py-2 text-xs text-muted-foreground">
+            {isFetching ? "Loading older activity…" : "Scroll for more"}
           </div>
+        ) : events.length > 0 ? (
+          <div className="mt-4 text-center text-xs text-muted-foreground">End of activity</div>
         ) : null}
       </CardContent>
     </Card>
