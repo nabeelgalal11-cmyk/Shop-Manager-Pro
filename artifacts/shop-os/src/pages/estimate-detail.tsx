@@ -31,11 +31,11 @@ export default function EstimateDetail() {
   const [sending, setSending] = useState(false);
   const [convertingRo, setConvertingRo] = useState(false);
 
-  const status = (estimate as any)?.status as string | undefined;
-  const publicToken = (estimate as any)?.publicToken as string | null | undefined;
-  const customerSignedAt = (estimate as any)?.customerSignedAt as string | null | undefined;
-  const customerSignerName = (estimate as any)?.customerSignerName as string | null | undefined;
-  const declineReason = (estimate as any)?.declineReason as string | null | undefined;
+  const status = estimate?.status;
+  const publicToken = estimate?.publicToken;
+  const customerSignedAt = estimate?.customerSignedAt;
+  const customerSignerName = estimate?.customerSignerName;
+  const declineReason = estimate?.declineReason;
   const publicUrl = publicToken ? `${window.location.origin}/estimate/${publicToken}` : null;
 
   const handleSend = async () => {
@@ -269,7 +269,7 @@ export default function EstimateDetail() {
             </TableHeader>
             <TableBody>
               {estimate.lineItems?.map(item => {
-                const decision = (item as any).customerDecision as string | undefined;
+                const decision = item.customerDecision;
                 return (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.description}</TableCell>

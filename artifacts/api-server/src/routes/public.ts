@@ -4,7 +4,6 @@ import { and, eq, ilike, or, desc, isNull, sql } from "drizzle-orm";
 import { createCheckoutSessionForInvoice } from "./invoices.js";
 import { getStripeSettings } from "../lib/stripe.js";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
-import { randomUUID } from "crypto";
 import { Readable } from "stream";
 
 const router: Router = Router();
@@ -479,7 +478,6 @@ router.post("/inspections/:token/sign", inspRateLimit, async (req, res) => {
     // Normalize back to /objects/uploads/<id> (no public ACL needed — it's
     // streamed back via a token-scoped proxy route below).
     signatureUrl = svc.normalizeObjectEntityPath(uploadUrl);
-    void randomUUID;
   } catch (err: any) {
     req.log?.error({ err: err?.message, inspectionId: inspection.id }, "Inspection signature upload failed");
     return res.status(503).json({ error: "Could not save signature. Please try again." });
@@ -737,6 +735,12 @@ router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
     return res.status(400).json({ error: "Signature image too large or empty" });
   }
 
+  // Re-check inside the request before spending an upload — narrows the
+  // window for orphaned signature blobs from concurrent submitters.
+  const [recheck] = await db.select({ signedAt: estimatesTable.customerSignedAt })
+    .from(estimatesTable).where(eq(estimatesTable.id, estimate.id));
+  if (recheck?.signedAt) return res.status(409).json({ error: "Estimate already signed" });
+
   let signatureUrl: string | null = null;
   try {
     const svc = new ObjectStorageService();
@@ -748,7 +752,6 @@ router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
     });
     if (!putResp.ok) throw new Error(`PUT ${putResp.status}`);
     signatureUrl = svc.normalizeObjectEntityPath(uploadUrl);
-    void randomUUID;
   } catch (err: any) {
     req.log?.error({ err: err?.message, estimateId: estimate.id }, "Estimate signature upload failed");
     return res.status(503).json({ error: "Could not save signature. Please try again." });
@@ -768,6 +771,10 @@ router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
   )).returning({ id: estimatesTable.id });
 
   if (updated.length === 0) {
+    // Lost the race after upload. Log the orphan so it can be reaped offline;
+    // the storage layer here exposes no delete primitive.
+    req.log?.warn({ estimateId: estimate.id, orphanSignatureUrl: signatureUrl },
+      "Estimate signature orphaned (lost finalize race)");
     return res.status(409).json({ error: "Estimate already signed" });
   }
 
