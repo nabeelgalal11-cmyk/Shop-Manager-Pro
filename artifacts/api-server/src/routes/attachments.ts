@@ -123,6 +123,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
       ownerId,
       originalName: file.originalname,
       buffer: file.buffer,
+      mimeType: file.mimetype,
     });
 
     const [row] = await db

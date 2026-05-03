@@ -31,3 +31,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
+HOSTGATOR_STORAGE_TOKEN = "c194d8f9c15ccf303bf58fb809a8b2f1358d8ba829dd3144b25ce287e6136c01"
+HOSTGATOR_PUBLIC_BASE_URL = "https://Znmotors.com"
