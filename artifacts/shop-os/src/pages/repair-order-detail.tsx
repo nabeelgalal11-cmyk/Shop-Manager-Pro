@@ -314,7 +314,11 @@ export default function RepairOrderDetail() {
       toast({ title: "Part name is required", variant: "destructive" });
       return;
     }
-    const updated = [...currentParts, { ...newPart, partNumber: newPart.partNumber || undefined }];
+    const safeQuantity = newPart.quantity > 0 ? newPart.quantity : 1;
+    const updated = [
+      ...currentParts,
+      { ...newPart, quantity: safeQuantity, partNumber: newPart.partNumber || undefined },
+    ];
     setParts(updated);
     saveParts(updated);
     setNewPart({ name: "", partNumber: "", quantity: 1, unitPrice: 0 });
@@ -645,8 +649,13 @@ export default function RepairOrderDetail() {
                     <Input
                       type="number"
                       min={1}
-                      value={newPart.quantity}
-                      onChange={(e) => setNewPart(p => ({ ...p, quantity: Math.max(1, Number(e.target.value)) }))}
+                      value={newPart.quantity === 0 ? "" : newPart.quantity}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setNewPart(p => ({ ...p, quantity: v === "" ? 0 : Math.max(0, Number(v)) }));
+                      }}
+                      onBlur={() => setNewPart(p => ({ ...p, quantity: p.quantity > 0 ? p.quantity : 1 }))}
                       className="w-20"
                     />
                   </div>
