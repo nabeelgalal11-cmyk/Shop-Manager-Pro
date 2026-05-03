@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { estimatesTable, lineItemsTable, customersTable, vehiclesTable, invoicesTable, repairOrdersTable } from "@workspace/db";
+import { estimatesTable, lineItemsTable, customersTable, vehiclesTable, invoicesTable, repairOrdersTable, estimateEventsTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { sendSms } from "../lib/sms.js";
@@ -125,6 +125,11 @@ router.post("/:id/send", async (req, res) => {
   const id = Number(req.params.id);
   const [existing] = await db.select().from(estimatesTable).where(eq(estimatesTable.id, id));
   if (!existing) return res.status(404).json({ error: "Estimate not found" });
+  // Don't downgrade or re-open terminal states. Re-quoting requires a new
+  // estimate (out of scope per task spec).
+  if (existing.status === "approved" || existing.status === "declined" || existing.status === "converted") {
+    return res.status(409).json({ error: `Estimate is ${existing.status} and cannot be re-sent. Create a new estimate to re-quote.` });
+  }
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, existing.customerId));
   if (!customer) return res.status(404).json({ error: "Customer not found" });
 
@@ -176,6 +181,12 @@ router.post("/:id/send", async (req, res) => {
     await db.update(estimatesTable)
       .set({ status: "sent", sentAt: new Date(), updatedAt: new Date() })
       .where(eq(estimatesTable.id, id));
+    await db.insert(estimateEventsTable).values({
+      estimateId: id,
+      event: "sent",
+      actor: (req as any).user?.username ?? "shop",
+      metadata: { emailed, smsed, channel, estimateUrl },
+    });
   }
   res.json({ emailed, smsed, channel, errors, estimateUrl, publicToken: token });
 });
@@ -207,6 +218,12 @@ router.post("/:id/convert", async (req, res) => {
   }
 
   await db.update(estimatesTable).set({ status: "converted", updatedAt: new Date() }).where(eq(estimatesTable.id, id));
+  await db.insert(estimateEventsTable).values({
+    estimateId: id,
+    event: "converted_to_invoice",
+    actor: (req as any).user?.username ?? "shop",
+    metadata: { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber },
+  });
 
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, invoice.customerId));
   const [vehicle] = invoice.vehicleId ? await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, invoice.vehicleId)) : [null];
@@ -226,6 +243,10 @@ router.post("/:id/convert-to-ro", async (req, res) => {
   if (!estimate) return res.status(404).json({ error: "Estimate not found" });
   if (estimate.status === "converted") {
     return res.status(409).json({ error: "Estimate already converted" });
+  }
+  // Convert is a post-approval action. Don't allow it for draft/sent/declined.
+  if (estimate.status !== "approved") {
+    return res.status(409).json({ error: `Only approved estimates can be converted to a repair order (current status: ${estimate.status}).` });
   }
   if (!estimate.vehicleId) {
     return res.status(400).json({ error: "Estimate has no vehicle attached" });
@@ -278,6 +299,18 @@ router.post("/:id/convert-to-ro", async (req, res) => {
       await tx.update(estimatesTable)
         .set({ status: "converted", updatedAt: new Date() })
         .where(eq(estimatesTable.id, id));
+
+      await tx.insert(estimateEventsTable).values({
+        estimateId: id,
+        event: "converted_to_ro",
+        actor: (req as any).user?.username ?? "shop",
+        metadata: {
+          repairOrderId: created.id,
+          orderNumber: created.orderNumber,
+          approvedLineCount: approved.length,
+          estimatedHours,
+        },
+      });
 
       return created;
     });

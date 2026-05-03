@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { db, customersTable, vehiclesTable, appointmentsTable, invoicesTable, lineItemsTable, paymentsTable, inspectionsTable, estimatesTable } from "@workspace/db";
+import { db, customersTable, vehiclesTable, appointmentsTable, invoicesTable, lineItemsTable, paymentsTable, inspectionsTable, estimatesTable, estimateEventsTable } from "@workspace/db";
 import { and, eq, ilike, or, desc, isNull, sql } from "drizzle-orm";
 import { createCheckoutSessionForInvoice } from "./invoices.js";
 import { getStripeSettings } from "../lib/stripe.js";
@@ -715,6 +715,13 @@ router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
     )).returning({ id: estimatesTable.id });
     if (updated.length === 0) return res.status(409).json({ error: "Estimate already finalized" });
 
+    await db.insert(estimateEventsTable).values({
+      estimateId: estimate.id,
+      event: "declined",
+      actor: "customer",
+      metadata: { reason: declineReason, ip: clientIp(req) },
+    });
+
     req.log?.info({ estimateId: estimate.id }, "Estimate declined by customer");
     return res.json({ ok: true, status: "declined", declinedAt: now.toISOString() });
   }
@@ -763,6 +770,25 @@ router.post("/estimates/:token/sign", estRateLimit, async (req, res) => {
   if (updated.length === 0) {
     return res.status(409).json({ error: "Estimate already signed" });
   }
+
+  // Snapshot per-line decisions for the audit row so post-signature edits
+  // (which the API blocks anyway) can never confuse the historical record.
+  const finalLines = await db.select({
+    id: lineItemsTable.id,
+    customerDecision: lineItemsTable.customerDecision,
+  }).from(lineItemsTable).where(eq(lineItemsTable.estimateId, estimate.id));
+
+  await db.insert(estimateEventsTable).values({
+    estimateId: estimate.id,
+    event: "approved",
+    actor: "customer",
+    metadata: {
+      signerName,
+      signatureUrl,
+      ip: clientIp(req),
+      decisions: finalLines,
+    },
+  });
 
   req.log?.info({ estimateId: estimate.id, signerName }, "Estimate signed by customer");
   res.json({ ok: true, status: "approved", signedAt: now.toISOString(), signerName, signatureUrl });

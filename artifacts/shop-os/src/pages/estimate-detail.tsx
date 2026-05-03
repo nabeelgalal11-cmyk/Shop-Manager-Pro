@@ -154,9 +154,9 @@ export default function EstimateDetail() {
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" /> Print
           </Button>
-          {status !== "converted" && (
+          {(status === "draft" || status === "sent") && (
             <Button variant="outline" onClick={handleSend} disabled={sending}>
-              <Send className="h-4 w-4 mr-2" /> {sending ? "Sending…" : status === "sent" || status === "approved" || status === "declined" ? "Resend" : "Send for approval"}
+              <Send className="h-4 w-4 mr-2" /> {sending ? "Sending…" : status === "sent" ? "Resend link" : "Send for approval"}
             </Button>
           )}
           {status === "approved" && (
@@ -169,7 +169,7 @@ export default function EstimateDetail() {
               {convertingRo ? "Creating…" : "Convert to Repair Order"}
             </Button>
           )}
-          {status !== "converted" && (
+          {status !== "converted" && status !== "declined" && (
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={handleConvert}
