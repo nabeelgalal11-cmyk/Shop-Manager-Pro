@@ -46,6 +46,11 @@ import type {
   EstimateListResponse,
   Expense,
   ExpenseListResponse,
+  ExportBookkeepingZipParams,
+  ExportCogsJournalCsvParams,
+  ExportExpensesCsvParams,
+  ExportInvoicesCsvParams,
+  ExportPaymentsCsvParams,
   FromReorderInput,
   GetActivityParams,
   GetAppointmentsParams,
@@ -109,6 +114,500 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Download invoices as CSV (QuickBooks-friendly)
+ */
+export const getExportInvoicesCsvUrl = (params?: ExportInvoicesCsvParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exports/invoices.csv?${stringifiedParams}`
+    : `/api/exports/invoices.csv`;
+};
+
+export const exportInvoicesCsv = async (
+  params?: ExportInvoicesCsvParams,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getExportInvoicesCsvUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportInvoicesCsvQueryKey = (
+  params?: ExportInvoicesCsvParams,
+) => {
+  return [`/api/exports/invoices.csv`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportInvoicesCsvQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportInvoicesCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportInvoicesCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportInvoicesCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportInvoicesCsvQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportInvoicesCsv>>
+  > = ({ signal }) => exportInvoicesCsv(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportInvoicesCsv>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportInvoicesCsvQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportInvoicesCsv>>
+>;
+export type ExportInvoicesCsvQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Download invoices as CSV (QuickBooks-friendly)
+ */
+
+export function useExportInvoicesCsv<
+  TData = Awaited<ReturnType<typeof exportInvoicesCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportInvoicesCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportInvoicesCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportInvoicesCsvQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Download successful payments as CSV
+ */
+export const getExportPaymentsCsvUrl = (params?: ExportPaymentsCsvParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exports/payments.csv?${stringifiedParams}`
+    : `/api/exports/payments.csv`;
+};
+
+export const exportPaymentsCsv = async (
+  params?: ExportPaymentsCsvParams,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getExportPaymentsCsvUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportPaymentsCsvQueryKey = (
+  params?: ExportPaymentsCsvParams,
+) => {
+  return [`/api/exports/payments.csv`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportPaymentsCsvQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportPaymentsCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportPaymentsCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportPaymentsCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportPaymentsCsvQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportPaymentsCsv>>
+  > = ({ signal }) => exportPaymentsCsv(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportPaymentsCsv>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportPaymentsCsvQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportPaymentsCsv>>
+>;
+export type ExportPaymentsCsvQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Download successful payments as CSV
+ */
+
+export function useExportPaymentsCsv<
+  TData = Awaited<ReturnType<typeof exportPaymentsCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportPaymentsCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportPaymentsCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportPaymentsCsvQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Download expenses as CSV
+ */
+export const getExportExpensesCsvUrl = (params?: ExportExpensesCsvParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exports/expenses.csv?${stringifiedParams}`
+    : `/api/exports/expenses.csv`;
+};
+
+export const exportExpensesCsv = async (
+  params?: ExportExpensesCsvParams,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getExportExpensesCsvUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportExpensesCsvQueryKey = (
+  params?: ExportExpensesCsvParams,
+) => {
+  return [`/api/exports/expenses.csv`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportExpensesCsvQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportExpensesCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportExpensesCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportExpensesCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportExpensesCsvQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportExpensesCsv>>
+  > = ({ signal }) => exportExpensesCsv(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportExpensesCsv>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportExpensesCsvQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportExpensesCsv>>
+>;
+export type ExportExpensesCsvQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Download expenses as CSV
+ */
+
+export function useExportExpensesCsv<
+  TData = Awaited<ReturnType<typeof exportExpensesCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportExpensesCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportExpensesCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportExpensesCsvQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Download daily COGS journal entries as CSV
+ */
+export const getExportCogsJournalCsvUrl = (
+  params?: ExportCogsJournalCsvParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exports/cogs-journal.csv?${stringifiedParams}`
+    : `/api/exports/cogs-journal.csv`;
+};
+
+export const exportCogsJournalCsv = async (
+  params?: ExportCogsJournalCsvParams,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getExportCogsJournalCsvUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportCogsJournalCsvQueryKey = (
+  params?: ExportCogsJournalCsvParams,
+) => {
+  return [
+    `/api/exports/cogs-journal.csv`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getExportCogsJournalCsvQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportCogsJournalCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportCogsJournalCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportCogsJournalCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportCogsJournalCsvQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportCogsJournalCsv>>
+  > = ({ signal }) =>
+    exportCogsJournalCsv(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportCogsJournalCsv>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportCogsJournalCsvQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportCogsJournalCsv>>
+>;
+export type ExportCogsJournalCsvQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Download daily COGS journal entries as CSV
+ */
+
+export function useExportCogsJournalCsv<
+  TData = Awaited<ReturnType<typeof exportCogsJournalCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportCogsJournalCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportCogsJournalCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportCogsJournalCsvQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Download all bookkeeping CSVs bundled in a single ZIP
+ */
+export const getExportBookkeepingZipUrl = (
+  params?: ExportBookkeepingZipParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exports/bookkeeping.zip?${stringifiedParams}`
+    : `/api/exports/bookkeeping.zip`;
+};
+
+export const exportBookkeepingZip = async (
+  params?: ExportBookkeepingZipParams,
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getExportBookkeepingZipUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportBookkeepingZipQueryKey = (
+  params?: ExportBookkeepingZipParams,
+) => {
+  return [`/api/exports/bookkeeping.zip`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportBookkeepingZipQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportBookkeepingZip>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportBookkeepingZipParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportBookkeepingZip>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportBookkeepingZipQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportBookkeepingZip>>
+  > = ({ signal }) =>
+    exportBookkeepingZip(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportBookkeepingZip>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportBookkeepingZipQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportBookkeepingZip>>
+>;
+export type ExportBookkeepingZipQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Download all bookkeeping CSVs bundled in a single ZIP
+ */
+
+export function useExportBookkeepingZip<
+  TData = Awaited<ReturnType<typeof exportBookkeepingZip>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportBookkeepingZipParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportBookkeepingZip>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportBookkeepingZipQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Health check

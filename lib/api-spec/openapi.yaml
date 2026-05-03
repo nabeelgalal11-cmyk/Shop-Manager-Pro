@@ -47,8 +47,102 @@ tags:
     description: Per-entity activity timeline
   - name: suppliers
     description: Parts suppliers / vendors
+  - name: exports
+    description: CSV / ZIP exports for bookkeeping (QuickBooks Online)
 
 paths:
+  # ---- EXPORTS / BOOKKEEPING ----
+  /exports/invoices.csv:
+    get:
+      operationId: exportInvoicesCsv
+      tags: [exports]
+      summary: Download invoices as CSV (QuickBooks-friendly)
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string }
+  /exports/payments.csv:
+    get:
+      operationId: exportPaymentsCsv
+      tags: [exports]
+      summary: Download successful payments as CSV
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string }
+  /exports/expenses.csv:
+    get:
+      operationId: exportExpensesCsv
+      tags: [exports]
+      summary: Download expenses as CSV
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string }
+  /exports/cogs-journal.csv:
+    get:
+      operationId: exportCogsJournalCsv
+      tags: [exports]
+      summary: Download daily COGS journal entries as CSV
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: CSV file (Date, Account, Debit, Credit, Memo)
+          content:
+            text/csv:
+              schema: { type: string }
+  /exports/bookkeeping.zip:
+    get:
+      operationId: exportBookkeepingZip
+      tags: [exports]
+      summary: Download all bookkeeping CSVs bundled in a single ZIP
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: ZIP archive containing invoices, payments, expenses, and COGS journal CSVs
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+
   /healthz:
     get:
       operationId: healthCheck

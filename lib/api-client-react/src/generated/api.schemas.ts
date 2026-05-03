@@ -1204,6 +1204,31 @@ export interface ReorderReport {
   totalItems?: number;
 }
 
+export type ExportInvoicesCsvParams = {
+  from?: string;
+  to?: string;
+};
+
+export type ExportPaymentsCsvParams = {
+  from?: string;
+  to?: string;
+};
+
+export type ExportExpensesCsvParams = {
+  from?: string;
+  to?: string;
+};
+
+export type ExportCogsJournalCsvParams = {
+  from?: string;
+  to?: string;
+};
+
+export type ExportBookkeepingZipParams = {
+  from?: string;
+  to?: string;
+};
+
 export type GetCustomersParams = {
   search?: string;
   page?: number;

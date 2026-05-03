@@ -39,6 +39,7 @@ import settingsRouter from "./settings.js";
 import userPreferencesRouter from "./user_preferences.js";
 import activityRouter from "./activity.js";
 import suppliersRouter from "./suppliers.js";
+import exportsRouter from "./exports.js";
 
 const router: IRouter = Router();
 
@@ -86,5 +87,6 @@ router.use("/user-preferences", userPreferencesRouter);
 router.use("/messages", messagesRouter);
 router.use("/activity", activityRouter);
 router.use("/suppliers", suppliersRouter);
+router.use("/exports", exportsRouter);
 
 export default router;

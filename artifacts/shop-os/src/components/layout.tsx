@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import {
   LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
   Wrench, Package, ClipboardCheck, Calendar, CreditCard,
-  UserCircle, Clock, Receipt, Bell, Search, BarChart2, Tags, CarFront, ShoppingCart, Settings2,
+  UserCircle, Clock, Receipt, Bell, Search, BarChart2, BookOpen, Tags, CarFront, ShoppingCart, Settings2,
   LogOut, Shield, KeyRound, Mail, Truck, AlertTriangle,
 } from "lucide-react";
 import {
@@ -48,6 +48,7 @@ const navGroups: NavGroup[] = [
       { name: "Purchases", href: "/purchases", icon: ShoppingCart, resource: "purchases" },
       { name: "Reorder Report", href: "/reports/reorder", icon: AlertTriangle, resource: "reports" },
       { name: "Reports", href: "/reports", icon: BarChart2, resource: "reports" },
+      { name: "Bookkeeping Export", href: "/reports/bookkeeping", icon: BookOpen, resource: "reports" },
     ]
   },
   { label: "Compliance", items: [

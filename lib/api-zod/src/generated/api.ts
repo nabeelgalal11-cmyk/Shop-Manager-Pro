@@ -8,6 +8,46 @@
 import * as zod from "zod";
 
 /**
+ * @summary Download invoices as CSV (QuickBooks-friendly)
+ */
+export const ExportInvoicesCsvQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+/**
+ * @summary Download successful payments as CSV
+ */
+export const ExportPaymentsCsvQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+/**
+ * @summary Download expenses as CSV
+ */
+export const ExportExpensesCsvQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+/**
+ * @summary Download daily COGS journal entries as CSV
+ */
+export const ExportCogsJournalCsvQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+/**
+ * @summary Download all bookkeeping CSVs bundled in a single ZIP
+ */
+export const ExportBookkeepingZipQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+/**
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
