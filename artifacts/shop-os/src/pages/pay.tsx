@@ -42,6 +42,7 @@ export default function PayInvoice() {
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(isSuccess);
 
   useEffect(() => {
     // Best-effort: tell the server the customer cancelled so the attempt
@@ -54,16 +55,52 @@ export default function PayInvoice() {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     setLoading(true);
-    fetch(`/api/public/invoices/${token}`)
-      .then(async r => {
-        if (!r.ok) throw new Error(r.status === 404 ? "Invoice not found" : "Unable to load invoice");
-        return r.json() as Promise<PublicInvoice>;
-      })
-      .then(data => { if (!cancelled) { setInvoice(data); setError(null); } })
-      .catch(err => { if (!cancelled) setError(err.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    if (isSuccess) setProcessing(true);
+
+    const POLL_INTERVAL_MS = 1500;
+    const MAX_POLL_MS = 10_000;
+    const startedAt = Date.now();
+
+    const fetchOnce = () => {
+      fetch(`/api/public/invoices/${token}`)
+        .then(async r => {
+          if (!r.ok) throw new Error(r.status === 404 ? "Invoice not found" : "Unable to load invoice");
+          return r.json() as Promise<PublicInvoice>;
+        })
+        .then(data => {
+          if (cancelled) return;
+          setInvoice(data);
+          setError(null);
+          setLoading(false);
+          if (isSuccess) {
+            if (Number(data.balance) <= 0) {
+              setProcessing(false);
+            } else if (Date.now() - startedAt < MAX_POLL_MS) {
+              timer = setTimeout(fetchOnce, POLL_INTERVAL_MS);
+            } else {
+              setProcessing(false);
+            }
+          }
+        })
+        .catch(err => {
+          if (cancelled) return;
+          setError(err.message);
+          setLoading(false);
+          if (isSuccess && Date.now() - startedAt < MAX_POLL_MS) {
+            timer = setTimeout(fetchOnce, POLL_INTERVAL_MS);
+          } else if (isSuccess) {
+            setProcessing(false);
+          }
+        });
+    };
+
+    fetchOnce();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [token, isSuccess]);
 
   const handlePay = async () => {
@@ -85,7 +122,21 @@ export default function PayInvoice() {
   return (
     <div className="min-h-screen bg-muted/30 py-10 px-4">
       <div className="max-w-2xl mx-auto space-y-4">
-        {isSuccess && (
+        {isSuccess && processing && (
+          <Card className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/30">
+            <CardContent className="pt-5 pb-5 flex items-start gap-3">
+              <Loader2 className="h-6 w-6 text-blue-600 mt-0.5 animate-spin" />
+              <div>
+                <p className="font-semibold text-blue-900 dark:text-blue-200">Confirming your payment…</p>
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  Hang tight while we finalize your receipt. This usually takes just a few seconds.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isSuccess && !processing && invoice && Number(invoice.balance) <= 0 && (
           <Card className="border-green-500/50 bg-green-50 dark:bg-green-950/30">
             <CardContent className="pt-5 pb-5 flex items-start gap-3">
               <CheckCircle2 className="h-6 w-6 text-green-600 mt-0.5" />
@@ -93,6 +144,20 @@ export default function PayInvoice() {
                 <p className="font-semibold text-green-900 dark:text-green-200">Payment received — thank you!</p>
                 <p className="text-sm text-green-800 dark:text-green-300">
                   A receipt will be emailed to you shortly. You can close this page.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {isSuccess && !processing && invoice && Number(invoice.balance) > 0 && (
+          <Card className="border-green-500/50 bg-green-50 dark:bg-green-950/30">
+            <CardContent className="pt-5 pb-5 flex items-start gap-3">
+              <CheckCircle2 className="h-6 w-6 text-green-600 mt-0.5" />
+              <div>
+                <p className="font-semibold text-green-900 dark:text-green-200">We received your payment</p>
+                <p className="text-sm text-green-800 dark:text-green-300">
+                  It'll appear on your invoice shortly. You can safely close this page — a receipt will be emailed to you once everything is finalized.
                 </p>
               </div>
             </CardContent>
