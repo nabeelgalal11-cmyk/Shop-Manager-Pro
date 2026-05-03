@@ -7,11 +7,14 @@ pnpm --filter @workspace/api-spec run codegen
 # prompt about. Each migration is wrapped in its own BEGIN/COMMIT and is
 # written to be idempotent.
 if [ -n "$DATABASE_URL" ]; then
-  for f in lib/db/migrations/*.sql; do
+  # Sort with LC_ALL=C so ordering is deterministic across locales (under
+  # en_US.UTF-8, punctuation like '.' and '_' can collate unexpectedly and
+  # cause a follow-up migration to run before its base file).
+  while IFS= read -r f; do
     [ -f "$f" ] || continue
     echo "Applying migration $f"
     psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
-  done
+  done < <(LC_ALL=C ls -1 lib/db/migrations/*.sql 2>/dev/null | LC_ALL=C sort)
 fi
 
 # Now do a non-interactive schema sync. Pipe an empty stdin so that if

@@ -23,13 +23,17 @@ CREATE INDEX IF NOT EXISTS stock_movements_inventory_id_idx
 CREATE INDEX IF NOT EXISTS stock_movements_reference_idx
   ON stock_movements(reference_table, reference_id);
 
--- Idempotency guard: one movement per (inventory, reason, source line).
--- NULLs are distinct in a btree unique index, so coalesce reference_line_id
--- to 0 when missing so duplicate "header-level" sources are still caught.
-CREATE UNIQUE INDEX IF NOT EXISTS stock_movements_unique_source_idx
+-- Idempotency lookup index. Originally a UNIQUE index, but that prevented
+-- legitimate re-application after a compensating reversal (e.g. RO completed
+-- -> incomplete -> completed must re-write a fresh ro_consumed row).
+-- Idempotency is now enforced in application code by counting applies vs
+-- reverses for the same source key. Drop any prior unique variant first so
+-- environments that ran an earlier version of this migration converge.
+DROP INDEX IF EXISTS stock_movements_unique_source_idx;
+CREATE INDEX IF NOT EXISTS stock_movements_source_idx
   ON stock_movements (
-    inventory_id, reason, reference_table, reference_id,
-    COALESCE(reference_line_id, 0)
+    inventory_id, reference_table, reference_id,
+    COALESCE(reference_line_id, 0), reason
   );
 
 -- 2) line_items: capture unit_cost at time of consumption for COGS
