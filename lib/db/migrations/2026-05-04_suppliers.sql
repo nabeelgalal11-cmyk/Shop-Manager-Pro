@@ -22,33 +22,35 @@ ALTER TABLE purchases
   ADD COLUMN IF NOT EXISTS supplier_id integer
     REFERENCES suppliers(id) ON DELETE SET NULL;
 
--- Backfill suppliers from distinct purchases.supplier text. Uses DISTINCT ON
--- against lower(trim(supplier)) so casing differences collapse to one row.
-INSERT INTO suppliers (name, contact_name, contact_email, contact_phone)
-SELECT DISTINCT ON (lower(trim(supplier)))
-  trim(supplier),
-  supplier_contact,
-  supplier_email,
-  supplier_phone
-FROM purchases
-WHERE supplier IS NOT NULL AND trim(supplier) <> ''
-ORDER BY lower(trim(supplier)), id DESC
-ON CONFLICT DO NOTHING;
-
-UPDATE purchases p
-SET supplier_id = s.id
-FROM suppliers s
-WHERE lower(trim(p.supplier)) = lower(s.name)
-  AND p.supplier_id IS NULL;
-
--- Preserve the original free-text value for audit. Drop NOT NULL so future
--- purchases can be created with supplier_id only.
+-- Backfill suppliers from distinct purchases.supplier text. Guarded so the
+-- migration is safe to re-run after the column has already been renamed.
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'purchases' AND column_name = 'supplier'
   ) THEN
+    EXECUTE $sql$
+      INSERT INTO suppliers (name, contact_name, contact_email, contact_phone)
+      SELECT DISTINCT ON (lower(trim(supplier)))
+        trim(supplier),
+        supplier_contact,
+        supplier_email,
+        supplier_phone
+      FROM purchases
+      WHERE supplier IS NOT NULL AND trim(supplier) <> ''
+      ORDER BY lower(trim(supplier)), id DESC
+      ON CONFLICT DO NOTHING
+    $sql$;
+
+    EXECUTE $sql$
+      UPDATE purchases p
+      SET supplier_id = s.id
+      FROM suppliers s
+      WHERE lower(trim(p.supplier)) = lower(s.name)
+        AND p.supplier_id IS NULL
+    $sql$;
+
     EXECUTE 'ALTER TABLE purchases RENAME COLUMN supplier TO supplier_legacy';
   END IF;
 END $$;

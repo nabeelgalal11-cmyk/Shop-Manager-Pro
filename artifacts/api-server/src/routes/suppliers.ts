@@ -46,7 +46,7 @@ router.get("/", requirePermission("suppliers", "view"), async (req, res) => {
       updatedAt: suppliersTable.updatedAt,
       purchaseCount: sql<number>`(select count(*)::int from purchases where supplier_id = ${suppliersTable.id})`,
       inventoryCount: sql<number>`(select count(*)::int from inventory where preferred_supplier_id = ${suppliersTable.id})`,
-      totalSpend: sql<number>`(select coalesce(sum(amount + coalesce(tax,0) + coalesce(shipping,0)), 0)::numeric from purchases where supplier_id = ${suppliersTable.id})`,
+      totalSpend: sql<number>`(select coalesce(sum(amount + coalesce(tax,0) + coalesce(shipping,0)), 0)::numeric from purchases where supplier_id = ${suppliersTable.id} and purchase_date >= date_trunc('year', current_date))`,
     })
     .from(suppliersTable)
     .where(filters.length > 0 ? and(...filters) : undefined)
@@ -101,7 +101,7 @@ router.get("/:id", requirePermission("suppliers", "view"), async (req, res) => {
     db
       .select({
         purchaseCount: sql<number>`count(*)::int`,
-        totalSpend: sql<number>`coalesce(sum(amount + coalesce(tax,0) + coalesce(shipping,0)), 0)::numeric`,
+        totalSpend: sql<number>`coalesce(sum(case when purchase_date >= date_trunc('year', current_date) then amount + coalesce(tax,0) + coalesce(shipping,0) else 0 end), 0)::numeric`,
         lastPurchaseDate: sql<string | null>`max(purchase_date)`,
       })
       .from(purchasesTable)
