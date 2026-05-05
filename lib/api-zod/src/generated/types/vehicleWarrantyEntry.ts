@@ -22,5 +22,4 @@ export interface VehicleWarrantyEntry {
   expiresOn?: Date | null;
   expiresAtMileage?: number | null;
   active: boolean;
-  matchesComplaint?: boolean;
 }

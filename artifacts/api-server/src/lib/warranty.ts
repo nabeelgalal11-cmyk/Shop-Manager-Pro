@@ -42,11 +42,13 @@ export async function fillLineItemWarranties<T extends { inventoryItemId?: numbe
   const defaults = await fetchInventoryDefaults(ids);
   return items.map((it) => {
     const w = pickWarranty(it);
-    if (w.warrantyMonths != null || w.warrantyMiles != null) return { ...it, ...w };
     const id = Number(it.inventoryItemId);
     const def = Number.isFinite(id) ? defaults.get(id) : undefined;
-    if (!def) return { ...it, ...w };
-    return { ...it, warrantyMonths: w.warrantyMonths ?? def.warrantyMonths ?? null, warrantyMiles: w.warrantyMiles ?? def.warrantyMiles ?? null };
+    return {
+      ...it,
+      warrantyMonths: w.warrantyMonths ?? def?.warrantyMonths ?? null,
+      warrantyMiles: w.warrantyMiles ?? def?.warrantyMiles ?? null,
+    };
   });
 }
 
@@ -57,11 +59,13 @@ export async function fillRoPartsWarranties<T extends { inventoryId?: number | n
   const defaults = await fetchInventoryDefaults(ids);
   return parts.map((p) => {
     const w = pickWarranty(p);
-    if (w.warrantyMonths != null || w.warrantyMiles != null) return { ...p, ...w };
     const id = Number(p.inventoryId);
     const def = Number.isFinite(id) ? defaults.get(id) : undefined;
-    if (!def) return { ...p, ...w };
-    return { ...p, warrantyMonths: w.warrantyMonths ?? def.warrantyMonths ?? null, warrantyMiles: w.warrantyMiles ?? def.warrantyMiles ?? null };
+    return {
+      ...p,
+      warrantyMonths: w.warrantyMonths ?? def?.warrantyMonths ?? null,
+      warrantyMiles: w.warrantyMiles ?? def?.warrantyMiles ?? null,
+    };
   });
 }
 
@@ -79,24 +83,7 @@ export type VehicleWarrantyEntry = {
   expiresOn: string | null;   // ISO date
   expiresAtMileage: number | null;
   active: boolean;
-  /** Whether the customer's complaint matches this warranty's description. */
-  matchesComplaint?: boolean;
 };
-
-const wordRegex = /[a-z0-9]+/gi;
-function tokens(s: string): Set<string> {
-  const set = new Set<string>();
-  const m = s?.toLowerCase().match(wordRegex);
-  if (m) for (const w of m) if (w.length >= 3) set.add(w);
-  return set;
-}
-
-function descriptionMatchesComplaint(description: string, complaintTokens: Set<string>): boolean {
-  if (!complaintTokens.size) return false;
-  const desc = tokens(description);
-  for (const t of desc) if (complaintTokens.has(t)) return true;
-  return false;
-}
 
 /**
  * Returns active warranties for a vehicle by joining completed repair-order
@@ -106,15 +93,16 @@ function descriptionMatchesComplaint(description: string, complaintTokens: Set<s
  * (startMileage + warrantyMiles) hasn't been exceeded by the vehicle's
  * current mileage.
  */
-export async function findActiveWarrantiesForVehicle(vehicleId: number, complaint?: string): Promise<VehicleWarrantyEntry[]> {
+export async function findActiveWarrantiesForVehicle(vehicleId: number): Promise<VehicleWarrantyEntry[]> {
   const [vehicle] = await db.select({ id: vehiclesTable.id, mileage: vehiclesTable.mileage }).from(vehiclesTable).where(eq(vehiclesTable.id, vehicleId));
   if (!vehicle) return [];
 
   const currentMileage = vehicle.mileage ?? null;
-  const cTokens = tokens(complaint ?? "");
   const now = new Date();
 
-  // 1) Line items from invoices linked to this vehicle.
+  // 1) Line items from invoices linked to this vehicle. Source the start
+  //    mileage from the linked RO's mileageOut when available so mileage
+  //    expiry is honored.
   const invItems = await db
     .select({
       id: lineItemsTable.id,
@@ -127,10 +115,12 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number, complain
       invoiceNumber: invoicesTable.invoiceNumber,
       invoiceVehicleId: invoicesTable.vehicleId,
       invoiceCreatedAt: invoicesTable.createdAt,
-      invoiceMileage: sql<number | null>`null`,
+      roMileageOut: repairOrdersTable.mileageOut,
+      roMileageIn: repairOrdersTable.mileageIn,
     })
     .from(lineItemsTable)
     .leftJoin(invoicesTable, eq(invoicesTable.id, lineItemsTable.invoiceId))
+    .leftJoin(repairOrdersTable, eq(repairOrdersTable.id, invoicesTable.repairOrderId))
     .where(and(
       eq(invoicesTable.vehicleId, vehicleId),
       isNotNull(lineItemsTable.invoiceId),
@@ -175,7 +165,7 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number, complain
     const start = li.invoiceCreatedAt ?? null;
     if (!start) continue;
     const expires = li.warrantyMonths != null ? new Date(new Date(start).setMonth(start.getMonth() + li.warrantyMonths)) : null;
-    const startMileage = null;
+    const startMileage = li.roMileageOut ?? li.roMileageIn ?? null;
     const expiresAtMileage = li.warrantyMiles != null && startMileage != null ? startMileage + li.warrantyMiles : null;
     const timeOk = expires == null || expires.getTime() > now.getTime();
     const milesOk = expiresAtMileage == null || currentMileage == null || currentMileage <= expiresAtMileage;
@@ -194,7 +184,6 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number, complain
       expiresOn: expires ? expires.toISOString() : null,
       expiresAtMileage,
       active: true,
-      matchesComplaint: descriptionMatchesComplaint(li.description ?? "", cTokens),
     });
   }
 
@@ -227,7 +216,6 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number, complain
         expiresOn: expires ? expires.toISOString() : null,
         expiresAtMileage,
         active: true,
-        matchesComplaint: descriptionMatchesComplaint(description, cTokens),
       });
     }
   }

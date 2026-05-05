@@ -24,7 +24,6 @@ type WarrantyEntry = {
   itemType: "part" | "labor"; description: string; partNumber?: string | null;
   warrantyMonths?: number | null; warrantyMiles?: number | null;
   startDate: string; expiresOn?: string | null; expiresAtMileage?: number | null;
-  matchesComplaint?: boolean;
 };
 
 const formSchema = z.object({
@@ -95,20 +94,17 @@ export default function RepairOrdersNew() {
 
   const internal = form.watch("internal");
   const watchedVehicleId = form.watch("vehicleId");
-  const watchedComplaint = form.watch("complaint");
   const createRepairOrder = useCreateRepairOrder();
 
   const { data: activeWarranties } = useQuery<WarrantyEntry[]>({
-    queryKey: ["/api/vehicles", watchedVehicleId, "warranties", watchedComplaint],
+    queryKey: ["/api/vehicles", watchedVehicleId, "warranties"],
     enabled: !internal && !!watchedVehicleId,
     queryFn: async () => {
-      const qs = watchedComplaint ? `?complaint=${encodeURIComponent(watchedComplaint)}` : "";
-      const r = await fetch(`/api/vehicles/${watchedVehicleId}/warranties${qs}`);
+      const r = await fetch(`/api/vehicles/${watchedVehicleId}/warranties`);
       if (!r.ok) return [];
       return r.json();
     },
   });
-  const matchingWarranties = (activeWarranties ?? []).filter(w => w.matchesComplaint);
 
   function handleCannedJob(job: CannedJob) {
     const items = job.items || [];
@@ -337,14 +333,12 @@ export default function RepairOrdersNew() {
               )}
 
               {!internal && (activeWarranties?.length ?? 0) > 0 && (
-                <div className={`rounded-md border p-3 text-sm ${matchingWarranties.length > 0 ? "border-amber-300 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>
+                <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-3 text-sm">
                   <div className="font-semibold mb-1">
-                    {matchingWarranties.length > 0
-                      ? `⚠ ${matchingWarranties.length} active warrant${matchingWarranties.length === 1 ? "y" : "ies"} may cover this complaint`
-                      : `${activeWarranties!.length} active warrant${activeWarranties!.length === 1 ? "y" : "ies"} on this vehicle`}
+                    ⚠ This vehicle has {activeWarranties!.length} active warrant{activeWarranties!.length === 1 ? "y" : "ies"}
                   </div>
                   <ul className="space-y-0.5 text-xs">
-                    {(matchingWarranties.length > 0 ? matchingWarranties : activeWarranties!).slice(0, 5).map((w, i) => (
+                    {activeWarranties!.slice(0, 5).map((w, i) => (
                       <li key={i}>
                         • <span className="font-medium">{w.description}</span>
                         {w.sourceNumber ? ` (${w.sourceNumber})` : ""}

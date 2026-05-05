@@ -623,7 +623,6 @@ export const GetVehicleWarrantiesResponseItem = zod.object({
   expiresOn: zod.coerce.date().nullish(),
   expiresAtMileage: zod.number().nullish(),
   active: zod.boolean(),
-  matchesComplaint: zod.boolean().optional(),
 });
 export const GetVehicleWarrantiesResponse = zod.array(
   GetVehicleWarrantiesResponseItem,

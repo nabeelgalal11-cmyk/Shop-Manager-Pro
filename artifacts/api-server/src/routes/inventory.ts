@@ -86,6 +86,8 @@ router.get("/:id", async (req, res) => {
       location: inventoryTable.location,
       notes: inventoryTable.notes,
       compatibleVehicles: inventoryTable.compatibleVehicles,
+      defaultWarrantyMonths: inventoryTable.defaultWarrantyMonths,
+      defaultWarrantyMiles: inventoryTable.defaultWarrantyMiles,
       createdAt: inventoryTable.createdAt,
       updatedAt: inventoryTable.updatedAt,
     })

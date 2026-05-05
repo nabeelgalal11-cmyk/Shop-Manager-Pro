@@ -415,7 +415,7 @@ paths:
             type: integer
       responses:
         "200":
-          description: Active warranties. Optional `?complaint=` query string (not part of the typed contract) annotates each entry with `matchesComplaint` for UI highlighting.
+          description: Active warranties for the vehicle.
           content:
             application/json:
               schema:
@@ -2319,8 +2319,6 @@ components:
           type: integer
           nullable: true
         active:
-          type: boolean
-        matchesComplaint:
           type: boolean
       required:
         - source

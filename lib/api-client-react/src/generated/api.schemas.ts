@@ -278,7 +278,6 @@ export interface VehicleWarrantyEntry {
   expiresOn?: string | null;
   expiresAtMileage?: number | null;
   active: boolean;
-  matchesComplaint?: boolean;
 }
 
 export type CreateLineItemInputType =

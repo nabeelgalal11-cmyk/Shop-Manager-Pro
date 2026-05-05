@@ -7,13 +7,7 @@ import { requirePermission } from "../lib/auth.js";
 const router: IRouter = Router();
 
 const ITEM_TYPES = new Set(["labor", "part", "fee", "discount"]);
-type CannedItem = { type: string; description: string; quantity: number; unitPrice: number; warrantyMonths?: number | null; warrantyMiles?: number | null };
-
-function parseOptInt(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : null;
-}
+type CannedItem = { type: string; description: string; quantity: number; unitPrice: number };
 
 function validateBody(body: any): { ok: true; value: { name: string; category: string | null; description: string | null; estimatedHours: unknown; items: CannedItem[] } } | { ok: false; error: string } {
   if (!body || typeof body !== "object") return { ok: false, error: "Body required" };
@@ -30,11 +24,7 @@ function validateBody(body: any): { ok: true; value: { name: string; category: s
     const price = Number(it.unitPrice);
     if (!Number.isFinite(qty) || qty < 0) return { ok: false, error: `items[${i}].quantity invalid` };
     if (!Number.isFinite(price) || price < 0) return { ok: false, error: `items[${i}].unitPrice invalid` };
-    items.push({
-      type: it.type, description: desc, quantity: qty, unitPrice: price,
-      warrantyMonths: parseOptInt(it.warrantyMonths),
-      warrantyMiles: parseOptInt(it.warrantyMiles),
-    });
+    items.push({ type: it.type, description: desc, quantity: qty, unitPrice: price });
   }
   return {
     ok: true,

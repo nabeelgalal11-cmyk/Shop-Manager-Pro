@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Plus, Pencil, Trash2, Loader2, Wrench } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type CannedJobItem = { type: "labor" | "part" | "fee" | "discount"; description: string; quantity: number; unitPrice: number; warrantyMonths?: number | null; warrantyMiles?: number | null };
+type CannedJobItem = { type: "labor" | "part" | "fee" | "discount"; description: string; quantity: number; unitPrice: number };
 type CannedJob = { id: number; name: string; category?: string | null; description?: string | null; estimatedHours?: string | null; items: CannedJobItem[] };
 
 const fmt = (n: number | string) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n) || 0);
@@ -156,7 +156,7 @@ function CannedJobForm({ value, onChange }: { value: CannedJob; onChange: (v: Ca
         </div>
         <div className="space-y-2">
           {value.items.map((it, i) => (
-            <div key={i} className="flex gap-2 items-start flex-wrap">
+            <div key={i} className="flex gap-2 items-start">
               <Select value={it.type} onValueChange={(v) => updateItem(i, { type: v as any })}>
                 <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -166,18 +166,13 @@ function CannedJobForm({ value, onChange }: { value: CannedJob; onChange: (v: Ca
                   <SelectItem value="discount">Discount</SelectItem>
                 </SelectContent>
               </Select>
-              <Input className="flex-1 min-w-[200px]" placeholder="Description" value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} />
+              <Input className="flex-1" placeholder="Description" value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} />
               <Input className="w-20" type="number" placeholder="Qty" value={it.quantity} onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })} />
               <Input className="w-28" type="number" step="0.01" placeholder="Unit $" value={it.unitPrice} onChange={(e) => updateItem(i, { unitPrice: Number(e.target.value) })} />
-              <Input className="w-24" type="number" min="0" placeholder="Warr. mo" title="Warranty months" value={it.warrantyMonths ?? ""} onChange={(e) => updateItem(i, { warrantyMonths: e.target.value === "" ? null : Number(e.target.value) })} />
-              <Input className="w-28" type="number" min="0" placeholder="Warr. mi" title="Warranty miles" value={it.warrantyMiles ?? ""} onChange={(e) => updateItem(i, { warrantyMiles: e.target.value === "" ? null : Number(e.target.value) })} />
               <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => removeItem(i)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Warranty months/miles are optional. They become the default warranty when this canned job is added to a repair order or invoice.
-        </p>
       </div>
     </div>
   );

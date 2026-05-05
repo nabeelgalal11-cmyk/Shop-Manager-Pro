@@ -68,8 +68,7 @@ router.delete("/:id", async (req, res) => {
 router.get("/:id/warranties", async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "Invalid vehicle id" });
-  const complaint = typeof req.query.complaint === "string" ? req.query.complaint : undefined;
-  const entries = await findActiveWarrantiesForVehicle(id, complaint);
+  const entries = await findActiveWarrantiesForVehicle(id);
   res.json(entries);
 });
 
