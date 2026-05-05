@@ -4,12 +4,21 @@ import { eq, inArray, and, isNotNull, desc } from "drizzle-orm";
 
 type WarrantyFields = { warrantyMonths?: number | null; warrantyMiles?: number | null };
 
-function pickWarranty(input: any): WarrantyFields {
-  const m = input?.warrantyMonths;
-  const mi = input?.warrantyMiles;
+type WarrantyInput = {
+  warrantyMonths?: number | string | null;
+  warrantyMiles?: number | string | null;
+};
+
+function toWarrantyNumber(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function pickWarranty(input: WarrantyInput): WarrantyFields {
   return {
-    warrantyMonths: m === null || m === "" || m === undefined ? null : Number.isFinite(Number(m)) ? Number(m) : null,
-    warrantyMiles: mi === null || mi === "" || mi === undefined ? null : Number.isFinite(Number(mi)) ? Number(mi) : null,
+    warrantyMonths: toWarrantyNumber(input?.warrantyMonths),
+    warrantyMiles: toWarrantyNumber(input?.warrantyMiles),
   };
 }
 
@@ -36,7 +45,7 @@ async function fetchInventoryDefaults(ids: number[]): Promise<Map<number, Warran
  * Caller-provided values always win. Items without an inventory link
  * are passed through unchanged.
  */
-export async function fillLineItemWarranties<T extends { inventoryItemId?: number | null }>(items: T[]): Promise<T[]> {
+export async function fillLineItemWarranties<T extends { inventoryItemId?: number | null } & WarrantyInput>(items: T[]): Promise<T[]> {
   if (!items?.length) return items ?? [];
   const ids = items.map((it) => Number(it.inventoryItemId)).filter((n): n is number => Number.isFinite(n) && n > 0);
   const defaults = await fetchInventoryDefaults(ids);
@@ -53,7 +62,7 @@ export async function fillLineItemWarranties<T extends { inventoryItemId?: numbe
 }
 
 /** Same but for RO `parts` jsonb entries (which use `inventoryId` not `inventoryItemId`). */
-export async function fillRoPartsWarranties<T extends { inventoryId?: number | null }>(parts: T[]): Promise<T[]> {
+export async function fillRoPartsWarranties<T extends { inventoryId?: number | null } & WarrantyInput>(parts: T[]): Promise<T[]> {
   if (!parts?.length) return parts ?? [];
   const ids = parts.map((p) => Number(p.inventoryId)).filter((n): n is number => Number.isFinite(n) && n > 0);
   const defaults = await fetchInventoryDefaults(ids);
@@ -117,6 +126,7 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number): Promise
       invoiceNumber: invoicesTable.invoiceNumber,
       invoiceVehicleId: invoicesTable.vehicleId,
       invoiceCreatedAt: invoicesTable.createdAt,
+      roCompletedAt: repairOrdersTable.completedAt,
       roMileageOut: repairOrdersTable.mileageOut,
       roMileageIn: repairOrdersTable.mileageIn,
     })
@@ -153,7 +163,10 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number): Promise
   for (const li of invItems) {
     if (li.warrantyMonths == null && li.warrantyMiles == null) continue;
     if (li.invoiceVehicleId !== vehicleId) continue;
-    const start = li.invoiceCreatedAt ?? null;
+    // Prefer the linked RO's completion date — that's the actual "work
+    // completed" moment a customer's warranty period runs from. Fall back
+    // to the invoice creation date only when no RO link exists.
+    const start = li.roCompletedAt ?? li.invoiceCreatedAt ?? null;
     if (!start) continue;
     const expires = li.warrantyMonths != null ? new Date(new Date(start).setMonth(start.getMonth() + li.warrantyMonths)) : null;
     const startMileage = li.roMileageOut ?? li.roMileageIn ?? null;
@@ -178,11 +191,18 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number): Promise
     });
   }
 
+  type RoPartJson = {
+    name?: string;
+    partNumber?: string | null;
+    warrantyMonths?: number | null;
+    warrantyMiles?: number | null;
+  };
+
   for (const ro of completedROs) {
     const start = ro.completedAt ?? null;
     if (!start) continue;
     const startMileage = ro.mileageOut ?? ro.mileageIn ?? null;
-    const partsArr: Array<any> = Array.isArray(ro.parts) ? ro.parts : [];
+    const partsArr: RoPartJson[] = Array.isArray(ro.parts) ? (ro.parts as RoPartJson[]) : [];
     for (const p of partsArr) {
       const wm = p?.warrantyMonths ?? null;
       const wmi = p?.warrantyMiles ?? null;
@@ -211,11 +231,14 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number): Promise
     }
   }
 
-  // De-duplicate by source + description (rare but possible if an RO has
-  // both a jsonb part entry and an invoiced line item). Keep the freshest.
+  // De-duplicate the same physical part appearing both as a completed-RO
+  // jsonb entry and as a line item on the invoice generated from that RO.
+  // Key intentionally excludes `source`/`sourceId` so cross-source duplicates
+  // collapse; we keep the freshest startDate (which after the RO-completion
+  // fix should match between the two sources for the same work).
   const seen = new Map<string, VehicleWarrantyEntry>();
   for (const e of out) {
-    const key = `${e.source}:${e.sourceId}:${e.itemType}:${e.description}:${e.partNumber ?? ""}`;
+    const key = `${e.itemType}:${e.description.toLowerCase()}:${(e.partNumber ?? "").toLowerCase()}`;
     const prev = seen.get(key);
     if (!prev || new Date(prev.startDate) < new Date(e.startDate)) seen.set(key, e);
   }
