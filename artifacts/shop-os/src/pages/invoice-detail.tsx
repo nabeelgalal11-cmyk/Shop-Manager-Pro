@@ -218,10 +218,37 @@ export default function InvoiceDetail() {
               {invoice.lineItems?.map(item => {
                 const wm = item.warrantyMonths;
                 const wmi = item.warrantyMiles;
+                const hasWarranty = (wm != null && wm > 0) || (wmi != null && wmi > 0);
                 const warrantyText = [
                   wm != null && wm > 0 ? `${wm} mo` : null,
                   wmi != null && wmi > 0 ? `${wmi.toLocaleString()} mi` : null,
                 ].filter(Boolean).join(" / ");
+                // Compute current status against time + mileage. Start
+                // date is the invoice creation date (the linked RO's
+                // completedAt isn't on the GET payload here). Mileage
+                // checks require both a vehicle current mileage and a
+                // mileage warranty cap; otherwise mileage is N/A.
+                const startMs = invoice.createdAt ? new Date(invoice.createdAt).getTime() : null;
+                const expiresMs = (wm != null && wm > 0 && startMs != null)
+                  ? new Date(new Date(startMs).setMonth(new Date(startMs).getMonth() + wm)).getTime()
+                  : null;
+                const vehicleMileage = invoice.vehicle?.mileage ?? null;
+                const mileageCap = (wmi != null && wmi > 0 && vehicleMileage != null)
+                  ? vehicleMileage + wmi // we don't know start mileage on this view; use a permissive cap
+                  : null;
+                const timeExpired = expiresMs != null && expiresMs <= Date.now();
+                const mileageExpired = mileageCap != null && vehicleMileage != null && vehicleMileage > mileageCap;
+                const isActive = hasWarranty && !timeExpired && !mileageExpired;
+                const statusLabel = !hasWarranty
+                  ? null
+                  : isActive
+                    ? (expiresMs != null
+                        ? `Active · expires ${new Date(expiresMs).toLocaleDateString()}`
+                        : "Active")
+                    : "Expired";
+                const statusClass = isActive
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-zinc-300 bg-zinc-50 text-zinc-600";
                 return (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">
@@ -229,6 +256,11 @@ export default function InvoiceDetail() {
                       {warrantyText && (
                         <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[10px] font-medium text-blue-700 align-middle">
                           Warranty {warrantyText}
+                        </span>
+                      )}
+                      {statusLabel && (
+                        <span className={`ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium align-middle ${statusClass}`}>
+                          {statusLabel}
                         </span>
                       )}
                     </TableCell>

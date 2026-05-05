@@ -13,6 +13,18 @@ import { getStripeClient, getStripeSettings } from "../lib/stripe.js";
 
 const CONSUMPTION_STATUSES = new Set(["sent", "paid"]);
 
+type InvoiceLineItemInput = {
+  type: string;
+  description: string;
+  quantity: number | string;
+  unitPrice: number | string;
+  partNumber?: string | null;
+  inventoryItemId?: number | null;
+  unitCost?: number | string | null;
+  warrantyMonths?: number | null;
+  warrantyMiles?: number | null;
+};
+
 async function applyInvoiceConsumption(invoiceId: number, executor: DbExecutor = db) {
   const items = await executor.select().from(lineItemsTable).where(eq(lineItemsTable.invoiceId, invoiceId));
   for (const li of items) {
@@ -196,8 +208,8 @@ router.post("/", async (req, res) => {
       }).returning();
 
       if (lineItems?.length) {
-        const enriched = await fillLineItemWarranties(lineItems);
-        await tx.insert(lineItemsTable).values(enriched.map((item: any) => ({
+        const enriched = await fillLineItemWarranties(lineItems as InvoiceLineItemInput[]);
+        await tx.insert(lineItemsTable).values(enriched.map((item) => ({
           invoiceId: created.id,
           type: item.type,
           description: item.description,
@@ -276,8 +288,8 @@ router.put("/:id", async (req, res) => {
         if (wasConsumed) await reverseInvoiceConsumption(id, tx);
         await tx.delete(lineItemsTable).where(eq(lineItemsTable.invoiceId, id));
         if (lineItems.length) {
-          const enriched = await fillLineItemWarranties(lineItems);
-          await tx.insert(lineItemsTable).values(enriched.map((item: any) => ({
+          const enriched = await fillLineItemWarranties(lineItems as InvoiceLineItemInput[]);
+          await tx.insert(lineItemsTable).values(enriched.map((item) => ({
             invoiceId: id, type: item.type, description: item.description,
             quantity: item.quantity.toString(), unitPrice: item.unitPrice.toString(),
             total: (Number(item.quantity) * Number(item.unitPrice)).toString(), partNumber: item.partNumber,

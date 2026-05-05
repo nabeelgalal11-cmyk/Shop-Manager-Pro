@@ -233,12 +233,16 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number): Promise
 
   // De-duplicate the same physical part appearing both as a completed-RO
   // jsonb entry and as a line item on the invoice generated from that RO.
-  // Key intentionally excludes `source`/`sourceId` so cross-source duplicates
-  // collapse; we keep the freshest startDate (which after the RO-completion
-  // fix should match between the two sources for the same work).
+  // The dedupe key includes the *day* of the start date so distinct
+  // historical visits with the same part stay as separate active warranty
+  // lines — only the RO-jsonb / invoice-line pair from a single visit
+  // collapses into one. Within a duplicate group, the freshest startDate
+  // wins (invoice line typically beats the older RO snapshot, but they
+  // should match after the RO-completion fix).
   const seen = new Map<string, VehicleWarrantyEntry>();
   for (const e of out) {
-    const key = `${e.itemType}:${e.description.toLowerCase()}:${(e.partNumber ?? "").toLowerCase()}`;
+    const day = e.startDate.slice(0, 10); // YYYY-MM-DD
+    const key = `${e.itemType}:${e.description.toLowerCase()}:${(e.partNumber ?? "").toLowerCase()}:${day}`;
     const prev = seen.get(key);
     if (!prev || new Date(prev.startDate) < new Date(e.startDate)) seen.set(key, e);
   }

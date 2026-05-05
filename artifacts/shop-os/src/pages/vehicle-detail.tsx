@@ -272,14 +272,30 @@ export default function VehicleDetail() {
                     <TableHead>Description</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Started</TableHead>
-                    <TableHead>Expires</TableHead>
-                    <TableHead>Mileage Limit</TableHead>
+                    <TableHead>Time Remaining</TableHead>
+                    <TableHead>Miles Remaining</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {warranties.map((w, i) => {
                     const isRO = w.source === "repair_order";
                     const targetPath = isRO ? `/repair-orders/${w.sourceId}` : `/invoices/${w.sourceId}`;
+                    const expiresMs = w.expiresOn ? new Date(w.expiresOn).getTime() : null;
+                    const msPerDay = 86400000;
+                    const daysLeft = expiresMs != null ? Math.max(0, Math.ceil((expiresMs - Date.now()) / msPerDay)) : null;
+                    let timeRemaining = "—";
+                    if (daysLeft != null) {
+                      if (daysLeft >= 60) timeRemaining = `${Math.round(daysLeft / 30)} mo`;
+                      else if (daysLeft >= 14) timeRemaining = `${Math.round(daysLeft / 7)} wk`;
+                      else timeRemaining = `${daysLeft} d`;
+                    }
+                    const currentMileage = vehicle?.mileage ?? null;
+                    let milesRemaining = "—";
+                    if (w.expiresAtMileage != null) {
+                      milesRemaining = currentMileage != null
+                        ? `${Math.max(0, w.expiresAtMileage - currentMileage).toLocaleString()} mi`
+                        : `cap ${w.expiresAtMileage.toLocaleString()} mi`;
+                    }
                     return (
                       <TableRow key={i}
                         className="cursor-pointer hover:bg-muted/40"
@@ -292,8 +308,8 @@ export default function VehicleDetail() {
                           <Badge variant="outline" className="text-xs">{w.sourceNumber || (isRO ? "RO" : "Invoice")}</Badge>
                         </TableCell>
                         <TableCell className="text-sm">{new Date(w.startDate).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-sm">{w.expiresOn ? new Date(w.expiresOn).toLocaleDateString() : "—"}</TableCell>
-                        <TableCell className="text-sm">{w.expiresAtMileage != null ? `${w.expiresAtMileage.toLocaleString()} mi` : "—"}</TableCell>
+                        <TableCell className="text-sm">{timeRemaining}</TableCell>
+                        <TableCell className="text-sm">{milesRemaining}</TableCell>
                       </TableRow>
                     );
                   })}
