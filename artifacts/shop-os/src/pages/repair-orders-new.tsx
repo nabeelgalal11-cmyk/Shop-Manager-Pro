@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useSearch } from "wouter";
+import { useLocation, useSearch, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useCreateRepairOrder, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetEmployees, getGetEmployeesQueryKey, type CreateRepairOrderInput } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
@@ -24,6 +24,7 @@ type WarrantyEntry = {
   itemType: "part" | "labor"; description: string; partNumber?: string | null;
   warrantyMonths?: number | null; warrantyMiles?: number | null;
   startDate: string; expiresOn?: string | null; expiresAtMileage?: number | null;
+  active?: boolean;
 };
 
 const formSchema = z.object({
@@ -338,14 +339,20 @@ export default function RepairOrdersNew() {
                     ⚠ This vehicle has {activeWarranties!.length} active warrant{activeWarranties!.length === 1 ? "y" : "ies"}
                   </div>
                   <ul className="space-y-0.5 text-xs">
-                    {activeWarranties!.slice(0, 5).map((w, i) => (
-                      <li key={i}>
-                        • <span className="font-medium">{w.description}</span>
-                        {w.sourceNumber ? ` (${w.sourceNumber})` : ""}
-                        {w.expiresOn ? ` — expires ${new Date(w.expiresOn).toLocaleDateString()}` : ""}
-                        {w.expiresAtMileage != null ? ` or ${w.expiresAtMileage.toLocaleString()} mi` : ""}
-                      </li>
-                    ))}
+                    {activeWarranties!.slice(0, 5).map((w, i) => {
+                      const href = w.source === "repair_order" ? `/repair-orders/${w.sourceId}` : `/invoices/${w.sourceId}`;
+                      return (
+                        <li key={i}>
+                          •{" "}
+                          <Link href={href} className="font-medium underline hover:no-underline">
+                            {w.description}
+                            {w.sourceNumber ? ` (${w.sourceNumber})` : ""}
+                          </Link>
+                          {w.expiresOn ? ` — expires ${new Date(w.expiresOn).toLocaleDateString()}` : ""}
+                          {w.expiresAtMileage != null ? ` or ${w.expiresAtMileage.toLocaleString()} mi` : ""}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
