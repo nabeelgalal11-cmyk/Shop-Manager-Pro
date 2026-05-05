@@ -33,6 +33,7 @@ import InspectionsNew from "@/pages/inspections-new";
 import InspectionDetail from "@/pages/inspection-detail";
 import Appointments from "@/pages/appointments";
 import AppointmentsNew from "@/pages/appointments-new";
+import AppointmentDetail from "@/pages/appointment-detail";
 import Payments from "@/pages/payments";
 import Employees from "@/pages/employees";
 import EmployeesNew from "@/pages/employees-new";
@@ -106,6 +107,7 @@ function Router() {
 
         <Route path="/appointments" component={Appointments} />
         <Route path="/appointments/new" component={AppointmentsNew} />
+        <Route path="/appointments/:id" component={AppointmentDetail} />
 
         <Route path="/payments" component={Payments} />
 
