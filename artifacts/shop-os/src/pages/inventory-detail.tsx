@@ -65,9 +65,9 @@ export default function InventoryDetail() {
       minQuantity: item.minQuantity,
       location: item.location ?? "",
       notes: item.notes ?? "",
-      compatibleVehicles: (item as any).compatibleVehicles ?? "",
-      defaultWarrantyMonths: (item as any).defaultWarrantyMonths ?? "",
-      defaultWarrantyMiles: (item as any).defaultWarrantyMiles ?? "",
+      compatibleVehicles: item.compatibleVehicles ?? "",
+      defaultWarrantyMonths: item.defaultWarrantyMonths ?? "",
+      defaultWarrantyMiles: item.defaultWarrantyMiles ?? "",
     });
     setCategoryMode("select");
     setCustomCategory("");

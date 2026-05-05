@@ -216,8 +216,8 @@ export default function InvoiceDetail() {
             </TableHeader>
             <TableBody>
               {invoice.lineItems?.map(item => {
-                const wm = (item as any).warrantyMonths as number | null | undefined;
-                const wmi = (item as any).warrantyMiles as number | null | undefined;
+                const wm = item.warrantyMonths;
+                const wmi = item.warrantyMiles;
                 const warrantyText = [
                   wm != null && wm > 0 ? `${wm} mo` : null,
                   wmi != null && wmi > 0 ? `${wmi.toLocaleString()} mi` : null,

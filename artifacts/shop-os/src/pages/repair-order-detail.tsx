@@ -310,8 +310,8 @@ export default function RepairOrderDetail() {
       fromInventory: true,
       inventoryId: item.id,
       unitCost: Number(item.costPrice),
-      warrantyMonths: (item as any).defaultWarrantyMonths ?? null,
-      warrantyMiles: (item as any).defaultWarrantyMiles ?? null,
+      warrantyMonths: item.defaultWarrantyMonths ?? null,
+      warrantyMiles: item.defaultWarrantyMiles ?? null,
     });
     setSearchQuery(item.name);
     setShowDropdown(false);

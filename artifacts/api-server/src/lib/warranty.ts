@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
-import { inventoryTable, lineItemsTable, repairOrdersTable, invoicesTable, estimatesTable, vehiclesTable } from "@workspace/db";
-import { eq, inArray, sql, and, isNotNull, desc } from "drizzle-orm";
+import { inventoryTable, lineItemsTable, repairOrdersTable, invoicesTable, vehiclesTable } from "@workspace/db";
+import { eq, inArray, and, isNotNull, desc } from "drizzle-orm";
 
 type WarrantyFields = { warrantyMonths?: number | null; warrantyMiles?: number | null };
 
@@ -100,9 +100,11 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number): Promise
   const currentMileage = vehicle.mileage ?? null;
   const now = new Date();
 
-  // 1) Line items from invoices linked to this vehicle. Source the start
-  //    mileage from the linked RO's mileageOut when available so mileage
-  //    expiry is honored.
+  // 1) Line items from finalized invoices linked to this vehicle. Only
+  //    sent/paid/overdue invoices represent real billed work; draft and
+  //    void invoices are ignored. Source start mileage from the linked
+  //    RO's mileageOut/mileageIn when available so mileage expiry works.
+  const ACTIVE_INVOICE_STATUSES = ["sent", "paid", "overdue"] as const;
   const invItems = await db
     .select({
       id: lineItemsTable.id,
@@ -124,23 +126,12 @@ export async function findActiveWarrantiesForVehicle(vehicleId: number): Promise
     .where(and(
       eq(invoicesTable.vehicleId, vehicleId),
       isNotNull(lineItemsTable.invoiceId),
+      inArray(invoicesTable.status, [...ACTIVE_INVOICE_STATUSES]),
     ));
 
-  // 2) Line items from estimates whose RO is completed against this vehicle.
-  const roItems = await db
-    .select({
-      id: lineItemsTable.id,
-      type: lineItemsTable.type,
-      description: lineItemsTable.description,
-      partNumber: lineItemsTable.partNumber,
-      warrantyMonths: lineItemsTable.warrantyMonths,
-      warrantyMiles: lineItemsTable.warrantyMiles,
-      estimateId: lineItemsTable.estimateId,
-    })
-    .from(lineItemsTable)
-    .where(isNotNull(lineItemsTable.estimateId));
-
-  // 3) RO parts jsonb on completed orders for this vehicle.
+  // 2) RO parts jsonb on completed orders for this vehicle. RO labor isn't
+  //    itemized at the RO level (only as `laborHours`); labor warranties
+  //    surface via the related invoice line items above.
   const completedROs = await db
     .select({
       id: repairOrdersTable.id,

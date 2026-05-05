@@ -277,22 +277,26 @@ export default function VehicleDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {warranties.map((w: any, i: number) => (
-                    <TableRow key={i}
-                      className={w.source === "repair_order" ? "cursor-pointer hover:bg-muted/40" : ""}
-                      onClick={() => w.source === "repair_order" && setLocation(`/repair-orders/${w.sourceId}`)}>
-                      <TableCell className="font-medium">
-                        {w.description}
-                        {w.partNumber && <span className="text-xs text-muted-foreground font-mono ml-2">{w.partNumber}</span>}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">{w.sourceNumber || (w.source === "invoice" ? "Invoice" : "RO")}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">{new Date(w.startDate).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-sm">{w.expiresOn ? new Date(w.expiresOn).toLocaleDateString() : "—"}</TableCell>
-                      <TableCell className="text-sm">{w.expiresAtMileage != null ? `${w.expiresAtMileage.toLocaleString()} mi` : "—"}</TableCell>
-                    </TableRow>
-                  ))}
+                  {warranties.map((w, i) => {
+                    const isRO = w.source === "repair_order";
+                    const targetPath = isRO ? `/repair-orders/${w.sourceId}` : `/invoices/${w.sourceId}`;
+                    return (
+                      <TableRow key={i}
+                        className="cursor-pointer hover:bg-muted/40"
+                        onClick={() => setLocation(targetPath)}>
+                        <TableCell className="font-medium">
+                          {w.description}
+                          {w.partNumber && <span className="text-xs text-muted-foreground font-mono ml-2">{w.partNumber}</span>}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">{w.sourceNumber || (isRO ? "RO" : "Invoice")}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">{new Date(w.startDate).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-sm">{w.expiresOn ? new Date(w.expiresOn).toLocaleDateString() : "—"}</TableCell>
+                        <TableCell className="text-sm">{w.expiresAtMileage != null ? `${w.expiresAtMileage.toLocaleString()} mi` : "—"}</TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

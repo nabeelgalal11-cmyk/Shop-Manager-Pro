@@ -18,6 +18,8 @@ const lineItemSchema = z.object({
   unitPrice: z.coerce.number().min(0),
   inventoryItemId: z.coerce.number().int().positive().optional(),
   unitCost: z.coerce.number().min(0).optional(),
+  warrantyMonths: z.coerce.number().int().min(0).nullable().optional(),
+  warrantyMiles: z.coerce.number().int().min(0).nullable().optional(),
 });
 
 const formSchema = z.object({
@@ -182,6 +184,8 @@ export default function InvoicesNew() {
                             form.setValue(`lineItems.${index}.unitCost`, Number(item.costPrice));
                             form.setValue(`lineItems.${index}.description`, item.name);
                             form.setValue(`lineItems.${index}.unitPrice`, Number(item.sellPrice));
+                            form.setValue(`lineItems.${index}.warrantyMonths`, item.defaultWarrantyMonths ?? null);
+                            form.setValue(`lineItems.${index}.warrantyMiles`, item.defaultWarrantyMiles ?? null);
                           }}
                         >
                           <SelectTrigger><SelectValue placeholder="Link inventory part…" /></SelectTrigger>
@@ -220,6 +224,32 @@ export default function InvoicesNew() {
                       render={({ field }) => (
                         <FormItem className="w-[120px]">
                           <FormControl><Input type="number" placeholder="Price" {...field} /></FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`lineItems.${index}.warrantyMonths`}
+                      render={({ field }) => (
+                        <FormItem className="w-[110px]">
+                          <FormControl>
+                            <Input type="number" min={0} placeholder="Warr. mo"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`lineItems.${index}.warrantyMiles`}
+                      render={({ field }) => (
+                        <FormItem className="w-[110px]">
+                          <FormControl>
+                            <Input type="number" min={0} placeholder="Warr. mi"
+                              value={field.value ?? ""}
+                              onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))} />
+                          </FormControl>
                         </FormItem>
                       )}
                     />
