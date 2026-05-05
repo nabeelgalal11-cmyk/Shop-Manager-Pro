@@ -181,6 +181,17 @@ export interface Vehicle {
   customer?: Customer;
 }
 
+/**
+ * Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage.
+ */
+export type InvoiceRepairOrder = {
+  id?: number;
+  orderNumber?: string | null;
+  completedAt?: string | null;
+  mileageIn?: number | null;
+  mileageOut?: number | null;
+} | null;
+
 export interface Invoice {
   id: number;
   invoiceNumber: string;
@@ -202,6 +213,8 @@ export interface Invoice {
   payments?: Payment[];
   customer?: Customer;
   vehicle?: Vehicle;
+  /** Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage. */
+  repairOrder?: InvoiceRepairOrder;
   createdAt: string;
   updatedAt: string;
 }

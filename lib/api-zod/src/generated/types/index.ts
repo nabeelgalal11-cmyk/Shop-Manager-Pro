@@ -96,6 +96,7 @@ export * from "./inventoryItem";
 export * from "./inventoryListResponse";
 export * from "./invoice";
 export * from "./invoiceListResponse";
+export * from "./invoiceRepairOrder";
 export * from "./invoiceStatus";
 export * from "./lineItem";
 export * from "./lineItemCustomerDecision";

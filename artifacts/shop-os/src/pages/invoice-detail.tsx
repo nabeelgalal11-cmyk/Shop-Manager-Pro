@@ -223,32 +223,44 @@ export default function InvoiceDetail() {
                   wm != null && wm > 0 ? `${wm} mo` : null,
                   wmi != null && wmi > 0 ? `${wmi.toLocaleString()} mi` : null,
                 ].filter(Boolean).join(" / ");
-                // Compute current status against time + mileage. Start
-                // date is the invoice creation date (the linked RO's
-                // completedAt isn't on the GET payload here). Mileage
-                // checks require both a vehicle current mileage and a
-                // mileage warranty cap; otherwise mileage is N/A.
-                const startMs = invoice.createdAt ? new Date(invoice.createdAt).getTime() : null;
+                // Compute current status against time + mileage. Prefer
+                // the linked RO's completedAt + mileageOut/In as the
+                // warranty start point; fall back to invoice.createdAt
+                // when no RO is linked.
+                const startSrc = invoice.repairOrder?.completedAt ?? invoice.createdAt ?? null;
+                const startMs = startSrc ? new Date(startSrc).getTime() : null;
                 const expiresMs = (wm != null && wm > 0 && startMs != null)
                   ? new Date(new Date(startMs).setMonth(new Date(startMs).getMonth() + wm)).getTime()
                   : null;
+                const startMileage = invoice.repairOrder?.mileageOut ?? invoice.repairOrder?.mileageIn ?? null;
                 const vehicleMileage = invoice.vehicle?.mileage ?? null;
-                const mileageCap = (wmi != null && wmi > 0 && vehicleMileage != null)
-                  ? vehicleMileage + wmi // we don't know start mileage on this view; use a permissive cap
+                const mileageCap = (wmi != null && wmi > 0 && startMileage != null)
+                  ? startMileage + wmi
                   : null;
-                const timeExpired = expiresMs != null && expiresMs <= Date.now();
-                const mileageExpired = mileageCap != null && vehicleMileage != null && vehicleMileage > mileageCap;
-                const isActive = hasWarranty && !timeExpired && !mileageExpired;
-                const statusLabel = !hasWarranty
-                  ? null
-                  : isActive
-                    ? (expiresMs != null
-                        ? `Active · expires ${new Date(expiresMs).toLocaleDateString()}`
-                        : "Active")
-                    : "Expired";
-                const statusClass = isActive
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-zinc-300 bg-zinc-50 text-zinc-600";
+                const timeKnown = expiresMs != null;
+                const mileageKnown = mileageCap != null && vehicleMileage != null;
+                const timeExpired = timeKnown && expiresMs! <= Date.now();
+                const mileageExpired = mileageKnown && vehicleMileage! > mileageCap!;
+                // Active means: at least one window is known AND no known
+                // window has been crossed. If no windows are known, label
+                // it Unknown rather than asserting Active.
+                const anyKnown = timeKnown || mileageKnown;
+                let statusLabel: string | null = null;
+                let statusClass = "";
+                if (hasWarranty) {
+                  if (!anyKnown) {
+                    statusLabel = "Status unknown";
+                    statusClass = "border-zinc-300 bg-zinc-50 text-zinc-600";
+                  } else if (timeExpired || mileageExpired) {
+                    statusLabel = "Expired";
+                    statusClass = "border-zinc-300 bg-zinc-50 text-zinc-600";
+                  } else {
+                    statusLabel = expiresMs != null
+                      ? `Active · expires ${new Date(expiresMs).toLocaleDateString()}`
+                      : "Active";
+                    statusClass = "border-emerald-200 bg-emerald-50 text-emerald-700";
+                  }
+                }
                 return (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">

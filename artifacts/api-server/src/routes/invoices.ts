@@ -2,7 +2,7 @@ import { Router } from "express";
 import { randomBytes } from "crypto";
 import type Stripe from "stripe";
 import { db } from "@workspace/db";
-import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesTable } from "@workspace/db";
+import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesTable, repairOrdersTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { sendSms } from "../lib/sms.js";
@@ -157,13 +157,22 @@ async function maybeSendInvoiceEmail(prevStatus: string | null, invoice: any, re
 }
 
 async function enrichInvoice(invoice: any) {
-  const [lineItems, payments, customer, vehicle] = await Promise.all([
+  const [lineItems, payments, customer, vehicle, repairOrder] = await Promise.all([
     db.select().from(lineItemsTable).where(eq(lineItemsTable.invoiceId, invoice.id)),
     db.select().from(paymentsTable).where(eq(paymentsTable.invoiceId, invoice.id)),
     db.select().from(customersTable).where(eq(customersTable.id, invoice.customerId)).then(r => r[0]),
     invoice.vehicleId ? db.select().from(vehiclesTable).where(eq(vehiclesTable.id, invoice.vehicleId)).then(r => r[0]) : Promise.resolve(null),
+    invoice.repairOrderId
+      ? db.select({
+          id: repairOrdersTable.id,
+          orderNumber: repairOrdersTable.orderNumber,
+          completedAt: repairOrdersTable.completedAt,
+          mileageIn: repairOrdersTable.mileageIn,
+          mileageOut: repairOrdersTable.mileageOut,
+        }).from(repairOrdersTable).where(eq(repairOrdersTable.id, invoice.repairOrderId)).then(r => r[0])
+      : Promise.resolve(null),
   ]);
-  return { ...invoice, lineItems, payments, customer, vehicle };
+  return { ...invoice, lineItems, payments, customer, vehicle, repairOrder };
 }
 
 function calcTotals(items: any[], taxRate: number, discount: number) {

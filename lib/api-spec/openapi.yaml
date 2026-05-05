@@ -2561,6 +2561,26 @@ components:
           $ref: "#/components/schemas/Customer"
         vehicle:
           $ref: "#/components/schemas/Vehicle"
+        repairOrder:
+          type: object
+          nullable: true
+          description: Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage.
+          properties:
+            id:
+              type: integer
+            orderNumber:
+              type: string
+              nullable: true
+            completedAt:
+              type: string
+              format: date-time
+              nullable: true
+            mileageIn:
+              type: integer
+              nullable: true
+            mileageOut:
+              type: integer
+              nullable: true
         createdAt:
           type: string
           format: date-time

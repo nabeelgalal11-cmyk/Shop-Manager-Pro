@@ -394,6 +394,18 @@ export const GetCustomerStatementResponse = zod.object({
             .optional(),
         })
         .optional(),
+      repairOrder: zod
+        .object({
+          id: zod.number().optional(),
+          orderNumber: zod.string().nullish(),
+          completedAt: zod.coerce.date().nullish(),
+          mileageIn: zod.number().nullish(),
+          mileageOut: zod.number().nullish(),
+        })
+        .nullish()
+        .describe(
+          "Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage.",
+        ),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -1251,6 +1263,18 @@ export const GetInvoicesResponse = zod.object({
             .optional(),
         })
         .optional(),
+      repairOrder: zod
+        .object({
+          id: zod.number().optional(),
+          orderNumber: zod.string().nullish(),
+          completedAt: zod.coerce.date().nullish(),
+          mileageIn: zod.number().nullish(),
+          mileageOut: zod.number().nullish(),
+        })
+        .nullish()
+        .describe(
+          "Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage.",
+        ),
       createdAt: zod.coerce.date(),
       updatedAt: zod.coerce.date(),
     }),
@@ -1419,6 +1443,18 @@ export const GetInvoiceResponse = zod.object({
         .optional(),
     })
     .optional(),
+  repairOrder: zod
+    .object({
+      id: zod.number().optional(),
+      orderNumber: zod.string().nullish(),
+      completedAt: zod.coerce.date().nullish(),
+      mileageIn: zod.number().nullish(),
+      mileageOut: zod.number().nullish(),
+    })
+    .nullish()
+    .describe(
+      "Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage.",
+    ),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });
@@ -1579,6 +1615,18 @@ export const UpdateInvoiceResponse = zod.object({
         .optional(),
     })
     .optional(),
+  repairOrder: zod
+    .object({
+      id: zod.number().optional(),
+      orderNumber: zod.string().nullish(),
+      completedAt: zod.coerce.date().nullish(),
+      mileageIn: zod.number().nullish(),
+      mileageOut: zod.number().nullish(),
+    })
+    .nullish()
+    .describe(
+      "Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage.",
+    ),
   createdAt: zod.coerce.date(),
   updatedAt: zod.coerce.date(),
 });

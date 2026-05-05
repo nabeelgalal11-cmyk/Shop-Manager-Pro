@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Customer } from "./customer";
+import type { InvoiceRepairOrder } from "./invoiceRepairOrder";
 import type { InvoiceStatus } from "./invoiceStatus";
 import type { LineItem } from "./lineItem";
 import type { Payment } from "./payment";
@@ -32,6 +33,8 @@ export interface Invoice {
   payments?: Payment[];
   customer?: Customer;
   vehicle?: Vehicle;
+  /** Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage. */
+  repairOrder?: InvoiceRepairOrder;
   createdAt: Date;
   updatedAt: Date;
 }
