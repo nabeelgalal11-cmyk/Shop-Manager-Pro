@@ -65,15 +65,22 @@ export default function UsedCarsNew() {
       const r = await fetch(`/api/vin/${encodeURIComponent(vin)}`);
       if (!r.ok) throw new Error((await r.json())?.error || "Decode failed");
       const d = await r.json();
-      setForm(p => ({
-        ...p,
-        year: isEdit
-          ? (!p.year || String(p.year).trim() === "" ? (d.year ?? p.year) : p.year)
-          : (d.year ?? p.year),
-        make: isEdit ? (!p.make ? (d.make || p.make) : p.make) : (d.make || p.make),
-        model: isEdit ? (!p.model ? (d.model || p.model) : p.model) : (d.model || p.model),
-        trim: isEdit ? (!p.trim ? (d.trim || p.trim) : p.trim) : (d.trim || p.trim),
-      }));
+      const preferExisting = <T,>(existing: T, decoded: T | undefined): T => {
+        const isEmpty = existing === undefined || existing === null || (typeof existing === "string" && existing.trim() === "");
+        return isEmpty && decoded !== undefined && decoded !== null ? decoded : existing;
+      };
+      setForm(p => {
+        // In add mode the year input is pre-seeded to the current year as a UX
+        // default the user didn't actually choose, so treat it as empty for VIN fill.
+        const yearIsDefault = !isEdit && Number(p.year) === new Date().getFullYear();
+        return {
+          ...p,
+          year: yearIsDefault ? (d.year ?? p.year) : preferExisting(p.year, d.year),
+          make: preferExisting(p.make, d.make),
+          model: preferExisting(p.model, d.model),
+          trim: preferExisting(p.trim, d.trim),
+        };
+      });
       toast({ title: "VIN decoded", description: [d.year, d.make, d.model, d.trim].filter(Boolean).join(" ") || "Filled what was available" });
     } catch (e: any) {
       toast({ title: "VIN decode failed", description: e.message, variant: "destructive" });
