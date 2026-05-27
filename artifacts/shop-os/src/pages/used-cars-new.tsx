@@ -67,10 +67,12 @@ export default function UsedCarsNew() {
       const d = await r.json();
       setForm(p => ({
         ...p,
-        year: !p.year || String(p.year).trim() === "" ? (d.year ?? p.year) : p.year,
-        make: !p.make ? (d.make || p.make) : p.make,
-        model: !p.model ? (d.model || p.model) : p.model,
-        trim: !p.trim ? (d.trim || p.trim) : p.trim,
+        year: isEdit
+          ? (!p.year || String(p.year).trim() === "" ? (d.year ?? p.year) : p.year)
+          : (d.year ?? p.year),
+        make: isEdit ? (!p.make ? (d.make || p.make) : p.make) : (d.make || p.make),
+        model: isEdit ? (!p.model ? (d.model || p.model) : p.model) : (d.model || p.model),
+        trim: isEdit ? (!p.trim ? (d.trim || p.trim) : p.trim) : (d.trim || p.trim),
       }));
       toast({ title: "VIN decoded", description: [d.year, d.make, d.model, d.trim].filter(Boolean).join(" ") || "Filled what was available" });
     } catch (e: any) {
