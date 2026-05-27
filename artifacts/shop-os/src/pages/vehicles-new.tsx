@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import { CustomerCombobox } from "@/components/customer-combobox";
@@ -17,11 +18,14 @@ const formSchema = z.object({
   year: z.coerce.number().min(1900, "Valid year required").max(new Date().getFullYear() + 1),
   make: z.string().min(1, "Make is required"),
   model: z.string().min(1, "Model is required"),
+  trim: z.string().optional().or(z.literal("")),
   licensePlate: z.string().optional().or(z.literal("")),
   vin: z.string().optional().or(z.literal("")),
   fleetNumber: z.string().optional().or(z.literal("")),
   color: z.string().optional().or(z.literal("")),
   mileage: z.coerce.number().optional().or(z.literal(0)),
+  engineType: z.string().optional().or(z.literal("")),
+  transmissionType: z.string().optional().or(z.literal("")),
 });
 
 export default function VehiclesNew() {
@@ -35,11 +39,14 @@ export default function VehiclesNew() {
       year: new Date().getFullYear(),
       make: "",
       model: "",
+      trim: "",
       licensePlate: "",
       vin: "",
       fleetNumber: "",
       color: "",
       mileage: 0,
+      engineType: "",
+      transmissionType: "",
     },
   });
 
@@ -60,6 +67,16 @@ export default function VehiclesNew() {
       if (d.year) form.setValue("year", d.year, { shouldValidate: true });
       if (d.make) form.setValue("make", d.make, { shouldValidate: true });
       if (d.model) form.setValue("model", d.model, { shouldValidate: true });
+      if (d.trim) form.setValue("trim", d.trim, { shouldValidate: true });
+      if (d.engineType) form.setValue("engineType", d.engineType, { shouldValidate: true });
+      if (d.transmissionType) {
+        const t = String(d.transmissionType).toLowerCase();
+        const mapped = t.includes("manual") ? "manual"
+          : t.includes("cvt") || t.includes("continuously variable") ? "cvt"
+          : t.includes("auto") ? "automatic"
+          : "other";
+        form.setValue("transmissionType", mapped, { shouldValidate: true });
+      }
       toast({ title: "VIN decoded", description: [d.year, d.make, d.model, d.trim].filter(Boolean).join(" ") || "Filled what was available" });
     } catch (e: any) {
       toast({ title: "VIN decode failed", description: e.message, variant: "destructive" });
@@ -147,6 +164,35 @@ export default function VehiclesNew() {
                 )} />
                 <FormField control={form.control} name="mileage" render={({ field }) => (
                   <FormItem><FormLabel>Mileage</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="trim" render={({ field }) => (
+                  <FormItem><FormLabel>Trim</FormLabel><FormControl><Input placeholder="e.g. XLE" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField control={form.control} name="engineType" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Engine</FormLabel>
+                    <FormControl><Input placeholder="e.g. 2.0L I4" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="transmissionType" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Transmission</FormLabel>
+                    <Select value={field.value || ""} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="automatic">Automatic</SelectItem>
+                        <SelectItem value="manual">Manual</SelectItem>
+                        <SelectItem value="cvt">CVT</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
                 )} />
               </div>
               <div className="flex justify-end pt-4">

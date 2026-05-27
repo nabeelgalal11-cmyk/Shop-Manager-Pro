@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Car, DollarSign, Wrench, TrendingUp, Plus } from "lucide-react";
+import { ArrowLeft, Car, DollarSign, Wrench, TrendingUp, Plus, Sparkles, Loader2 } from "lucide-react";
 import { useGetCustomers } from "@workspace/api-client-react";
+import { useToast } from "@/hooks/use-toast";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -50,6 +51,34 @@ export default function UsedCarsNew() {
 
   const { data: customersData } = useGetCustomers({ limit: 200 });
   const customers = Array.isArray(customersData) ? customersData : customersData?.data || [];
+  const { toast } = useToast();
+  const [decoding, setDecoding] = useState(false);
+
+  async function decodeVin() {
+    const vin = (form.vin || "").trim();
+    if (vin.length < 11 || vin.length > 17) {
+      toast({ title: "Enter a VIN first", description: "VIN must be 11–17 characters.", variant: "destructive" });
+      return;
+    }
+    setDecoding(true);
+    try {
+      const r = await fetch(`/api/vin/${encodeURIComponent(vin)}`);
+      if (!r.ok) throw new Error((await r.json())?.error || "Decode failed");
+      const d = await r.json();
+      setForm(p => ({
+        ...p,
+        year: !p.year || String(p.year).trim() === "" ? (d.year ?? p.year) : p.year,
+        make: !p.make ? (d.make || p.make) : p.make,
+        model: !p.model ? (d.model || p.model) : p.model,
+        trim: !p.trim ? (d.trim || p.trim) : p.trim,
+      }));
+      toast({ title: "VIN decoded", description: [d.year, d.make, d.model, d.trim].filter(Boolean).join(" ") || "Filled what was available" });
+    } catch (e: any) {
+      toast({ title: "VIN decode failed", description: e.message, variant: "destructive" });
+    } finally {
+      setDecoding(false);
+    }
+  }
 
   useEffect(() => {
     if (existing) {
@@ -152,7 +181,13 @@ export default function UsedCarsNew() {
             </div>
             <div className="space-y-2 col-span-2">
               <Label>VIN</Label>
-              <Input placeholder="1HGBH41JXMN109186" value={form.vin} onChange={e => set("vin", e.target.value)} />
+              <div className="flex gap-2">
+                <Input placeholder="1HGBH41JXMN109186" value={form.vin} onChange={e => set("vin", e.target.value)} />
+                <Button type="button" variant="outline" onClick={decodeVin} disabled={decoding}>
+                  {decoding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  <span className="ml-1 hidden sm:inline">Decode</span>
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Condition</Label>
