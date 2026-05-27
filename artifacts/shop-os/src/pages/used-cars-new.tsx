@@ -26,7 +26,8 @@ async function apiFetch(url: string, opts?: RequestInit) {
 
 const empty = {
   vin: "", year: new Date().getFullYear(), make: "", model: "", trim: "", color: "",
-  mileage: "", condition: "good", purchasePrice: "", sellingPrice: "",
+  mileage: "", engineType: "", transmissionType: "",
+  condition: "good", purchasePrice: "", sellingPrice: "",
   status: "available", customerId: "", purchaseDate: "", saleDate: "", notes: "",
 };
 
@@ -79,6 +80,8 @@ export default function UsedCarsNew() {
           make: preferExisting(p.make, d.make),
           model: preferExisting(p.model, d.model),
           trim: preferExisting(p.trim, d.trim),
+          engineType: preferExisting(p.engineType, d.engineType),
+          transmissionType: preferExisting(p.transmissionType, d.transmissionType),
         };
       });
       toast({ title: "VIN decoded", description: [d.year, d.make, d.model, d.trim].filter(Boolean).join(" ") || "Filled what was available" });
@@ -99,6 +102,8 @@ export default function UsedCarsNew() {
         trim: existing.trim || "",
         color: existing.color || "",
         mileage: String(existing.mileage || ""),
+        engineType: existing.engineType || "",
+        transmissionType: existing.transmissionType || "",
         condition: existing.condition || "good",
         purchasePrice: existing.purchasePrice,
         sellingPrice: existing.sellingPrice,
@@ -208,6 +213,22 @@ export default function UsedCarsNew() {
                   <SelectItem value="fair">Fair</SelectItem>
                   <SelectItem value="poor">Poor</SelectItem>
                   <SelectItem value="parts">Parts Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Engine</Label>
+              <Input placeholder="e.g. 2.0L I4" value={form.engineType} onChange={e => set("engineType", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Transmission</Label>
+              <Select value={form.transmissionType || ""} onValueChange={v => set("transmissionType", v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="automatic">Automatic</SelectItem>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="cvt">CVT</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -272,9 +272,9 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
 });
 
 router.post("/", requirePermission("used_cars", "create"), async (req, res) => {
-  const { vin, year, make, model, trim, color, mileage, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
+  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
   const [car] = await db.insert(usedCarsTable).values({
-    vin, year, make, model, trim, color, mileage, condition,
+    vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition,
     purchasePrice: String(purchasePrice),
     sellingPrice: String(sellingPrice),
     status: status || "available",
@@ -312,9 +312,9 @@ router.get("/:id", requirePermission("used_cars", "view"), async (req, res) => {
 
 router.put("/:id", requirePermission("used_cars", "edit"), async (req, res) => {
   const id = Number(req.params.id);
-  const { vin, year, make, model, trim, color, mileage, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
+  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
   const [car] = await db.update(usedCarsTable).set({
-    vin, year, make, model, trim, color, mileage, condition,
+    vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition,
     purchasePrice: String(purchasePrice),
     sellingPrice: String(sellingPrice),
     status, customerId: customerId || null,

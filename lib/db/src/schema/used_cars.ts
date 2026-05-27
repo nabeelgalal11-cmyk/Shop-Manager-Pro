@@ -12,6 +12,8 @@ export const usedCarsTable = pgTable("used_cars", {
   trim: text("trim"),
   color: text("color"),
   mileage: integer("mileage"),
+  engineType: text("engine_type"),
+  transmissionType: text("transmission_type"),
   condition: text("condition"),
   purchasePrice: numeric("purchase_price", { precision: 10, scale: 2 }).notNull(),
   sellingPrice: numeric("selling_price", { precision: 10, scale: 2 }).notNull(),
