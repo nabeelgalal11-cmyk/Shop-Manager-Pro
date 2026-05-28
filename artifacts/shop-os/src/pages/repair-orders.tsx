@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft, Printer, List, LayoutGrid } from "lucide-react";
+import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft, Printer, List, LayoutGrid, CarFront } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -148,13 +148,17 @@ export default function RepairOrders() {
         const vehicleStr = ro.vehicle
           ? `${ro.vehicle.year || ""} ${ro.vehicle.make || ""} ${ro.vehicle.model || ""} ${ro.vehicle.licensePlate || ""} ${ro.vehicle.fleetNumber || ""}`
           : "";
+        const usedCarStr = ro.usedCar
+          ? `used car ${ro.usedCar.year || ""} ${ro.usedCar.make || ""} ${ro.usedCar.model || ""} ${ro.usedCar.vin || ""}`
+          : "";
         return (
           (ro.orderNumber || "").toLowerCase().includes(q) ||
           (ro.complaint || "").toLowerCase().includes(q) ||
           (ro.diagnosis || "").toLowerCase().includes(q) ||
           (ro.status || "").toLowerCase().includes(q) ||
           customerName.toLowerCase().includes(q) ||
-          vehicleStr.toLowerCase().includes(q)
+          vehicleStr.toLowerCase().includes(q) ||
+          usedCarStr.toLowerCase().includes(q)
         );
       })
     : allRows;
@@ -374,12 +378,30 @@ export default function RepairOrders() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="font-semibold text-foreground">
-                      {ro.customer ? `${ro.customer.firstName} ${ro.customer.lastName}` : 'Unknown Customer'}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {ro.vehicle ? `${ro.vehicle.year} ${ro.vehicle.make} ${ro.vehicle.model}${ro.vehicle.licensePlate ? ` — ${ro.vehicle.licensePlate}` : ""}` : 'Unknown Vehicle'}
-                    </div>
+                    {ro.usedCar ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/20">
+                            <CarFront className="mr-1 h-3 w-3" /> Used Car
+                          </Badge>
+                          {ro.customer && (
+                            <span className="text-xs text-muted-foreground">{ro.customer.firstName} {ro.customer.lastName}</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {ro.usedCar.year} {ro.usedCar.make} {ro.usedCar.model}{ro.usedCar.vin ? ` — ${ro.usedCar.vin}` : ""}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-semibold text-foreground">
+                          {ro.customer ? `${ro.customer.firstName} ${ro.customer.lastName}` : 'Unknown Customer'}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {ro.vehicle ? `${ro.vehicle.year} ${ro.vehicle.make} ${ro.vehicle.model}${ro.vehicle.licensePlate ? ` — ${ro.vehicle.licensePlate}` : ""}` : 'Unknown Vehicle'}
+                        </div>
+                      </>
+                    )}
                   </TableCell>
                   <TableCell>
                     {getStatusBadge(ro.status)}

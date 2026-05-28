@@ -289,14 +289,17 @@ export default function UsedCarsNew() {
           </CardContent>
         </Card>
 
-        {/* Buyer (optional) */}
+        {/* Customer (optional) */}
         <Card className="border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Buyer (Optional)</CardTitle>
+            <CardTitle className="text-base">Customer (Optional)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 max-w-xs">
-              <Label>Link to Customer</Label>
+              <Label>Assign to Customer</Label>
+              <p className="text-xs text-muted-foreground">
+                Assign this car to a customer (e.g. your shop) so its recon repair orders show up under that customer. Switch it to the buyer once the car is sold.
+              </p>
               <Select
                 value={form.customerId || "none"}
                 onValueChange={v => set("customerId", v === "none" ? "" : v)}

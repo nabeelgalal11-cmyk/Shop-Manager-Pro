@@ -171,7 +171,7 @@ export default function UsedCars() {
               <TableHead>Recon</TableHead>
               <TableHead>Net Profit</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Buyer</TableHead>
+              <TableHead>Customer</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>

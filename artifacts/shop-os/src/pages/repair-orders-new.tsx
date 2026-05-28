@@ -161,6 +161,11 @@ export default function RepairOrdersNew() {
     }
     if (values.internal) {
       payload.usedCarId = values.usedCarId;
+      // Inherit the used car's customer (e.g. the shop) so recon orders are
+      // filterable by that customer in the repair orders list. Resolve from the
+      // unfiltered list so sold-car deep links still inherit the customer.
+      const car = (usedCarsData?.data ?? []).find((c: any) => c.id === values.usedCarId);
+      if (car?.customerId) payload.customerId = car.customerId;
     } else {
       payload.customerId = values.customerId;
       payload.vehicleId = values.vehicleId;
