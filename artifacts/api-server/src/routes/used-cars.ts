@@ -156,16 +156,19 @@ async function enrichCar(car: any, opts?: { withRecon?: boolean; laborRate?: num
   if (opts?.withRecon) {
     const rate = opts.laborRate ?? (await getLaborRate());
     const recon = await computeRecon(car.id, rate);
-    const sellingPrice = Number(car.sellingPrice);
+    const hasSellingPrice = car.sellingPrice != null && car.sellingPrice !== "";
+    const sellingPrice = hasSellingPrice ? Number(car.sellingPrice) : null;
     const purchasePrice = Number(car.purchasePrice);
     const totalCost = purchasePrice + recon.reconTotal;
-    const actualProfit = sellingPrice - totalCost;
-    const marginPct = sellingPrice > 0 ? (actualProfit / sellingPrice) * 100 : 0;
+    const actualProfit = sellingPrice != null ? sellingPrice - totalCost : null;
+    const marginPct = sellingPrice != null && sellingPrice > 0 && actualProfit != null
+      ? (actualProfit / sellingPrice) * 100
+      : null;
     base.recon = recon;
     base.reconTotal = recon.reconTotal;
     base.totalCost = totalCost;
     base.actualProfit = actualProfit;
-    base.marginPct = Math.round(marginPct * 10) / 10;
+    base.marginPct = marginPct != null ? Math.round(marginPct * 10) / 10 : null;
   }
   return base;
 }
@@ -236,10 +239,13 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
         ? await db.select().from(customersTable).where(eq(customersTable.id, car.customerId)).then(r => r[0])
         : null;
       const reconTotal = reconMap.get(car.id) ?? 0;
-      const sellingPrice = Number(car.sellingPrice);
+      const hasSellingPrice = car.sellingPrice != null && car.sellingPrice !== "";
+      const sellingPrice = hasSellingPrice ? Number(car.sellingPrice) : null;
       const purchasePrice = Number(car.purchasePrice);
-      const actualProfit = sellingPrice - purchasePrice - reconTotal;
-      const marginPct = sellingPrice > 0 ? Math.round((actualProfit / sellingPrice) * 1000) / 10 : 0;
+      const actualProfit = sellingPrice != null ? sellingPrice - purchasePrice - reconTotal : null;
+      const marginPct = sellingPrice != null && sellingPrice > 0 && actualProfit != null
+        ? Math.round((actualProfit / sellingPrice) * 1000) / 10
+        : null;
       return { ...car, customer, reconTotal, actualProfit, marginPct };
     })
   );
@@ -251,6 +257,7 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
     availableCount: sql<number>`sum(case when status = 'available' then 1 else 0 end)::int`,
     soldCount: sql<number>`sum(case when status = 'sold' then 1 else 0 end)::int`,
     reservedCount: sql<number>`sum(case when status = 'reserved' then 1 else 0 end)::int`,
+    needsWorkCount: sql<number>`sum(case when status = 'needs_work' then 1 else 0 end)::int`,
   }).from(usedCarsTable);
 
   const soldRecon = enriched.filter(c => c.status === "sold").reduce((s, c) => s + c.reconTotal, 0);
@@ -266,6 +273,7 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
       availableCount: Number(stats.availableCount),
       soldCount: Number(stats.soldCount),
       reservedCount: Number(stats.reservedCount),
+      needsWorkCount: Number(stats.needsWorkCount),
       laborRate,
     }
   });
@@ -273,11 +281,12 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
 
 router.post("/", requirePermission("used_cars", "create"), async (req, res) => {
   const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
+  const sellingPriceValue = sellingPrice == null || sellingPrice === "" ? null : String(sellingPrice);
   const [car] = await db.insert(usedCarsTable).values({
     vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition,
     purchasePrice: String(purchasePrice),
-    sellingPrice: String(sellingPrice),
-    status: status || "available",
+    sellingPrice: sellingPriceValue,
+    status: status || "needs_work",
     customerId: customerId || null,
     purchaseDate, saleDate, notes,
   }).returning();
@@ -290,11 +299,14 @@ router.get("/:id/recon", requirePermission("used_cars", "view"), async (req, res
   if (!car) return res.status(404).json({ error: "Car not found" });
   const laborRate = await getLaborRate();
   const recon = await computeRecon(id, laborRate);
-  const sellingPrice = Number(car.sellingPrice);
+  const hasSellingPrice = car.sellingPrice != null && car.sellingPrice !== "";
+  const sellingPrice = hasSellingPrice ? Number(car.sellingPrice) : null;
   const purchasePrice = Number(car.purchasePrice);
-  const grossMargin = sellingPrice - purchasePrice;
-  const actualProfit = grossMargin - recon.reconTotal;
-  const marginPct = sellingPrice > 0 ? Math.round((actualProfit / sellingPrice) * 1000) / 10 : 0;
+  const grossMargin = sellingPrice != null ? sellingPrice - purchasePrice : null;
+  const actualProfit = grossMargin != null ? grossMargin - recon.reconTotal : null;
+  const marginPct = sellingPrice != null && sellingPrice > 0 && actualProfit != null
+    ? Math.round((actualProfit / sellingPrice) * 1000) / 10
+    : null;
   res.json({
     car,
     ...recon,
@@ -313,10 +325,11 @@ router.get("/:id", requirePermission("used_cars", "view"), async (req, res) => {
 router.put("/:id", requirePermission("used_cars", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
+  const sellingPriceValue = sellingPrice == null || sellingPrice === "" ? null : String(sellingPrice);
   const [car] = await db.update(usedCarsTable).set({
     vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition,
     purchasePrice: String(purchasePrice),
-    sellingPrice: String(sellingPrice),
+    sellingPrice: sellingPriceValue,
     status, customerId: customerId || null,
     purchaseDate, saleDate, notes, updatedAt: new Date(),
   }).where(eq(usedCarsTable.id, id)).returning();

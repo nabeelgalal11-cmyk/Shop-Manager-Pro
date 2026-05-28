@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, useSearch } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,7 @@ const emptyLineItem: LineItem = { itemType: "other", description: "", quantity: 
 export default function PurchasesNew() {
   const { id } = useParams<{ id?: string }>();
   const [, setLocation] = useLocation();
+  const search = useSearch();
   const qc = useQueryClient();
   const { toast } = useToast();
   const isEdit = Boolean(id);
@@ -129,6 +130,30 @@ export default function PurchasesNew() {
       }
     }
   }, [existing]);
+
+  // Prefill a used-car line item when arriving from a used-car detail page via ?usedCarId=.
+  useEffect(() => {
+    if (isEdit) return;
+    const params = new URLSearchParams(search);
+    const qsUsedCarId = params.get("usedCarId");
+    if (!qsUsedCarId) return;
+    const car = usedCars.find((c: any) => String(c.id) === qsUsedCarId);
+    if (!car) return;
+    setLineItems(items => {
+      if (items.some(it => it.itemType === "used_car" && String(it.usedCarId) === qsUsedCarId)) return items;
+      return [
+        ...items,
+        {
+          itemType: "used_car",
+          usedCarId: Number(qsUsedCarId),
+          description: `Recon parts — ${car.year} ${car.make} ${car.model}`,
+          quantity: 1,
+          unitCost: 0,
+        },
+      ];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, usedCars.length, isEdit]);
 
   const save = useMutation({
     mutationFn: (data: any) =>

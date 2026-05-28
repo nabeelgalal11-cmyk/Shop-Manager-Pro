@@ -28,7 +28,7 @@ const empty = {
   vin: "", year: new Date().getFullYear(), make: "", model: "", trim: "", color: "",
   mileage: "", engineType: "", transmissionType: "",
   condition: "good", purchasePrice: "", sellingPrice: "",
-  status: "available", customerId: "", purchaseDate: "", saleDate: "", notes: "",
+  status: "needs_work", customerId: "", purchaseDate: "", saleDate: "", notes: "",
 };
 
 export default function UsedCarsNew() {
@@ -106,7 +106,7 @@ export default function UsedCarsNew() {
         transmissionType: existing.transmissionType || "",
         condition: existing.condition || "good",
         purchasePrice: existing.purchasePrice,
-        sellingPrice: existing.sellingPrice,
+        sellingPrice: existing.sellingPrice ?? "",
         status: existing.status,
         customerId: existing.customerId ? String(existing.customerId) : "",
         purchaseDate: existing.purchaseDate || "",
@@ -133,20 +133,20 @@ export default function UsedCarsNew() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const margin = Number(form.sellingPrice) - Number(form.purchasePrice);
     save.mutate({
       ...form,
       year: Number(form.year),
       mileage: form.mileage ? Number(form.mileage) : null,
       purchasePrice: Number(form.purchasePrice),
-      sellingPrice: Number(form.sellingPrice),
+      sellingPrice: form.sellingPrice === "" ? null : Number(form.sellingPrice),
       customerId: form.customerId ? Number(form.customerId) : null,
       purchaseDate: form.purchaseDate || null,
       saleDate: form.saleDate || null,
     });
   }
 
-  const margin = Number(form.sellingPrice) - Number(form.purchasePrice);
+  const hasSellingPrice = form.sellingPrice !== "" && form.sellingPrice != null;
+  const margin = hasSellingPrice ? Number(form.sellingPrice) - Number(form.purchasePrice) : 0;
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -251,16 +251,16 @@ export default function UsedCarsNew() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Selling Price *</Label>
+              <Label>Selling Price</Label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-muted-foreground text-sm">$</span>
-                <Input type="number" min="0" step="0.01" required placeholder="0.00" className="pl-7" value={form.sellingPrice} onChange={e => set("sellingPrice", e.target.value)} />
+                <Input type="number" min="0" step="0.01" placeholder="Set when ready to list" className="pl-7" value={form.sellingPrice} onChange={e => set("sellingPrice", e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Expected Margin</Label>
-              <div className={`h-10 flex items-center px-3 rounded-md border font-semibold text-sm ${margin >= 0 ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-700"}`}>
-                {form.purchasePrice && form.sellingPrice
+              <div className={`h-10 flex items-center px-3 rounded-md border font-semibold text-sm ${hasSellingPrice ? (margin >= 0 ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-700") : "bg-muted/40 border-border text-muted-foreground"}`}>
+                {form.purchasePrice && hasSellingPrice
                   ? `${margin >= 0 ? "+" : ""}$${margin.toLocaleString("en-US", { minimumFractionDigits: 0 })}`
                   : "—"}
               </div>
@@ -278,6 +278,7 @@ export default function UsedCarsNew() {
               <Select value={form.status} onValueChange={v => set("status", v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="needs_work">Needs Work</SelectItem>
                   <SelectItem value="available">Available</SelectItem>
                   <SelectItem value="reserved">Reserved</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
@@ -322,14 +323,24 @@ export default function UsedCarsNew() {
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Wrench className="h-4 w-4" /> Reconditioning Costs
                 </CardTitle>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setLocation(`/repair-orders/new?usedCarId=${id}&internal=true`)}
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> New Recon Job
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setLocation(`/purchases/new?usedCarId=${id}`)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Parts Purchase
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setLocation(`/repair-orders/new?usedCarId=${id}&internal=true`)}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Recon Work
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -409,20 +420,27 @@ export default function UsedCarsNew() {
                 </div>
                 <div className="rounded-md border p-3">
                   <div className="text-xs text-muted-foreground">Asking / Sold</div>
-                  <div className="font-semibold">{fmt(Number(form.sellingPrice || 0))}</div>
+                  <div className="font-semibold">{hasSellingPrice ? fmt(Number(form.sellingPrice)) : "—"}</div>
                 </div>
                 <div className="rounded-md border p-3">
                   <div className="text-xs text-muted-foreground">Total Cost</div>
                   <div className="font-semibold">{fmt(Number(form.purchasePrice || 0) + recon.reconTotal)}</div>
                 </div>
-                <div className={`rounded-md border p-3 ${recon.actualProfit >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
-                  <div className={`text-xs ${recon.actualProfit >= 0 ? "text-green-700" : "text-red-700"}`}>
-                    Net Profit {form.status === "sold" ? "(realized)" : "(projected)"}
+                {recon.actualProfit != null ? (
+                  <div className={`rounded-md border p-3 ${recon.actualProfit >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                    <div className={`text-xs ${recon.actualProfit >= 0 ? "text-green-700" : "text-red-700"}`}>
+                      Net Profit {form.status === "sold" ? "(realized)" : "(projected)"}
+                    </div>
+                    <div className={`font-bold ${recon.actualProfit >= 0 ? "text-green-700" : "text-red-700"}`}>
+                      {recon.actualProfit >= 0 ? "+" : ""}{fmt(recon.actualProfit)}
+                    </div>
                   </div>
-                  <div className={`font-bold ${recon.actualProfit >= 0 ? "text-green-700" : "text-red-700"}`}>
-                    {recon.actualProfit >= 0 ? "+" : ""}{fmt(recon.actualProfit)}
+                ) : (
+                  <div className="rounded-md border p-3 bg-muted/40">
+                    <div className="text-xs text-muted-foreground">Net Profit</div>
+                    <div className="font-medium text-muted-foreground">Set selling price</div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </>

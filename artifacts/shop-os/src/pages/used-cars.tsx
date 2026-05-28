@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, CarFront, DollarSign, Package, TrendingUp, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, CarFront, DollarSign, Package, TrendingUp, Search, Pencil, Trash2, Wrench } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
@@ -25,10 +25,19 @@ function fmt(n: number) {
 }
 
 const STATUS_COLORS: Record<string, string> = {
+  needs_work: "bg-amber-100 text-amber-800 border-amber-200",
   available: "bg-green-100 text-green-800 border-green-200",
   reserved: "bg-yellow-100 text-yellow-800 border-yellow-200",
   sold: "bg-blue-100 text-blue-800 border-blue-200",
   pending: "bg-orange-100 text-orange-800 border-orange-200",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  needs_work: "Needs Work",
+  available: "Available",
+  reserved: "Reserved",
+  sold: "Sold",
+  pending: "Pending",
 };
 
 export default function UsedCars() {
@@ -72,7 +81,16 @@ export default function UsedCars() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card className="border-border">
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+              <Wrench className="h-4 w-4" /> Needs Work
+            </div>
+            <p className="text-3xl font-bold text-amber-700">{stats?.needsWorkCount ?? "—"}</p>
+            <p className="text-xs text-muted-foreground mt-1">in reconditioning</p>
+          </CardContent>
+        </Card>
         <Card className="border-border">
           <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
@@ -130,6 +148,7 @@ export default function UsedCars() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Vehicles</SelectItem>
+            <SelectItem value="needs_work">Needs Work</SelectItem>
             <SelectItem value="available">Available</SelectItem>
             <SelectItem value="reserved">Reserved</SelectItem>
             <SelectItem value="sold">Sold</SelectItem>
@@ -162,9 +181,11 @@ export default function UsedCars() {
             ) : cars.length === 0 ? (
               <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No vehicles found.</TableCell></TableRow>
             ) : cars.map(car => {
-              const margin = Number(car.sellingPrice) - Number(car.purchasePrice);
+              const hasSellingPrice = car.sellingPrice != null && car.sellingPrice !== "";
+              const sellingPrice = hasSellingPrice ? Number(car.sellingPrice) : null;
+              const margin = sellingPrice != null ? sellingPrice - Number(car.purchasePrice) : null;
               const recon = Number(car.reconTotal ?? 0);
-              const net = margin - recon;
+              const net = margin != null ? margin - recon : null;
               return (
                 <TableRow key={car.id} className="hover:bg-muted/50">
                   <TableCell className="font-medium">
@@ -177,11 +198,13 @@ export default function UsedCars() {
                   <TableCell className="font-mono text-xs text-muted-foreground">{car.vin || "—"}</TableCell>
                   <TableCell>{car.mileage ? car.mileage.toLocaleString() : "—"}</TableCell>
                   <TableCell className="font-medium">{fmt(Number(car.purchasePrice))}</TableCell>
-                  <TableCell className="font-medium">{fmt(Number(car.sellingPrice))}</TableCell>
+                  <TableCell className="font-medium">{sellingPrice != null ? fmt(sellingPrice) : <span className="text-muted-foreground">—</span>}</TableCell>
                   <TableCell>
-                    <span className={margin >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
-                      {margin >= 0 ? "+" : ""}{fmt(margin)}
-                    </span>
+                    {margin != null ? (
+                      <span className={margin >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
+                        {margin >= 0 ? "+" : ""}{fmt(margin)}
+                      </span>
+                    ) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
                     <span className={recon > 0 ? "text-orange-700" : "text-muted-foreground"}>
@@ -189,13 +212,15 @@ export default function UsedCars() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className={net >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
-                      {net >= 0 ? "+" : ""}{fmt(net)}
-                    </span>
+                    {net != null ? (
+                      <span className={net >= 0 ? "text-green-700 font-semibold" : "text-red-700 font-semibold"}>
+                        {net >= 0 ? "+" : ""}{fmt(net)}
+                      </span>
+                    ) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${STATUS_COLORS[car.status] || "bg-gray-100 text-gray-700 border-gray-200"}`}>
-                      {car.status}
+                      {STATUS_LABELS[car.status] || car.status}
                     </span>
                   </TableCell>
                   <TableCell className="text-sm">
