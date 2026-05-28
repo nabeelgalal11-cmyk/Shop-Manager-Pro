@@ -13,6 +13,12 @@
     "prettier": "^3.8.1",
     "tsx": "^3.12.0",
     "typescript": "~5.9.2"
+  },"pnpm": {
+    "onlyBuiltDependencies": [
+      "cpu-features",
+      "esbuild",
+      "ssh2"
+    ]
   },
   "dependencies": {
     "drizzle-orm": "0.45.2"
