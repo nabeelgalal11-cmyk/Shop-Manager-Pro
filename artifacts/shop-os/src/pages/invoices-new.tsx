@@ -91,10 +91,21 @@ export default function InvoicesNew() {
                 <FormField
                   control={form.control}
                   name="customerId"
-                  render={({ field }) => (
+                  render={({ field }) => {
+                    const selectedCustomer = customers?.data?.find(c => c.id === field.value);
+                    const isExempt = (selectedCustomer as any)?.taxExempt === true;
+                    return (
                     <FormItem>
                       <FormLabel>Customer</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
+                      <Select
+                        onValueChange={(val) => {
+                          const id = Number(val);
+                          field.onChange(id);
+                          const c = customers?.data?.find(x => x.id === id);
+                          if ((c as any)?.taxExempt) form.setValue("taxRate", 0);
+                        }}
+                        value={field.value ? String(field.value) : undefined}
+                      >
                         <FormControl>
                           <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
                         </FormControl>
@@ -104,9 +115,18 @@ export default function InvoicesNew() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {isExempt && (
+                        <div className="flex items-center gap-1.5 text-xs mt-1 text-amber-700">
+                          <span className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 font-semibold uppercase tracking-wide">
+                            Tax Exempt{(selectedCustomer as any).taxExemptNumber ? ` — ${(selectedCustomer as any).taxExemptNumber}` : ""}
+                          </span>
+                          <span className="text-muted-foreground">Tax rate set to 0%</span>
+                        </div>
+                      )}
                       <FormMessage />
                     </FormItem>
-                  )}
+                    );
+                  }}
                 />
                 <FormField
                   control={form.control}

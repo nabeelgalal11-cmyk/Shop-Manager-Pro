@@ -30,6 +30,8 @@ export default function CustomersNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [categoryId, setCategoryId] = useState<string>("");
+  const [taxExempt, setTaxExempt] = useState(false);
+  const [taxExemptNumber, setTaxExemptNumber] = useState("");
   const { data: categories = [] } = useQuery<any[]>({
     queryKey: ["/api/customer-categories"],
     queryFn: () => fetch("/api/customer-categories").then(r => r.json()),
@@ -54,7 +56,7 @@ export default function CustomersNew() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     createCustomer.mutate(
-      { data: { ...values, categoryId: categoryId ? Number(categoryId) : null } },
+      { data: { ...values, categoryId: categoryId ? Number(categoryId) : null, taxExempt, taxExemptNumber: taxExemptNumber || null } as any },
       {
         onSuccess: (data) => {
           toast({
@@ -231,6 +233,28 @@ export default function CustomersNew() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">Applies custom labor rates and parts markup to estimates.</p>
+                </div>
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="new-tax-exempt" type="checkbox"
+                      className="h-4 w-4 accent-primary"
+                      checked={taxExempt}
+                      onChange={e => setTaxExempt(e.target.checked)}
+                    />
+                    <label htmlFor="new-tax-exempt" className="text-sm font-medium cursor-pointer">Tax Exempt</label>
+                  </div>
+                  {taxExempt && (
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Exemption Certificate / Form #</label>
+                      <input
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        placeholder="e.g. ST-4, ST-5, REG-C"
+                        value={taxExemptNumber}
+                        onChange={e => setTaxExemptNumber(e.target.value)}
+                      />
+                    </div>
+                  )}
                 </div>
                 <FormField
                   control={form.control}

@@ -198,7 +198,10 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   const { customerId, vehicleId, repairOrderId, estimateId, status, notes, taxRate, discountAmount, dueDate, lineItems } = req.body;
-  const tax = taxRate ?? 0;
+
+  const [customer] = customerId ? await db.select().from(customersTable).where(eq(customersTable.id, Number(customerId))) : [];
+  const isExempt = customer?.taxExempt === true;
+  const tax = isExempt ? 0 : (taxRate ?? 0);
   const discount = discountAmount ?? 0;
   const { subtotal, taxAmount, total } = calcTotals(lineItems || [], tax, discount);
 
@@ -213,6 +216,7 @@ router.post("/", async (req, res) => {
         invoiceNumber, customerId, vehicleId, repairOrderId, estimateId, status: status || "draft", notes,
         taxRate: tax.toString(), taxAmount: taxAmount.toString(), discountAmount: discount.toString(),
         subtotal: subtotal.toString(), total: total.toString(), amountPaid: "0", balance: total.toString(),
+        taxExempt: isExempt, taxExemptNumber: customer?.taxExemptNumber ?? null,
         dueDate,
       }).returning();
 
@@ -266,7 +270,10 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { customerId, vehicleId, status, notes, taxRate, discountAmount, dueDate, lineItems } = req.body;
-  const tax = taxRate ?? 0;
+
+  const [customer] = customerId ? await db.select().from(customersTable).where(eq(customersTable.id, Number(customerId))) : [];
+  const isExempt = customer?.taxExempt === true;
+  const tax = isExempt ? 0 : (taxRate ?? 0);
   const discount = discountAmount ?? 0;
   const { subtotal, taxAmount, total } = calcTotals(lineItems || [], tax, discount);
 
@@ -286,6 +293,7 @@ router.put("/:id", async (req, res) => {
         customerId, vehicleId, status, notes,
         taxRate: tax.toString(), taxAmount: taxAmount.toString(), discountAmount: discount.toString(),
         subtotal: subtotal.toString(), total: total.toString(), amountPaid: amountPaid.toString(), balance: balance.toString(),
+        taxExempt: isExempt, taxExemptNumber: customer?.taxExemptNumber ?? null,
         dueDate, updatedAt: new Date(),
       }).where(eq(invoicesTable.id, id)).returning();
       if (!invoice) return { kind: "error", status: 404, error: "Invoice not found" };

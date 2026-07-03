@@ -298,10 +298,22 @@ export default function InvoiceDetail() {
                   <span>-{formatCurrency(Number(invoice.discountAmount))}</span>
                 </div>
               )}
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Tax ({invoice.taxRate}%)</span>
-                <span>{formatCurrency(Number(invoice.taxAmount))}</span>
-              </div>
+              {(invoice as any).taxExempt ? (
+                <div className="flex justify-between text-sm">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-muted-foreground">Tax</span>
+                    <span className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
+                      Exempt{(invoice as any).taxExemptNumber ? ` · ${(invoice as any).taxExemptNumber}` : ""}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground">$0.00</span>
+                </div>
+              ) : (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Tax ({invoice.taxRate}%)</span>
+                  <span>{formatCurrency(Number(invoice.taxAmount))}</span>
+                </div>
+              )}
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total</span>

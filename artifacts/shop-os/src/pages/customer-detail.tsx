@@ -52,6 +52,8 @@ export default function CustomerDetail() {
     preferredChannel: "email",
     smsOptOut: "false",
   });
+  const [taxExempt, setTaxExempt] = useState(false);
+  const [taxExemptNumber, setTaxExemptNumber] = useState("");
 
   const { data: customer, isLoading } = useGetCustomer(id, {
     query: { enabled: !!id, queryKey: getGetCustomerQueryKey(id) },
@@ -100,6 +102,8 @@ export default function CustomerDetail() {
       preferredChannel: (customer?.preferredChannel as "email" | "sms" | "both") ?? "email",
       smsOptOut: customer?.smsOptOut ?? "false",
     });
+    setTaxExempt((customer as any)?.taxExempt === true);
+    setTaxExemptNumber((customer as any)?.taxExemptNumber ?? "");
     setEditOpen(true);
   };
 
@@ -108,7 +112,9 @@ export default function CustomerDetail() {
     const payload: UpdateCustomerInput = {
       ...rest,
       categoryId: categoryId && categoryId !== "none" ? Number(categoryId) : null,
-    };
+      taxExempt,
+      taxExemptNumber: taxExemptNumber || null,
+    } as any;
     updateCustomer.mutate({ id, data: payload }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetCustomerQueryKey(id) });
@@ -240,6 +246,14 @@ export default function CustomerDetail() {
               <div className="mt-4 pt-4 border-t">
                 <p className="text-sm font-semibold mb-1">Pricing Category</p>
                 <Badge variant="secondary">{customerCategoryName}</Badge>
+              </div>
+            )}
+            {(customer as any).taxExempt && (
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm font-semibold mb-1">Tax Status</p>
+                <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50">
+                  Tax Exempt{(customer as any).taxExemptNumber ? ` — ${(customer as any).taxExemptNumber}` : ""}
+                </Badge>
               </div>
             )}
             {customer.notes && (
@@ -452,6 +466,28 @@ export default function CustomerDetail() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="col-span-2 space-y-2 pt-2 border-t">
+              <div className="flex items-center gap-3">
+                <input
+                  id="tax-exempt-toggle" type="checkbox"
+                  className="h-4 w-4 accent-primary"
+                  checked={taxExempt}
+                  onChange={e => setTaxExempt(e.target.checked)}
+                />
+                <Label htmlFor="tax-exempt-toggle" className="cursor-pointer font-medium">Tax Exempt</Label>
+              </div>
+              {taxExempt && (
+                <div className="space-y-1">
+                  <Label>Exemption Certificate / Form #</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    placeholder="e.g. ST-4, ST-5, REG-C"
+                    value={taxExemptNumber}
+                    onChange={e => setTaxExemptNumber(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>Notes</Label>

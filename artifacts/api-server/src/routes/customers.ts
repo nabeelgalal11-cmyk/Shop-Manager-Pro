@@ -37,10 +37,12 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const { firstName, lastName, email, phone, address, city, state, zip, notes, categoryId, preferredChannel, smsOptOut } = req.body;
+  const { firstName, lastName, email, phone, address, city, state, zip, notes, categoryId, preferredChannel, smsOptOut, taxExempt, taxExemptNumber } = req.body;
   const [customer] = await db.insert(customersTable).values({
     firstName, lastName, email, phone, address, city, state, zip, notes,
     categoryId: categoryId || null,
+    taxExempt: taxExempt === true || taxExempt === "true",
+    taxExemptNumber: taxExemptNumber || null,
     ...(preferredChannel && ["email", "sms", "both"].includes(preferredChannel) ? { preferredChannel } : {}),
     ...(smsOptOut === "true" || smsOptOut === "false" ? { smsOptOut } : {}),
   }).returning();
@@ -60,10 +62,12 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { firstName, lastName, email, phone, address, city, state, zip, notes, categoryId, preferredChannel, smsOptOut } = req.body;
+  const { firstName, lastName, email, phone, address, city, state, zip, notes, categoryId, preferredChannel, smsOptOut, taxExempt, taxExemptNumber } = req.body;
   const [customer] = await db.update(customersTable).set({
     firstName, lastName, email, phone, address, city, state, zip, notes,
     categoryId: categoryId || null,
+    taxExempt: taxExempt === true || taxExempt === "true",
+    taxExemptNumber: taxExemptNumber || null,
     ...(preferredChannel && ["email", "sms", "both"].includes(preferredChannel) ? { preferredChannel } : {}),
     ...(smsOptOut === "true" || smsOptOut === "false" ? { smsOptOut } : {}),
     updatedAt: new Date(),

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp, date } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, date, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
@@ -22,6 +22,8 @@ export const invoicesTable = pgTable("invoices", {
   total: numeric("total", { precision: 10, scale: 2 }).notNull().default("0"),
   amountPaid: numeric("amount_paid", { precision: 10, scale: 2 }).notNull().default("0"),
   balance: numeric("balance", { precision: 10, scale: 2 }).notNull().default("0"),
+  taxExempt: boolean("tax_exempt").notNull().default(false),
+  taxExemptNumber: text("tax_exempt_number"),
   dueDate: date("due_date"),
   publicToken: text("public_token").unique(),
   stripeSessionId: text("stripe_session_id"),

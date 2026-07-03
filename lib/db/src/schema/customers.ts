@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customerCategoriesTable } from "./customer_categories";
@@ -21,6 +21,8 @@ export const customersTable = pgTable("customers", {
   // Set true when a customer replies STOP to an SMS. All future SMS sends
   // are blocked until they text START/UNSTOP.
   smsOptOut: text("sms_opt_out").notNull().default("false"),
+  taxExempt: boolean("tax_exempt").notNull().default(false),
+  taxExemptNumber: text("tax_exempt_number"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
