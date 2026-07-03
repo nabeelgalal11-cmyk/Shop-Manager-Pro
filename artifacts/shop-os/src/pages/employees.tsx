@@ -85,15 +85,11 @@ export default function Employees() {
   // Employee edit
   const openEdit = (emp: any) => {
     setEditId(emp.id);
-    const rolesValue: string[] = Array.isArray(emp.roles) && emp.roles.length > 0
-      ? emp.roles
-      : (emp.role ? [emp.role] : []);
     setEditForm({
       firstName: emp.firstName ?? "",
       lastName: emp.lastName ?? "",
       email: emp.email ?? "",
       phone: emp.phone ?? "",
-      roles: rolesValue,
       hourlyRate: emp.hourlyRate ?? "",
       active: emp.active ?? true,
     });
@@ -102,13 +98,8 @@ export default function Employees() {
 
   const handleSave = () => {
     if (editId == null) return;
-    if (!editForm.roles || editForm.roles.length === 0) {
-      toast({ title: "Pick at least one role", variant: "destructive" });
-      return;
-    }
     const payload = {
       ...editForm,
-      role: editForm.roles[0],
       hourlyRate: editForm.hourlyRate === "" ? undefined : Number(editForm.hourlyRate),
     };
     updateEmployee.mutate({ id: editId, data: payload }, {
@@ -342,7 +333,7 @@ export default function Employees() {
       {/* Edit employee dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Edit Employee</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Edit Profile</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-2">
             <div className="space-y-1.5">
               <Label>First Name</Label>
@@ -359,13 +350,6 @@ export default function Employees() {
             <div className="space-y-1.5 col-span-2">
               <Label>Phone</Label>
               <Input value={editForm.phone || ""} onChange={e => setEditForm((f: any) => ({ ...f, phone: e.target.value }))} />
-            </div>
-            <div className="space-y-1.5 col-span-2">
-              <Label>Roles <span className="text-xs text-muted-foreground font-normal">(an employee can hold more than one)</span></Label>
-              <RoleMultiSelect
-                value={editForm.roles || []}
-                onChange={(roles) => setEditForm((f: any) => ({ ...f, roles }))}
-              />
             </div>
             <div className="space-y-1.5">
               <Label>Hourly Rate ($)</Label>
