@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import {
   usedCarsTable,
   customersTable,
+  invoicesTable,
   purchaseLineItemsTable,
   purchasesTable,
   repairOrdersTable,
@@ -149,10 +150,19 @@ async function computeRecon(carId: number, defaultLaborRate: number) {
 }
 
 async function enrichCar(car: any, opts?: { withRecon?: boolean; laborRate?: number }) {
-  const customer = car.customerId
-    ? await db.select().from(customersTable).where(eq(customersTable.id, car.customerId)).then(r => r[0])
-    : null;
-  const base: any = { ...car, customer };
+  const [customer, buyer, saleInvoice] = await Promise.all([
+    car.customerId
+      ? db.select().from(customersTable).where(eq(customersTable.id, car.customerId)).then(r => r[0] ?? null)
+      : Promise.resolve(null),
+    car.buyerId
+      ? db.select().from(customersTable).where(eq(customersTable.id, car.buyerId)).then(r => r[0] ?? null)
+      : Promise.resolve(null),
+    car.saleInvoiceId
+      ? db.select({ id: invoicesTable.id, invoiceNumber: invoicesTable.invoiceNumber, total: invoicesTable.total, status: invoicesTable.status })
+          .from(invoicesTable).where(eq(invoicesTable.id, car.saleInvoiceId)).then(r => r[0] ?? null)
+      : Promise.resolve(null),
+  ]);
+  const base: any = { ...car, customer, buyer, saleInvoice };
   if (opts?.withRecon) {
     const rate = opts.laborRate ?? (await getLaborRate());
     const recon = await computeRecon(car.id, rate);
@@ -235,9 +245,18 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
 
   const enriched = await Promise.all(
     cars.map(async car => {
-      const customer = car.customerId
-        ? await db.select().from(customersTable).where(eq(customersTable.id, car.customerId)).then(r => r[0])
-        : null;
+      const [customer, buyer, saleInvoice] = await Promise.all([
+        car.customerId
+          ? db.select().from(customersTable).where(eq(customersTable.id, car.customerId)).then(r => r[0] ?? null)
+          : Promise.resolve(null),
+        car.buyerId
+          ? db.select().from(customersTable).where(eq(customersTable.id, car.buyerId)).then(r => r[0] ?? null)
+          : Promise.resolve(null),
+        car.saleInvoiceId
+          ? db.select({ id: invoicesTable.id, invoiceNumber: invoicesTable.invoiceNumber, total: invoicesTable.total, status: invoicesTable.status })
+              .from(invoicesTable).where(eq(invoicesTable.id, car.saleInvoiceId)).then(r => r[0] ?? null)
+          : Promise.resolve(null),
+      ]);
       const reconTotal = reconMap.get(car.id) ?? 0;
       const hasSellingPrice = car.sellingPrice != null && car.sellingPrice !== "";
       const sellingPrice = hasSellingPrice ? Number(car.sellingPrice) : null;
@@ -246,7 +265,7 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
       const marginPct = sellingPrice != null && sellingPrice > 0 && actualProfit != null
         ? Math.round((actualProfit / sellingPrice) * 1000) / 10
         : null;
-      return { ...car, customer, reconTotal, actualProfit, marginPct };
+      return { ...car, customer, buyer, saleInvoice, reconTotal, actualProfit, marginPct };
     })
   );
 
@@ -260,7 +279,7 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
     needsWorkCount: sql<number>`sum(case when status = 'needs_work' then 1 else 0 end)::int`,
   }).from(usedCarsTable);
 
-  const soldRecon = enriched.filter(c => c.status === "sold").reduce((s, c) => s + c.reconTotal, 0);
+  const soldRecon = (enriched as any[]).filter((c: any) => c.status === "sold").reduce((s: number, c: any) => s + c.reconTotal, 0);
 
   res.json({
     data: enriched,
@@ -280,7 +299,7 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
 });
 
 router.post("/", requirePermission("used_cars", "create"), async (req, res) => {
-  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
+  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, buyerId, saleInvoiceId, purchaseDate, saleDate, notes } = req.body;
   const sellingPriceValue = sellingPrice == null || sellingPrice === "" ? null : String(sellingPrice);
   const [car] = await db.insert(usedCarsTable).values({
     vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition,
@@ -288,6 +307,8 @@ router.post("/", requirePermission("used_cars", "create"), async (req, res) => {
     sellingPrice: sellingPriceValue,
     status: status || "needs_work",
     customerId: customerId || null,
+    buyerId: buyerId || null,
+    saleInvoiceId: saleInvoiceId || null,
     purchaseDate, saleDate, notes,
   }).returning();
   res.status(201).json(await enrichCar(car));
@@ -324,13 +345,15 @@ router.get("/:id", requirePermission("used_cars", "view"), async (req, res) => {
 
 router.put("/:id", requirePermission("used_cars", "edit"), async (req, res) => {
   const id = Number(req.params.id);
-  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, purchaseDate, saleDate, notes } = req.body;
+  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, buyerId, saleInvoiceId, purchaseDate, saleDate, notes } = req.body;
   const sellingPriceValue = sellingPrice == null || sellingPrice === "" ? null : String(sellingPrice);
   const [car] = await db.update(usedCarsTable).set({
     vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition,
     purchasePrice: String(purchasePrice),
     sellingPrice: sellingPriceValue,
     status, customerId: customerId || null,
+    buyerId: buyerId || null,
+    saleInvoiceId: saleInvoiceId || null,
     purchaseDate, saleDate, notes, updatedAt: new Date(),
   }).where(eq(usedCarsTable.id, id)).returning();
   if (!car) return res.status(404).json({ error: "Car not found" });

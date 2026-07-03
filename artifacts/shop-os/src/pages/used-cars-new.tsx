@@ -28,7 +28,8 @@ const empty = {
   vin: "", year: new Date().getFullYear(), make: "", model: "", trim: "", color: "",
   mileage: "", engineType: "", transmissionType: "",
   condition: "good", purchasePrice: "", sellingPrice: "",
-  status: "needs_work", customerId: "", purchaseDate: "", saleDate: "", notes: "",
+  status: "needs_work", customerId: "", buyerId: "", saleInvoiceId: "",
+  purchaseDate: "", saleDate: "", notes: "",
 };
 
 export default function UsedCarsNew() {
@@ -52,6 +53,12 @@ export default function UsedCarsNew() {
 
   const { data: customersData } = useGetCustomers({ limit: 200 });
   const customers = Array.isArray(customersData) ? customersData : customersData?.data || [];
+
+  const { data: invoicesData } = useQuery<any[]>({
+    queryKey: ["/api/invoices", "list-for-used-cars"],
+    queryFn: () => apiFetch("/api/invoices?limit=500"),
+    select: (d: any) => Array.isArray(d) ? d : d?.data ?? [],
+  });
   const { toast } = useToast();
   const [decoding, setDecoding] = useState(false);
 
@@ -109,6 +116,8 @@ export default function UsedCarsNew() {
         sellingPrice: existing.sellingPrice ?? "",
         status: existing.status,
         customerId: existing.customerId ? String(existing.customerId) : "",
+        buyerId: existing.buyerId ? String(existing.buyerId) : "",
+        saleInvoiceId: existing.saleInvoiceId ? String(existing.saleInvoiceId) : "",
         purchaseDate: existing.purchaseDate || "",
         saleDate: existing.saleDate || "",
         notes: existing.notes || "",
@@ -140,6 +149,8 @@ export default function UsedCarsNew() {
       purchasePrice: Number(form.purchasePrice),
       sellingPrice: form.sellingPrice === "" ? null : Number(form.sellingPrice),
       customerId: form.customerId ? Number(form.customerId) : null,
+      buyerId: form.buyerId ? Number(form.buyerId) : null,
+      saleInvoiceId: form.saleInvoiceId ? Number(form.saleInvoiceId) : null,
       purchaseDate: form.purchaseDate || null,
       saleDate: form.saleDate || null,
     });
@@ -310,6 +321,55 @@ export default function UsedCarsNew() {
                   {customers.map((c: any) => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {c.firstName} {c.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Buyer + Sale Invoice */}
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Buyer &amp; Sale Invoice (Optional)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2 max-w-xs">
+              <Label>Buyer</Label>
+              <p className="text-xs text-muted-foreground">
+                The customer who purchased this car. Set when the deal closes.
+              </p>
+              <Select
+                value={form.buyerId || "none"}
+                onValueChange={v => set("buyerId", v === "none" ? "" : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Select buyer..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {customers.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.firstName} {c.lastName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 max-w-xs">
+              <Label>Sale Invoice</Label>
+              <p className="text-xs text-muted-foreground">
+                Link this sale to a ShopOS invoice to track the deal.
+              </p>
+              <Select
+                value={form.saleInvoiceId || "none"}
+                onValueChange={v => set("saleInvoiceId", v === "none" ? "" : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Select invoice..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {(invoicesData ?? []).map((inv: any) => (
+                    <SelectItem key={inv.id} value={String(inv.id)}>
+                      #{inv.invoiceNumber} — {inv.status} — ${Number(inv.total ?? 0).toLocaleString()}
                     </SelectItem>
                   ))}
                 </SelectContent>

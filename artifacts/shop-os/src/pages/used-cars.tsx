@@ -172,14 +172,15 @@ export default function UsedCars() {
               <TableHead>Net Profit</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Customer</TableHead>
+              <TableHead>Buyer</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : cars.length === 0 ? (
-              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">No vehicles found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No vehicles found.</TableCell></TableRow>
             ) : cars.map(car => {
               const hasSellingPrice = car.sellingPrice != null && car.sellingPrice !== "";
               const sellingPrice = hasSellingPrice ? Number(car.sellingPrice) : null;
@@ -225,6 +226,16 @@ export default function UsedCars() {
                   </TableCell>
                   <TableCell className="text-sm">
                     {car.customer ? `${car.customer.firstName} ${car.customer.lastName}` : "—"}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {car.buyer ? (
+                      <div>
+                        <div>{car.buyer.firstName} {car.buyer.lastName}</div>
+                        {car.saleInvoice && (
+                          <div className="text-xs text-muted-foreground">#{car.saleInvoice.invoiceNumber}</div>
+                        )}
+                      </div>
+                    ) : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">

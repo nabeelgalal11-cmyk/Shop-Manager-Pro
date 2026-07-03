@@ -19,6 +19,8 @@ export const usedCarsTable = pgTable("used_cars", {
   sellingPrice: numeric("selling_price", { precision: 10, scale: 2 }),
   status: text("status").notNull().default("needs_work"),
   customerId: integer("customer_id").references(() => customersTable.id),
+  buyerId: integer("buyer_id").references(() => customersTable.id),
+  saleInvoiceId: integer("sale_invoice_id"),
   purchaseDate: date("purchase_date"),
   saleDate: date("sale_date"),
   notes: text("notes"),
