@@ -66,7 +66,6 @@ const navGroups: NavGroup[] = [
     ]
   },
   { label: "Security", items: [
-      { name: "Users", href: "/users", icon: KeyRound, resource: "users" },
       { name: "Permissions", href: "/permissions", icon: Shield, resource: "permissions" },
       { name: "Email Templates", href: "/email-templates", icon: Mail, resource: "permissions" },
       { name: "Payments (Stripe)", href: "/settings/payments", icon: CreditCard, resource: "permissions" },
@@ -186,8 +185,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <DropdownMenuSeparator />
                     {isAdmin && (
                       <>
-                        <DropdownMenuItem onClick={() => window.location.assign(import.meta.env.BASE_URL + "users")}>
-                          <KeyRound className="h-4 w-4 mr-2" /> Users
+                        <DropdownMenuItem onClick={() => window.location.assign(import.meta.env.BASE_URL + "employees")}>
+                          <KeyRound className="h-4 w-4 mr-2" /> Employees &amp; Access
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => window.location.assign(import.meta.env.BASE_URL + "permissions")}>
                           <Shield className="h-4 w-4 mr-2" /> Permissions

@@ -141,7 +141,7 @@ function Router() {
         <Route path="/njmvc/:id/print" component={NjmvcPrint} />
         <Route path="/njmvc/:id" component={NjmvcNew} />
 
-        <Route path="/users" component={UsersPage} />
+        <Route path="/users" component={() => { window.location.replace((import.meta.env.BASE_URL || "/").replace(/\/$/, "") + "/employees"); return null; }} />
         <Route path="/permissions" component={PermissionsPage} />
         <Route path="/email-templates" component={EmailTemplates} />
         <Route path="/settings/payments" component={SettingsPayments} />
