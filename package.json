@@ -7,7 +7,9 @@
     "build": "pnpm -r build",
     "start": "tsx index.ts",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "db:push:local": "pnpm exec drizzle-kit push --config=lib/db/drizzle.config.ts",
+    "db:push:prod": "pnpm exec drizzle-kit push --config=artifacts/api-server/drizzle.config.ts"
   },
   "devDependencies": {
     "prettier": "^3.8.1",
@@ -17,14 +19,12 @@
   "dependencies": {
     "drizzle-orm": "0.45.2"
   },
-  
-    "overrides": {
-      "drizzle-orm": "0.45.2"
-    }, 
+  "overrides": {
+    "drizzle-orm": "0.45.2"
+  },
   "onlyBuiltDependencies": [
     "cpu-features",
     "esbuild",
     "ssh2"
   ]
-  
 }
