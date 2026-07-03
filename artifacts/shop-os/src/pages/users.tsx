@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { UserCircle, Plus, KeyRound, Shield, Trash2 } from "lucide-react";
+import { UserCircle, Plus, KeyRound, Shield, Trash2, Pencil } from "lucide-react";
 
 const ROLES = ["admin", "manager", "technician", "inspector", "viewer"] as const;
 type Role = (typeof ROLES)[number];
@@ -45,6 +45,8 @@ export default function UsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [pwUserId, setPwUserId] = useState<number | null>(null);
   const [pwValue, setPwValue] = useState("");
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({ firstName: "", lastName: "", email: "", username: "" });
 
   // create form
   const [form, setForm] = useState({
@@ -110,6 +112,23 @@ export default function UsersPage() {
       toast({ title: "Password reset" });
       setPwUserId(null);
       setPwValue("");
+    } catch (e: any) {
+      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const openEdit = (u: User) => {
+    setEditUser(u);
+    setEditForm({ firstName: u.firstName, lastName: u.lastName, email: u.email || "", username: u.username });
+  };
+
+  const saveEdit = async () => {
+    if (!editUser) return;
+    try {
+      await api(`/api/users/${editUser.id}`, { method: "PUT", body: JSON.stringify(editForm) });
+      toast({ title: "User updated" });
+      setEditUser(null);
+      reload();
     } catch (e: any) {
       toast({ title: "Failed", description: e.message, variant: "destructive" });
     }
@@ -255,6 +274,11 @@ export default function UsersPage() {
                     <Switch checked={u.active} disabled={!canEdit} onCheckedChange={(v) => setActive(u.id, v)} />
                   </TableCell>
                   <TableCell className="text-right">
+                    {canEdit && (
+                      <Button size="sm" variant="ghost" onClick={() => openEdit(u)}>
+                        <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                      </Button>
+                    )}
                     <Dialog open={pwUserId === u.id} onOpenChange={(o) => { if (!o) { setPwUserId(null); setPwValue(""); } }}>
                       <DialogTrigger asChild>
                         <Button size="sm" variant="ghost" disabled={!canEdit} onClick={() => setPwUserId(u.id)}>
@@ -285,6 +309,37 @@ export default function UsersPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit user dialog */}
+      <Dialog open={!!editUser} onOpenChange={(o) => { if (!o) setEditUser(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit User — {editUser?.firstName} {editUser?.lastName}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>First Name</Label>
+              <Input value={editForm.firstName} onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label>Last Name</Label>
+              <Input value={editForm.lastName} onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })} />
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label>Email</Label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            </div>
+            <div className="space-y-1 col-span-2">
+              <Label>Username</Label>
+              <Input value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditUser(null)}>Cancel</Button>
+            <Button onClick={saveEdit} disabled={!editForm.firstName || !editForm.lastName || !editForm.username}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex items-start gap-2">
         <Shield className="h-4 w-4 mt-0.5 flex-shrink-0" />
