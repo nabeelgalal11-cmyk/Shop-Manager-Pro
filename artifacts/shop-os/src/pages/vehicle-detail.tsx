@@ -50,11 +50,16 @@ export default function VehicleDetail() {
   const deleteVehicle = useDeleteVehicle();
   const updateVehicle = useUpdateVehicle();
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     deleteVehicle.mutate({ id }, {
       onSuccess: () => {
         toast({ title: "Vehicle deleted" });
         setLocation("/vehicles");
+      },
+      onError: async (err: any) => {
+        const msg = await err?.response?.json().then((d: any) => d?.error).catch(() => null)
+          ?? "Failed to delete vehicle.";
+        toast({ title: "Cannot delete", description: msg, variant: "destructive" });
       },
     });
   };

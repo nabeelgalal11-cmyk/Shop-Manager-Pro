@@ -61,8 +61,19 @@ router.put("/:id", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
-  await db.delete(vehiclesTable).where(eq(vehiclesTable.id, Number(req.params.id)));
-  res.status(204).send();
+  const id = Number(req.params.id);
+  try {
+    await db.delete(vehiclesTable).where(eq(vehiclesTable.id, id));
+    res.status(204).send();
+  } catch (err: any) {
+    if (err?.code === "23503") {
+      return res.status(409).json({
+        error: "Cannot delete vehicle — it has linked repair orders, invoices, inspections, or other records. Remove those first.",
+      });
+    }
+    req.log?.error({ err }, "Vehicle delete failed");
+    res.status(500).json({ error: "Failed to delete vehicle" });
+  }
 });
 
 router.get("/:id/warranties", async (req, res) => {
