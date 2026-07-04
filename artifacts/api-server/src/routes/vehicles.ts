@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { vehiclesTable, customersTable, repairOrdersTable, invoicesTable } from "@workspace/db";
+import { vehiclesTable, customersTable, repairOrdersTable, invoicesTable, estimatesTable, appointmentsTable, remindersTable } from "@workspace/db";
 import { eq, ilike, or, sql, desc } from "drizzle-orm";
 import { findActiveWarrantiesForVehicle } from "../lib/warranty.js";
 
@@ -63,14 +63,17 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
   try {
-    await db.delete(vehiclesTable).where(eq(vehiclesTable.id, id));
+    await db.transaction(async (tx) => {
+      // Null out all nullable vehicle_id FKs so linked records stay intact
+      await tx.update(repairOrdersTable).set({ vehicleId: null }).where(eq(repairOrdersTable.vehicleId, id));
+      await tx.update(estimatesTable).set({ vehicleId: null }).where(eq(estimatesTable.vehicleId, id));
+      await tx.update(invoicesTable).set({ vehicleId: null }).where(eq(invoicesTable.vehicleId, id));
+      await tx.update(appointmentsTable).set({ vehicleId: null }).where(eq(appointmentsTable.vehicleId, id));
+      await tx.update(remindersTable).set({ vehicleId: null }).where(eq(remindersTable.vehicleId, id));
+      await tx.delete(vehiclesTable).where(eq(vehiclesTable.id, id));
+    });
     res.status(204).send();
   } catch (err: any) {
-    if (err?.code === "23503") {
-      return res.status(409).json({
-        error: "Cannot delete vehicle — it has linked repair orders, invoices, inspections, or other records. Remove those first.",
-      });
-    }
     req.log?.error({ err }, "Vehicle delete failed");
     res.status(500).json({ error: "Failed to delete vehicle" });
   }
