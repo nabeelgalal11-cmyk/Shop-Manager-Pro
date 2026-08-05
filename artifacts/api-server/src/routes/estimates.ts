@@ -266,6 +266,19 @@ router.post("/:id/convert", async (req, res) => {
   if (!estimate) return res.status(404).json({ error: "Estimate not found" });
   const items = await db.select().from(lineItemsTable).where(eq(lineItemsTable.estimateId, id));
 
+  // Look up customer to apply tax-exempt status on the new invoice.
+  const [customer] = estimate.customerId
+    ? await db.select().from(customersTable).where(eq(customersTable.id, estimate.customerId))
+    : [];
+  const isExempt = customer?.taxExempt === true;
+
+  // Recalculate totals with correct tax for exempt customers.
+  const effectiveTaxRate = isExempt ? 0 : Number(estimate.taxRate ?? 0);
+  const discount = Number(estimate.discountAmount ?? 0);
+  const subtotal = Number(estimate.subtotal ?? 0);
+  const taxAmount = subtotal * (effectiveTaxRate / 100);
+  const total = subtotal + taxAmount - discount;
+
   const [lastInv] = await db.select({ invoiceNumber: invoicesTable.invoiceNumber }).from(invoicesTable).orderBy(desc(invoicesTable.id)).limit(1);
   const nextNum = lastInv ? Number(lastInv.invoiceNumber.replace("INV-", "")) + 1 : 1001;
   const invoiceNumber = `INV-${nextNum}`;
@@ -273,9 +286,10 @@ router.post("/:id/convert", async (req, res) => {
   const [invoice] = await db.insert(invoicesTable).values({
     invoiceNumber, customerId: estimate.customerId, vehicleId: estimate.vehicleId, estimateId: estimate.id,
     status: "draft", notes: estimate.notes,
-    subtotal: estimate.subtotal, taxRate: estimate.taxRate, taxAmount: estimate.taxAmount,
-    discountAmount: estimate.discountAmount, total: estimate.total,
-    amountPaid: "0", balance: estimate.total,
+    subtotal: subtotal.toString(), taxRate: effectiveTaxRate.toString(), taxAmount: taxAmount.toString(),
+    discountAmount: discount.toString(), total: total.toString(),
+    amountPaid: "0", balance: total.toString(),
+    taxExempt: isExempt, taxExemptNumber: customer?.taxExemptNumber ?? null,
   }).returning();
 
   if (items.length) {
@@ -311,10 +325,9 @@ router.post("/:id/convert", async (req, res) => {
     req,
   });
 
-  const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, invoice.customerId));
   const [vehicle] = invoice.vehicleId ? await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, invoice.vehicleId)) : [null];
   const lineItemsData = await db.select().from(lineItemsTable).where(eq(lineItemsTable.invoiceId, invoice.id));
-  res.status(201).json({ ...invoice, lineItems: lineItemsData, payments: [], customer, vehicle });
+  res.status(201).json({ ...invoice, lineItems: lineItemsData, payments: [], customer: customer ?? null, vehicle });
 });
 
 /**

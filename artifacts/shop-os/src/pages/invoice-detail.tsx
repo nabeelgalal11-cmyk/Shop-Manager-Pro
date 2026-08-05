@@ -469,7 +469,14 @@ export default function InvoiceDetail() {
         </table>
         <div className="totals">
           <div><span>Subtotal</span><span>{formatCurrency(Number(invoice.subtotal))}</span></div>
-          <div><span>Tax ({invoice.taxRate}%)</span><span>{formatCurrency(Number(invoice.taxAmount))}</span></div>
+          {(invoice as any).taxExempt ? (
+            <div>
+              <span>Tax — EXEMPT{(invoice as any).taxExemptNumber ? ` (${(invoice as any).taxExemptNumber})` : ""}</span>
+              <span>$0.00</span>
+            </div>
+          ) : (
+            <div><span>Tax ({invoice.taxRate}%)</span><span>{formatCurrency(Number(invoice.taxAmount))}</span></div>
+          )}
           <div><span>Amount Paid</span><span>{formatCurrency(Number(invoice.amountPaid))}</span></div>
           <div className="grand"><span>Balance Due</span><span>{formatCurrency(balance)}</span></div>
         </div>
