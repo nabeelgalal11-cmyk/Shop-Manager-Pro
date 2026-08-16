@@ -115,10 +115,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Sidebar className="border-r border-sidebar-border shadow-sm" open={sidebarOpen}>
           <SidebarHeader className="py-4 px-6 border-b border-sidebar-border">
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 bg-primary text-primary-foreground rounded-md flex items-center justify-center font-bold">
-                OS
+              <div className="h-8 w-8 bg-primary text-primary-foreground rounded-md flex items-center justify-center font-bold text-xs">
+                915
               </div>
-              <span className="font-bold text-lg tracking-tight">ShopOS</span>
+              <span className="font-bold text-lg tracking-tight">915motors</span>
             </div>
           </SidebarHeader>
 

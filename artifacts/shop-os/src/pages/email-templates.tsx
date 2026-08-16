@@ -163,7 +163,7 @@ export default function EmailTemplates() {
                   <Input
                     value={active.fromName || ""}
                     onChange={(e) => setActive({ ...active, fromName: e.target.value })}
-                    placeholder="ShopOS"
+                    placeholder="915motors"
                   />
                 </div>
                 <div>

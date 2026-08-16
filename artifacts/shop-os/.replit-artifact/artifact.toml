@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "ShopOS - Auto Repair Management"
+title = "915motors"
 version = "1.0.0"
 id = "artifacts/shop-os"
 router = "path"

@@ -396,7 +396,7 @@ export default function UsedCarsNew() {
             <div className="space-y-2 max-w-xs">
               <Label>Sale Invoice</Label>
               <p className="text-xs text-muted-foreground">
-                Link this sale to a ShopOS invoice to track the deal.
+                Link this sale to a 915motors invoice to track the deal.
               </p>
               <Select
                 value={form.saleInvoiceId || "none"}

@@ -39,7 +39,7 @@ const DEFAULT_TEMPLATES = [
     key: "appointment_confirmed",
     name: "Appointment Confirmation",
     subject: "Your appointment is confirmed - {{shopName}}",
-    fromName: "ShopOS",
+    fromName: "915motors",
     fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
     enabled: "true",
     bodyHtml: `<!DOCTYPE html>
@@ -68,7 +68,7 @@ const DEFAULT_TEMPLATES = [
     key: "invoice_sent",
     name: "Invoice Sent",
     subject: "Invoice {{invoiceNumber}} from {{shopName}}",
-    fromName: "ShopOS",
+    fromName: "915motors",
     fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
     enabled: "true",
     bodyHtml: cardWrap("#2563eb", "Invoice Ready", `
@@ -91,7 +91,7 @@ const DEFAULT_TEMPLATES = [
     key: "estimate_sent",
     name: "Estimate Sent",
     subject: "Estimate {{estimateNumber}} from {{shopName}}",
-    fromName: "ShopOS",
+    fromName: "915motors",
     fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
     enabled: "true",
     bodyHtml: cardWrap("#7c3aed", "Estimate Ready for Review", `
@@ -113,7 +113,7 @@ const DEFAULT_TEMPLATES = [
     key: "inspection_sent",
     name: "Inspection Sent",
     subject: "Your vehicle inspection is ready - {{shopName}}",
-    fromName: "ShopOS",
+    fromName: "915motors",
     fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
     enabled: "true",
     bodyHtml: cardWrap("#0d9488", "Vehicle Inspection Ready", `
@@ -132,7 +132,7 @@ const DEFAULT_TEMPLATES = [
     key: "repair_order_completed",
     name: "Repair Order Completed",
     subject: "Your vehicle is ready for pickup - {{shopName}}",
-    fromName: "ShopOS",
+    fromName: "915motors",
     fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
     enabled: "true",
     bodyHtml: cardWrap("#16a34a", "Your Vehicle Is Ready", `
@@ -152,7 +152,7 @@ const DEFAULT_TEMPLATES = [
     key: "service_reminder",
     name: "Service Reminder",
     subject: "Time for your {{serviceType}} - {{shopName}}",
-    fromName: "ShopOS",
+    fromName: "915motors",
     fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
     enabled: "true",
     bodyHtml: cardWrap("#f59e0b", "Service Reminder", `
@@ -172,7 +172,7 @@ const DEFAULT_TEMPLATES = [
     key: "payment_received",
     name: "Payment Receipt",
     subject: "Payment received - {{shopName}}",
-    fromName: "ShopOS",
+    fromName: "915motors",
     fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
     enabled: "true",
     bodyHtml: cardWrap("#0ea5e9", "Payment Received", `
@@ -213,6 +213,16 @@ export async function seedEmailTemplates() {
       await db.update(emailTemplatesTable).set({ bodyHtml: tpl.bodyHtml }).where(eq(emailTemplatesTable.key, tpl.key));
       logger.info({ key: tpl.key }, "Upgraded estimate_sent template with approval link");
     }
+
+    // Rename upgrade: if the stored fromName is still the old "ShopOS" default,
+    // update it to "915motors". Staff-customized names (anything other than
+    // "ShopOS") are left untouched so user edits are preserved.
+    if (existing && existing.fromName === "ShopOS") {
+      await db.update(emailTemplatesTable)
+        .set({ fromName: "915motors" })
+        .where(eq(emailTemplatesTable.key, tpl.key));
+      logger.info({ key: tpl.key }, "Upgraded fromName from ShopOS to 915motors");
+    }
   }
 }
 
@@ -241,7 +251,7 @@ export async function sendTemplatedEmail(
 
   const subject = render(tpl.subject, vars);
   const html = render(tpl.bodyHtml, vars);
-  const fromName = tpl.fromName || "ShopOS";
+  const fromName = tpl.fromName || "915motors";
   const fromEmailRaw = tpl.fromEmail || process.env.SMTP_FROM || process.env.SMTP_USER || "onboarding@resend.dev";
   const from = `${fromName} <${fromEmailRaw}>`;
 

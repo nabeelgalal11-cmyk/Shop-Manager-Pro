@@ -34,7 +34,7 @@ export default function LoginPage() {
             <Wrench className="h-7 w-7" />
           </div>
           <div>
-            <CardTitle className="text-2xl">ShopOS</CardTitle>
+            <CardTitle className="text-2xl">915motors</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">Auto Repair Management</p>
           </div>
         </CardHeader>

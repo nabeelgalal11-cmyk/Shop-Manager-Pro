@@ -238,7 +238,7 @@ export default function EstimateDetail() {
         <CardContent className="p-8">
           <div className="flex justify-between items-start mb-8">
             <div>
-              <h2 className="text-lg font-bold mb-2">ShopOS Auto Repair</h2>
+              <h2 className="text-lg font-bold mb-2">915motors</h2>
               <p className="text-sm text-muted-foreground">123 Mechanic St.<br />Auto City, ST 12345</p>
             </div>
             <div className="text-right">
