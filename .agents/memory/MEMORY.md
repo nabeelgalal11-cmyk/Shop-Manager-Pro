@@ -1,0 +1,1 @@
+- [DB env vars](db-env-vars.md) — API server uses DATABASE_URL; NEON_DATABASE_URL is a separate connection; always run migrations against DATABASE_URL

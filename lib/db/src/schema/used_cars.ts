@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, integer, date, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, date, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
@@ -24,6 +24,7 @@ export const usedCarsTable = pgTable("used_cars", {
   purchaseDate: date("purchase_date"),
   saleDate: date("sale_date"),
   notes: text("notes"),
+  published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

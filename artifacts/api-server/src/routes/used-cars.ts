@@ -299,7 +299,7 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
 });
 
 router.post("/", requirePermission("used_cars", "create"), async (req, res) => {
-  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, buyerId, saleInvoiceId, purchaseDate, saleDate, notes } = req.body;
+  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, buyerId, saleInvoiceId, purchaseDate, saleDate, notes, published } = req.body;
   const sellingPriceValue = sellingPrice == null || sellingPrice === "" ? null : String(sellingPrice);
   const [car] = await db.insert(usedCarsTable).values({
     vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition,
@@ -310,6 +310,7 @@ router.post("/", requirePermission("used_cars", "create"), async (req, res) => {
     buyerId: buyerId || null,
     saleInvoiceId: saleInvoiceId || null,
     purchaseDate, saleDate, notes,
+    published: Boolean(published),
   }).returning();
   res.status(201).json(await enrichCar(car));
 });
@@ -345,7 +346,7 @@ router.get("/:id", requirePermission("used_cars", "view"), async (req, res) => {
 
 router.put("/:id", requirePermission("used_cars", "edit"), async (req, res) => {
   const id = Number(req.params.id);
-  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, buyerId, saleInvoiceId, purchaseDate, saleDate, notes } = req.body;
+  const { vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition, purchasePrice, sellingPrice, status, customerId, buyerId, saleInvoiceId, purchaseDate, saleDate, notes, published } = req.body;
   const sellingPriceValue = sellingPrice == null || sellingPrice === "" ? null : String(sellingPrice);
   const [car] = await db.update(usedCarsTable).set({
     vin, year, make, model, trim, color, mileage, engineType, transmissionType, condition,
@@ -354,7 +355,9 @@ router.put("/:id", requirePermission("used_cars", "edit"), async (req, res) => {
     status, customerId: customerId || null,
     buyerId: buyerId || null,
     saleInvoiceId: saleInvoiceId || null,
-    purchaseDate, saleDate, notes, updatedAt: new Date(),
+    purchaseDate, saleDate, notes,
+    published: Boolean(published),
+    updatedAt: new Date(),
   }).where(eq(usedCarsTable.id, id)).returning();
   if (!car) return res.status(404).json({ error: "Car not found" });
   res.json(await enrichCar(car));

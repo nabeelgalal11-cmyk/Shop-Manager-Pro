@@ -1,9 +1,10 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { db, customersTable, vehiclesTable, appointmentsTable, invoicesTable, lineItemsTable, paymentsTable, inspectionsTable, estimatesTable, estimateEventsTable } from "@workspace/db";
-import { and, eq, ilike, or, desc, isNull, sql } from "drizzle-orm";
+import { db, customersTable, vehiclesTable, appointmentsTable, invoicesTable, lineItemsTable, paymentsTable, inspectionsTable, estimatesTable, estimateEventsTable, usedCarsTable, attachmentsTable } from "@workspace/db";
+import { and, eq, ilike, or, desc, isNull, sql, inArray } from "drizzle-orm";
 import { createCheckoutSessionForInvoice } from "./invoices.js";
 import { getStripeSettings } from "../lib/stripe.js";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
+import { downloadStream, HostgatorStorageError } from "../lib/hostgatorStorage.js";
 import { Readable } from "stream";
 import { recordActivity } from "../lib/activity.js";
 
@@ -43,10 +44,10 @@ function requireApiKey(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-// Allow cross-origin from anywhere on this single endpoint (your WP site posts here)
+// Allow cross-origin from anywhere — used by WordPress plugin (GET) and web forms (POST)
 router.use((_req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, X-API-Key, Authorization");
   next();
 });
@@ -877,6 +878,147 @@ router.get("/estimates/:token/signature", estRateLimit, async (req, res) => {
     if (err instanceof ObjectNotFoundError) return res.status(404).end();
     req.log?.error({ err }, "Public estimate signature serve failed");
     res.status(500).end();
+  }
+});
+
+// ---- PUBLIC USED CARS LISTING (WordPress plugin) ----
+// No auth required. Returns all published, non-sold cars with photo URLs.
+// Photo URLs point to the /public/used-car-photos/:id proxy below so the
+// HostGator auth token is never exposed to the WordPress side.
+
+const usedCarsBuckets = new Map<string, { count: number; resetAt: number }>();
+function usedCarsRateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || "unknown";
+  const now = Date.now();
+  const entry = usedCarsBuckets.get(ip);
+  if (!entry || entry.resetAt < now) {
+    usedCarsBuckets.set(ip, { count: 1, resetAt: now + 60_000 });
+    return next();
+  }
+  if (entry.count >= 120) return res.status(429).json({ error: "Too many requests" });
+  entry.count++;
+  next();
+}
+
+router.options("/used-cars", (_req, res) => res.sendStatus(204));
+router.options("/used-car-photos/:id", (_req, res) => res.sendStatus(204));
+
+router.get("/used-cars", usedCarsRateLimit, async (req, res) => {
+  try {
+    const cars = await db
+      .select()
+      .from(usedCarsTable)
+      .where(and(eq(usedCarsTable.published, true), sql`${usedCarsTable.status} != 'sold'`))
+      .orderBy(desc(usedCarsTable.createdAt));
+
+    if (cars.length === 0) {
+      res.json({ data: [] });
+      return;
+    }
+
+    // Fetch image attachments for all published cars in one query
+    const carIds = cars.map(c => c.id);
+    const photos = await db
+      .select({
+        id: attachmentsTable.id,
+        ownerId: attachmentsTable.ownerId,
+        mimeType: attachmentsTable.mimeType,
+        fileName: attachmentsTable.fileName,
+        createdAt: attachmentsTable.createdAt,
+      })
+      .from(attachmentsTable)
+      .where(
+        and(
+          eq(attachmentsTable.ownerType, "used_car"),
+          inArray(attachmentsTable.ownerId, carIds),
+          sql`${attachmentsTable.mimeType} LIKE 'image/%'`
+        )
+      )
+      .orderBy(attachmentsTable.createdAt);
+
+    const baseUrl = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+
+    // Group photos by car id
+    const photosByCarId = new Map<number, string[]>();
+    for (const p of photos) {
+      const url = `${baseUrl}/api/public/used-car-photos/${p.id}`;
+      const list = photosByCarId.get(p.ownerId) ?? [];
+      list.push(url);
+      photosByCarId.set(p.ownerId, list);
+    }
+
+    const data = cars.map(car => ({
+      id: car.id,
+      vin: car.vin,
+      year: car.year,
+      make: car.make,
+      model: car.model,
+      trim: car.trim,
+      color: car.color,
+      mileage: car.mileage,
+      engineType: car.engineType,
+      transmissionType: car.transmissionType,
+      condition: car.condition,
+      sellingPrice: car.sellingPrice != null ? Number(car.sellingPrice) : null,
+      status: car.status,
+      notes: car.notes,
+      photos: photosByCarId.get(car.id) ?? [],
+    }));
+
+    res.json({ data });
+  } catch (err: any) {
+    req.log?.error({ err }, "Public used-cars listing failed");
+    res.status(500).json({ error: "Could not fetch listings" });
+  }
+});
+
+// Proxy a single used-car photo. Verifies the attachment belongs to a
+// published car before streaming — no storage token leaks to the client.
+router.get("/used-car-photos/:id", usedCarsRateLimit, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).end();
+
+  try {
+    // Look up the attachment and its owner car in one join
+    const [row] = await db
+      .select({
+        storagePath: attachmentsTable.storagePath,
+        mimeType: attachmentsTable.mimeType,
+        fileName: attachmentsTable.fileName,
+        published: usedCarsTable.published,
+        status: usedCarsTable.status,
+      })
+      .from(attachmentsTable)
+      .innerJoin(
+        usedCarsTable,
+        and(
+          eq(usedCarsTable.id, attachmentsTable.ownerId),
+          eq(attachmentsTable.ownerType, "used_car")
+        )
+      )
+      .where(eq(attachmentsTable.id, id));
+
+    if (!row) return res.status(404).end();
+    // Only serve photos for published, non-sold cars
+    if (!row.published || row.status === "sold") return res.status(404).end();
+    // Only serve images
+    if (!row.mimeType.startsWith("image/")) return res.status(404).end();
+
+    const { stream, cleanup } = await downloadStream(row.storagePath);
+    res.setHeader("Content-Type", row.mimeType);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.setHeader("Content-Disposition", `inline; filename="${row.fileName.replace(/"/g, "")}"`);
+    stream.on("end", () => { void cleanup(); });
+    stream.on("error", () => { void cleanup(); });
+    stream.pipe(res);
+  } catch (err: any) {
+    if (err instanceof HostgatorStorageError) {
+      req.log?.warn({ err: err.message }, "Public used-car photo proxy failed");
+      if (!res.headersSent) res.status(502).end();
+    } else {
+      req.log?.error({ err }, "Public used-car photo proxy error");
+      if (!res.headersSent) res.status(500).end();
+    }
   }
 });
 

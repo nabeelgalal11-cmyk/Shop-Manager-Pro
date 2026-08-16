@@ -7,9 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Car, DollarSign, Wrench, TrendingUp, Plus, Sparkles, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Car, DollarSign, Wrench, TrendingUp, Plus, Sparkles, Loader2, Globe } from "lucide-react";
 import { useGetCustomers } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { AttachmentsPanel } from "@/components/attachments-panel";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -30,6 +33,7 @@ const empty = {
   condition: "good", purchasePrice: "", sellingPrice: "",
   status: "needs_work", customerId: "", buyerId: "", saleInvoiceId: "",
   purchaseDate: "", saleDate: "", notes: "",
+  published: false,
 };
 
 export default function UsedCarsNew() {
@@ -121,6 +125,7 @@ export default function UsedCarsNew() {
         purchaseDate: existing.purchaseDate || "",
         saleDate: existing.saleDate || "",
         notes: existing.notes || "",
+        published: existing.published ?? false,
       });
     }
   }, [existing]);
@@ -153,6 +158,7 @@ export default function UsedCarsNew() {
       saleInvoiceId: form.saleInvoiceId ? Number(form.saleInvoiceId) : null,
       purchaseDate: form.purchaseDate || null,
       saleDate: form.saleDate || null,
+      published: form.published,
     });
   }
 
@@ -165,8 +171,15 @@ export default function UsedCarsNew() {
         <Button variant="ghost" size="icon" onClick={() => setLocation("/used-cars")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold">{isEdit ? "Edit Vehicle" : "Add Vehicle"}</h1>
+        <div className="flex-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">{isEdit ? "Edit Vehicle" : "Add Vehicle"}</h1>
+            {isEdit && (
+              <Badge variant={form.published ? "default" : "secondary"} className="text-xs">
+                {form.published ? "Published" : "Not published"}
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">Record a used car for resale inventory.</p>
         </div>
       </div>
@@ -296,6 +309,31 @@ export default function UsedCarsNew() {
                   <SelectItem value="sold">Sold</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Website Listing */}
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Globe className="h-4 w-4" /> Website Listing
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Publish to website</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  When enabled, this car appears in the WordPress plugin's inventory feed
+                  (<code className="bg-muted px-1 py-0.5 rounded text-xs">/api/public/used-cars</code>).
+                  Sold cars are always hidden regardless of this setting.
+                </p>
+              </div>
+              <Switch
+                checked={form.published}
+                onCheckedChange={(checked) => setForm(p => ({ ...p, published: checked }))}
+              />
             </div>
           </CardContent>
         </Card>
@@ -529,6 +567,16 @@ export default function UsedCarsNew() {
           </Button>
         </div>
       </form>
+
+      {/* Photos — edit mode only (requires car ID for upload) */}
+      {isEdit && id && (
+        <AttachmentsPanel
+          ownerType="used_car"
+          ownerId={Number(id)}
+          title="Photos"
+          description="Upload listing photos. Images are included in the public WordPress feed."
+        />
+      )}
     </div>
   );
 }
