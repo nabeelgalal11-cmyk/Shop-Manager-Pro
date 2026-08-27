@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, CarFront, DollarSign, Package, TrendingUp, Search, Pencil, Trash2, Wrench } from "lucide-react";
+import { Plus, CarFront, DollarSign, Package, TrendingUp, Search, Pencil, Trash2, Wrench, Globe, EyeOff } from "lucide-react";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
@@ -44,6 +44,7 @@ export default function UsedCars() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [publishedFilter, setPublishedFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery<{ data: any[]; stats: any }>({
@@ -58,9 +59,13 @@ export default function UsedCars() {
 
   const cars = (data?.data || []).filter(c => {
     const matchStatus = statusFilter === "all" || c.status === statusFilter;
+    const matchPublished =
+      publishedFilter === "all" ||
+      (publishedFilter === "published" && c.published) ||
+      (publishedFilter === "unpublished" && !c.published);
     const q = search.toLowerCase();
     const matchSearch = !q || `${c.year} ${c.make} ${c.model} ${c.vin || ""}`.toLowerCase().includes(q);
-    return matchStatus && matchSearch;
+    return matchStatus && matchPublished && matchSearch;
   });
 
   const stats = data?.stats;
@@ -155,6 +160,16 @@ export default function UsedCars() {
             <SelectItem value="pending">Pending</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={publishedFilter} onValueChange={setPublishedFilter}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Filter by published" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Listings</SelectItem>
+            <SelectItem value="published">Published</SelectItem>
+            <SelectItem value="unpublished">Not Published</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
@@ -171,6 +186,7 @@ export default function UsedCars() {
               <TableHead>Recon</TableHead>
               <TableHead>Net Profit</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Published</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead>Buyer</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -178,9 +194,9 @@ export default function UsedCars() {
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>
             ) : cars.length === 0 ? (
-              <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">No vehicles found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={13} className="text-center py-8 text-muted-foreground">No vehicles found.</TableCell></TableRow>
             ) : cars.map(car => {
               const hasSellingPrice = car.sellingPrice != null && car.sellingPrice !== "";
               const sellingPrice = hasSellingPrice ? Number(car.sellingPrice) : null;
@@ -223,6 +239,17 @@ export default function UsedCars() {
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${STATUS_COLORS[car.status] || "bg-gray-100 text-gray-700 border-gray-200"}`}>
                       {STATUS_LABELS[car.status] || car.status}
                     </span>
+                  </TableCell>
+                  <TableCell>
+                    {car.published ? (
+                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border bg-emerald-100 text-emerald-800 border-emerald-200">
+                        <Globe className="h-3 w-3" /> Published
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium border bg-gray-100 text-gray-500 border-gray-200">
+                        <EyeOff className="h-3 w-3" /> Not published
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">
                     {car.customer ? `${car.customer.firstName} ${car.customer.lastName}` : "—"}
