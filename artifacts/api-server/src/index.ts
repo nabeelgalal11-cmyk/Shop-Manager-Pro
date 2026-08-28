@@ -40,6 +40,25 @@ import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { seedNjmvcTemplate } from "./routes/njmvc.js";
 
+const publicBaseUrl = process.env.PUBLIC_BASE_URL?.trim();
+if (!publicBaseUrl) {
+  logger.warn(
+    "PUBLIC_BASE_URL is not set; public used-car photo URLs will be relative and unavailable to cross-domain clients",
+  );
+} else {
+  try {
+    const parsed = new URL(publicBaseUrl);
+    if (!["http:", "https:"].includes(parsed.protocol) || !parsed.host) {
+      throw new Error("PUBLIC_BASE_URL must use http or https");
+    }
+    logger.info({ publicBaseUrl: parsed.origin }, "PUBLIC_BASE_URL configured");
+  } catch {
+    logger.warn(
+      "PUBLIC_BASE_URL must be an absolute http(s) URL; public used-car photo URLs may be unusable",
+    );
+  }
+}
+
 // 3️⃣ Get the PORT from environment variables (fallback to 3000)
 const rawPort = process.env.PORT || "3000";
 const port = Number(rawPort);

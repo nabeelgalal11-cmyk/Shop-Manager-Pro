@@ -936,7 +936,7 @@ router.get("/used-cars", usedCarsRateLimit, async (req, res) => {
       )
       .orderBy(attachmentsTable.createdAt);
 
-    const baseUrl = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+    const baseUrl = (process.env.PUBLIC_BASE_URL?.trim() || "").replace(/\/$/, "");
 
     // Group photos by car id
     const photosByCarId = new Map<number, string[]>();
