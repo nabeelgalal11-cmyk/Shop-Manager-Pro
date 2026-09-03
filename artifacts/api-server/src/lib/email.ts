@@ -194,6 +194,17 @@ const DEFAULT_TEMPLATES = [
 ];
 
 export async function seedEmailTemplates() {
+  // Rename upgrade: update every stored template that still has the old
+  // default name. Staff-customized names are left untouched.
+  const renamedTemplates = await db
+    .update(emailTemplatesTable)
+    .set({ fromName: "915motors" })
+    .where(eq(emailTemplatesTable.fromName, "ShopOS"))
+    .returning({ key: emailTemplatesTable.key });
+  for (const { key } of renamedTemplates) {
+    logger.info({ key }, "Upgraded fromName from ShopOS to 915motors");
+  }
+
   for (const tpl of DEFAULT_TEMPLATES) {
     const [existing] = await db.select().from(emailTemplatesTable).where(eq(emailTemplatesTable.key, tpl.key));
     if (!existing) {
@@ -212,16 +223,6 @@ export async function seedEmailTemplates() {
       // link is included for shops that already have the older template.
       await db.update(emailTemplatesTable).set({ bodyHtml: tpl.bodyHtml }).where(eq(emailTemplatesTable.key, tpl.key));
       logger.info({ key: tpl.key }, "Upgraded estimate_sent template with approval link");
-    }
-
-    // Rename upgrade: if the stored fromName is still the old "ShopOS" default,
-    // update it to "915motors". Staff-customized names (anything other than
-    // "ShopOS") are left untouched so user edits are preserved.
-    if (existing && existing.fromName === "ShopOS") {
-      await db.update(emailTemplatesTable)
-        .set({ fromName: "915motors" })
-        .where(eq(emailTemplatesTable.key, tpl.key));
-      logger.info({ key: tpl.key }, "Upgraded fromName from ShopOS to 915motors");
     }
   }
 }
