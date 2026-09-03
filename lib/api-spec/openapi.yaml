@@ -49,6 +49,8 @@ tags:
     description: Parts suppliers / vendors
   - name: exports
     description: CSV / ZIP exports for bookkeeping (QuickBooks Online)
+  - name: square
+    description: Square payment, Terminal, refund, and conservative synchronization operations
 
 paths:
   # ---- EXPORTS / BOOKKEEPING ----
@@ -1986,7 +1988,128 @@ paths:
               schema:
                 $ref: "#/components/schemas/ActivityEventsPage"
 
+  # ---- SQUARE ----
+  /square/status:
+    get:
+      operationId: getSquareStatus
+      tags: [square]
+      summary: Get Square connection status and merchant locations
+      responses:
+        "200":
+          description: Square connection status
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquareStatus" } } }
+  /square/invoices/{invoiceId}/payment:
+    post:
+      operationId: createSquareInvoicePayment
+      tags: [square]
+      summary: Create a Square payment for an invoice balance
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SquareInvoicePaymentInput" } } }
+      responses:
+        "201":
+          description: Payment created
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquarePaymentResult" } } }
+  /square/terminal/checkouts:
+    post:
+      operationId: createSquareTerminalCheckout
+      tags: [square]
+      summary: Create a Square Terminal checkout for an invoice
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SquareTerminalCheckoutInput" } } }
+      responses:
+        "201":
+          description: Terminal checkout created
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquareTerminalCheckoutResult" } } }
+  /square/terminal/checkouts/{id}:
+    get:
+      operationId: getSquareTerminalCheckout
+      tags: [square]
+      summary: Get current Square Terminal checkout status
+      parameters:
+        - $ref: "#/components/parameters/SquareId"
+      responses:
+        "200":
+          description: Terminal checkout
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquareRemoteObject" } } }
+  /square/terminal/checkouts/{id}/cancel:
+    post:
+      operationId: cancelSquareTerminalCheckout
+      tags: [square]
+      summary: Cancel a pending Square Terminal checkout
+      parameters:
+        - $ref: "#/components/parameters/SquareId"
+      responses:
+        "200":
+          description: Terminal checkout cancelled
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquareRemoteObject" } } }
+  /square/refunds:
+    post:
+      operationId: createSquareRefund
+      tags: [square]
+      summary: Refund a completed Square payment
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SquareRefundInput" } } }
+      responses:
+        "201":
+          description: Refund created
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquareRefundResult" } } }
+  /square/sync/{resource}/preview:
+    get:
+      operationId: previewSquareSync
+      tags: [square]
+      summary: Preview conservative Square customer, catalog, or inventory synchronization
+      parameters:
+        - $ref: "#/components/parameters/SquareSyncResource"
+      responses:
+        "200":
+          description: Sync preview
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquareSyncPreview" } } }
+  /square/sync/{resource}/apply:
+    post:
+      operationId: applySquareSync
+      tags: [square]
+      summary: Record an explicit conservative Square sync application
+      parameters:
+        - $ref: "#/components/parameters/SquareSyncResource"
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SquareSyncApplyInput" } } }
+      responses:
+        "200":
+          description: Sync application result
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquareSyncApplyResult" } } }
+  /square/webhook:
+    post:
+      operationId: receiveSquareWebhook
+      tags: [square]
+      summary: Receive a signature-verified Square webhook
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SquareWebhookEvent" } } }
+      responses:
+        "200": { description: Webhook accepted }
+
 components:
+  parameters:
+    SquareId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1 }
+    SquareSyncResource:
+      name: resource
+      in: path
+      required: true
+      schema: { type: string, enum: [customers, catalog, inventory] }
   schemas:
     HealthStatus:
       type: object
@@ -4200,3 +4323,83 @@ components:
           items:
             $ref: "#/components/schemas/ReorderReportGroup"
         totalItems: { type: integer }
+
+    SquareLocation:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        status: { type: string }
+    SquareStatus:
+      type: object
+      required: [configured, environment, locations]
+      properties:
+        configured: { type: boolean }
+        environment: { type: string, enum: [sandbox, production] }
+        locations: { type: array, items: { $ref: "#/components/schemas/SquareLocation" } }
+    SquareInvoicePaymentInput:
+      type: object
+      required: [sourceId, locationId]
+      properties:
+        sourceId: { type: string, minLength: 1 }
+        locationId: { type: string, minLength: 1 }
+    SquarePaymentResult:
+      type: object
+      required: [paymentId, status]
+      properties:
+        paymentId: { type: string }
+        status: { type: string }
+    SquareTerminalCheckoutInput:
+      type: object
+      required: [invoiceId, deviceId]
+      properties:
+        invoiceId: { type: integer, minimum: 1 }
+        deviceId: { type: string, minLength: 1 }
+    SquareTerminalCheckoutResult:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string }
+        status: { type: string }
+    SquareRefundInput:
+      type: object
+      required: [paymentId, amount]
+      properties:
+        paymentId: { type: integer, minimum: 1 }
+        amount: { type: number, exclusiveMinimum: 0 }
+        reason: { type: string, maxLength: 192 }
+    SquareRefundResult:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string }
+        status: { type: string }
+    SquareRemoteObject:
+      type: object
+      additionalProperties: true
+    SquareSyncPreview:
+      type: object
+      required: [resource, remote, policy]
+      properties:
+        resource: { type: string, enum: [customers, catalog, inventory] }
+        remote: { type: array, items: { $ref: "#/components/schemas/SquareRemoteObject" } }
+        mappedSquareIds: { type: array, items: { type: string } }
+        policy: { type: string }
+    SquareSyncApplyInput:
+      type: object
+      additionalProperties: false
+    SquareSyncApplyResult:
+      type: object
+      required: [resource, applied, policy]
+      properties:
+        resource: { type: string, enum: [customers, catalog, inventory] }
+        applied: { type: integer, minimum: 0 }
+        policy: { type: string }
+    SquareWebhookEvent:
+      type: object
+      required: [event_id, type]
+      additionalProperties: true
+      properties:
+        event_id: { type: string }
+        type: { type: string }

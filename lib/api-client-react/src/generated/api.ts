@@ -90,6 +90,18 @@ import type {
   SendEstimate200,
   ServiceCount,
   ServiceHistoryEntry,
+  SquareInvoicePaymentInput,
+  SquarePaymentResult,
+  SquareRefundInput,
+  SquareRefundResult,
+  SquareRemoteObject,
+  SquareStatus,
+  SquareSyncApplyInput,
+  SquareSyncApplyResult,
+  SquareSyncPreview,
+  SquareTerminalCheckoutInput,
+  SquareTerminalCheckoutResult,
+  SquareWebhookEvent,
   StatusCount,
   StockMovementListResponse,
   Supplier,
@@ -8332,3 +8344,804 @@ export function useGetActivity<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get Square connection status and merchant locations
+ */
+export const getGetSquareStatusUrl = () => {
+  return `/api/square/status`;
+};
+
+export const getSquareStatus = async (
+  options?: RequestInit,
+): Promise<SquareStatus> => {
+  return customFetch<SquareStatus>(getGetSquareStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSquareStatusQueryKey = () => {
+  return [`/api/square/status`] as const;
+};
+
+export const getGetSquareStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSquareStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSquareStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSquareStatusQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSquareStatus>>> = ({
+    signal,
+  }) => getSquareStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSquareStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSquareStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSquareStatus>>
+>;
+export type GetSquareStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get Square connection status and merchant locations
+ */
+
+export function useGetSquareStatus<
+  TData = Awaited<ReturnType<typeof getSquareStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSquareStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSquareStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a Square payment for an invoice balance
+ */
+export const getCreateSquareInvoicePaymentUrl = (invoiceId: number) => {
+  return `/api/square/invoices/${invoiceId}/payment`;
+};
+
+export const createSquareInvoicePayment = async (
+  invoiceId: number,
+  squareInvoicePaymentInput: SquareInvoicePaymentInput,
+  options?: RequestInit,
+): Promise<SquarePaymentResult> => {
+  return customFetch<SquarePaymentResult>(
+    getCreateSquareInvoicePaymentUrl(invoiceId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(squareInvoicePaymentInput),
+    },
+  );
+};
+
+export const getCreateSquareInvoicePaymentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSquareInvoicePayment>>,
+    TError,
+    { invoiceId: number; data: BodyType<SquareInvoicePaymentInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSquareInvoicePayment>>,
+  TError,
+  { invoiceId: number; data: BodyType<SquareInvoicePaymentInput> },
+  TContext
+> => {
+  const mutationKey = ["createSquareInvoicePayment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSquareInvoicePayment>>,
+    { invoiceId: number; data: BodyType<SquareInvoicePaymentInput> }
+  > = (props) => {
+    const { invoiceId, data } = props ?? {};
+
+    return createSquareInvoicePayment(invoiceId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSquareInvoicePaymentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSquareInvoicePayment>>
+>;
+export type CreateSquareInvoicePaymentMutationBody =
+  BodyType<SquareInvoicePaymentInput>;
+export type CreateSquareInvoicePaymentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a Square payment for an invoice balance
+ */
+export const useCreateSquareInvoicePayment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSquareInvoicePayment>>,
+    TError,
+    { invoiceId: number; data: BodyType<SquareInvoicePaymentInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSquareInvoicePayment>>,
+  TError,
+  { invoiceId: number; data: BodyType<SquareInvoicePaymentInput> },
+  TContext
+> => {
+  return useMutation(getCreateSquareInvoicePaymentMutationOptions(options));
+};
+
+/**
+ * @summary Create a Square Terminal checkout for an invoice
+ */
+export const getCreateSquareTerminalCheckoutUrl = () => {
+  return `/api/square/terminal/checkouts`;
+};
+
+export const createSquareTerminalCheckout = async (
+  squareTerminalCheckoutInput: SquareTerminalCheckoutInput,
+  options?: RequestInit,
+): Promise<SquareTerminalCheckoutResult> => {
+  return customFetch<SquareTerminalCheckoutResult>(
+    getCreateSquareTerminalCheckoutUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(squareTerminalCheckoutInput),
+    },
+  );
+};
+
+export const getCreateSquareTerminalCheckoutMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSquareTerminalCheckout>>,
+    TError,
+    { data: BodyType<SquareTerminalCheckoutInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSquareTerminalCheckout>>,
+  TError,
+  { data: BodyType<SquareTerminalCheckoutInput> },
+  TContext
+> => {
+  const mutationKey = ["createSquareTerminalCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSquareTerminalCheckout>>,
+    { data: BodyType<SquareTerminalCheckoutInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSquareTerminalCheckout(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSquareTerminalCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSquareTerminalCheckout>>
+>;
+export type CreateSquareTerminalCheckoutMutationBody =
+  BodyType<SquareTerminalCheckoutInput>;
+export type CreateSquareTerminalCheckoutMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a Square Terminal checkout for an invoice
+ */
+export const useCreateSquareTerminalCheckout = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSquareTerminalCheckout>>,
+    TError,
+    { data: BodyType<SquareTerminalCheckoutInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSquareTerminalCheckout>>,
+  TError,
+  { data: BodyType<SquareTerminalCheckoutInput> },
+  TContext
+> => {
+  return useMutation(getCreateSquareTerminalCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Get current Square Terminal checkout status
+ */
+export const getGetSquareTerminalCheckoutUrl = (id: string) => {
+  return `/api/square/terminal/checkouts/${id}`;
+};
+
+export const getSquareTerminalCheckout = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SquareRemoteObject> => {
+  return customFetch<SquareRemoteObject>(getGetSquareTerminalCheckoutUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSquareTerminalCheckoutQueryKey = (id: string) => {
+  return [`/api/square/terminal/checkouts/${id}`] as const;
+};
+
+export const getGetSquareTerminalCheckoutQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSquareTerminalCheckout>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSquareTerminalCheckout>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSquareTerminalCheckoutQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSquareTerminalCheckout>>
+  > = ({ signal }) =>
+    getSquareTerminalCheckout(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSquareTerminalCheckout>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSquareTerminalCheckoutQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSquareTerminalCheckout>>
+>;
+export type GetSquareTerminalCheckoutQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get current Square Terminal checkout status
+ */
+
+export function useGetSquareTerminalCheckout<
+  TData = Awaited<ReturnType<typeof getSquareTerminalCheckout>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getSquareTerminalCheckout>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSquareTerminalCheckoutQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Cancel a pending Square Terminal checkout
+ */
+export const getCancelSquareTerminalCheckoutUrl = (id: string) => {
+  return `/api/square/terminal/checkouts/${id}/cancel`;
+};
+
+export const cancelSquareTerminalCheckout = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SquareRemoteObject> => {
+  return customFetch<SquareRemoteObject>(
+    getCancelSquareTerminalCheckoutUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCancelSquareTerminalCheckoutMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelSquareTerminalCheckout>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelSquareTerminalCheckout>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["cancelSquareTerminalCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelSquareTerminalCheckout>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return cancelSquareTerminalCheckout(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelSquareTerminalCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelSquareTerminalCheckout>>
+>;
+
+export type CancelSquareTerminalCheckoutMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cancel a pending Square Terminal checkout
+ */
+export const useCancelSquareTerminalCheckout = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelSquareTerminalCheckout>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelSquareTerminalCheckout>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getCancelSquareTerminalCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Refund a completed Square payment
+ */
+export const getCreateSquareRefundUrl = () => {
+  return `/api/square/refunds`;
+};
+
+export const createSquareRefund = async (
+  squareRefundInput: SquareRefundInput,
+  options?: RequestInit,
+): Promise<SquareRefundResult> => {
+  return customFetch<SquareRefundResult>(getCreateSquareRefundUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(squareRefundInput),
+  });
+};
+
+export const getCreateSquareRefundMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSquareRefund>>,
+    TError,
+    { data: BodyType<SquareRefundInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createSquareRefund>>,
+  TError,
+  { data: BodyType<SquareRefundInput> },
+  TContext
+> => {
+  const mutationKey = ["createSquareRefund"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createSquareRefund>>,
+    { data: BodyType<SquareRefundInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createSquareRefund(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateSquareRefundMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSquareRefund>>
+>;
+export type CreateSquareRefundMutationBody = BodyType<SquareRefundInput>;
+export type CreateSquareRefundMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Refund a completed Square payment
+ */
+export const useCreateSquareRefund = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createSquareRefund>>,
+    TError,
+    { data: BodyType<SquareRefundInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createSquareRefund>>,
+  TError,
+  { data: BodyType<SquareRefundInput> },
+  TContext
+> => {
+  return useMutation(getCreateSquareRefundMutationOptions(options));
+};
+
+/**
+ * @summary Preview conservative Square customer, catalog, or inventory synchronization
+ */
+export const getPreviewSquareSyncUrl = (
+  resource: "customers" | "catalog" | "inventory",
+) => {
+  return `/api/square/sync/${resource}/preview`;
+};
+
+export const previewSquareSync = async (
+  resource: "customers" | "catalog" | "inventory",
+  options?: RequestInit,
+): Promise<SquareSyncPreview> => {
+  return customFetch<SquareSyncPreview>(getPreviewSquareSyncUrl(resource), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getPreviewSquareSyncQueryKey = (
+  resource: "customers" | "catalog" | "inventory",
+) => {
+  return [`/api/square/sync/${resource}/preview`] as const;
+};
+
+export const getPreviewSquareSyncQueryOptions = <
+  TData = Awaited<ReturnType<typeof previewSquareSync>>,
+  TError = ErrorType<unknown>,
+>(
+  resource: "customers" | "catalog" | "inventory",
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof previewSquareSync>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getPreviewSquareSyncQueryKey(resource);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof previewSquareSync>>
+  > = ({ signal }) =>
+    previewSquareSync(resource, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!resource,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof previewSquareSync>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type PreviewSquareSyncQueryResult = NonNullable<
+  Awaited<ReturnType<typeof previewSquareSync>>
+>;
+export type PreviewSquareSyncQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Preview conservative Square customer, catalog, or inventory synchronization
+ */
+
+export function usePreviewSquareSync<
+  TData = Awaited<ReturnType<typeof previewSquareSync>>,
+  TError = ErrorType<unknown>,
+>(
+  resource: "customers" | "catalog" | "inventory",
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof previewSquareSync>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getPreviewSquareSyncQueryOptions(resource, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Record an explicit conservative Square sync application
+ */
+export const getApplySquareSyncUrl = (
+  resource: "customers" | "catalog" | "inventory",
+) => {
+  return `/api/square/sync/${resource}/apply`;
+};
+
+export const applySquareSync = async (
+  resource: "customers" | "catalog" | "inventory",
+  squareSyncApplyInput: SquareSyncApplyInput,
+  options?: RequestInit,
+): Promise<SquareSyncApplyResult> => {
+  return customFetch<SquareSyncApplyResult>(getApplySquareSyncUrl(resource), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(squareSyncApplyInput),
+  });
+};
+
+export const getApplySquareSyncMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applySquareSync>>,
+    TError,
+    {
+      resource: "customers" | "catalog" | "inventory";
+      data: BodyType<SquareSyncApplyInput>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof applySquareSync>>,
+  TError,
+  {
+    resource: "customers" | "catalog" | "inventory";
+    data: BodyType<SquareSyncApplyInput>;
+  },
+  TContext
+> => {
+  const mutationKey = ["applySquareSync"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof applySquareSync>>,
+    {
+      resource: "customers" | "catalog" | "inventory";
+      data: BodyType<SquareSyncApplyInput>;
+    }
+  > = (props) => {
+    const { resource, data } = props ?? {};
+
+    return applySquareSync(resource, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ApplySquareSyncMutationResult = NonNullable<
+  Awaited<ReturnType<typeof applySquareSync>>
+>;
+export type ApplySquareSyncMutationBody = BodyType<SquareSyncApplyInput>;
+export type ApplySquareSyncMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record an explicit conservative Square sync application
+ */
+export const useApplySquareSync = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof applySquareSync>>,
+    TError,
+    {
+      resource: "customers" | "catalog" | "inventory";
+      data: BodyType<SquareSyncApplyInput>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof applySquareSync>>,
+  TError,
+  {
+    resource: "customers" | "catalog" | "inventory";
+    data: BodyType<SquareSyncApplyInput>;
+  },
+  TContext
+> => {
+  return useMutation(getApplySquareSyncMutationOptions(options));
+};
+
+/**
+ * @summary Receive a signature-verified Square webhook
+ */
+export const getReceiveSquareWebhookUrl = () => {
+  return `/api/square/webhook`;
+};
+
+export const receiveSquareWebhook = async (
+  squareWebhookEvent: SquareWebhookEvent,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getReceiveSquareWebhookUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(squareWebhookEvent),
+  });
+};
+
+export const getReceiveSquareWebhookMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof receiveSquareWebhook>>,
+    TError,
+    { data: BodyType<SquareWebhookEvent> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof receiveSquareWebhook>>,
+  TError,
+  { data: BodyType<SquareWebhookEvent> },
+  TContext
+> => {
+  const mutationKey = ["receiveSquareWebhook"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof receiveSquareWebhook>>,
+    { data: BodyType<SquareWebhookEvent> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return receiveSquareWebhook(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReceiveSquareWebhookMutationResult = NonNullable<
+  Awaited<ReturnType<typeof receiveSquareWebhook>>
+>;
+export type ReceiveSquareWebhookMutationBody = BodyType<SquareWebhookEvent>;
+export type ReceiveSquareWebhookMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Receive a signature-verified Square webhook
+ */
+export const useReceiveSquareWebhook = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof receiveSquareWebhook>>,
+    TError,
+    { data: BodyType<SquareWebhookEvent> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof receiveSquareWebhook>>,
+  TError,
+  { data: BodyType<SquareWebhookEvent> },
+  TContext
+> => {
+  return useMutation(getReceiveSquareWebhookMutationOptions(options));
+};

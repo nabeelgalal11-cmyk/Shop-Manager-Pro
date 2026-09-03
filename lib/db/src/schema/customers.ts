@@ -23,6 +23,7 @@ export const customersTable = pgTable("customers", {
   smsOptOut: text("sms_opt_out").notNull().default("false"),
   taxExempt: boolean("tax_exempt").notNull().default(false),
   taxExemptNumber: text("tax_exempt_number"),
+  squareCustomerId: text("square_customer_id").unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

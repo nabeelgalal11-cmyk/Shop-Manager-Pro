@@ -12,6 +12,7 @@ export const paymentsTable = pgTable("payments", {
   notes: text("notes"),
   stripeEventId: text("stripe_event_id").unique(),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
+  squarePaymentId: text("square_payment_id").unique(),
   // Tracks the lifecycle of online payment attempts. Manual (cash/card)
   // entries are always 'succeeded'. Stripe failed/cancelled webhook events
   // are persisted with status='failed' so admins can see attempt history

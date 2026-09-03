@@ -10,6 +10,7 @@ import { logger } from "./lib/logger.js";
 import { sessionMiddleware, attachUser } from "./lib/auth.js";
 import { seedDefaultPermissions, bootstrapAdmin } from "./lib/permissions.js";
 import { stripeWebhookHandler } from "./routes/stripe-webhook.js";
+import { squareWebhookHandler } from "./routes/square-webhook.js";
 
 const app: Express = express();
 
@@ -48,6 +49,7 @@ app.use(cors({ origin: true, credentials: true }));
 // be mounted BEFORE express.json() or the body will be parsed and re-stringified
 // and the signature check will fail.
 app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
+app.post("/api/square/webhook", express.raw({ type: "application/json" }), squareWebhookHandler);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

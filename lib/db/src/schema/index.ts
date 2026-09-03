@@ -27,3 +27,4 @@ export * from "./user_board_preferences";
 export * from "./messages";
 export * from "./estimate_events";
 export * from "./activity_events";
+export * from "./square";

@@ -4537,3 +4537,118 @@ export const GetActivityResponse = zod.object({
   hasMore: zod.boolean(),
   nextBeforeId: zod.number().nullish(),
 });
+
+/**
+ * @summary Get Square connection status and merchant locations
+ */
+export const GetSquareStatusResponse = zod.object({
+  configured: zod.boolean(),
+  environment: zod.enum(["sandbox", "production"]),
+  locations: zod.array(
+    zod.object({
+      id: zod.string(),
+      name: zod.string().optional(),
+      status: zod.string().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a Square payment for an invoice balance
+ */
+export const CreateSquareInvoicePaymentParams = zod.object({
+  invoiceId: zod.coerce.number(),
+});
+
+export const CreateSquareInvoicePaymentBody = zod.object({
+  sourceId: zod.string().min(1),
+  locationId: zod.string().min(1),
+});
+
+/**
+ * @summary Create a Square Terminal checkout for an invoice
+ */
+
+export const CreateSquareTerminalCheckoutBody = zod.object({
+  invoiceId: zod.number().min(1),
+  deviceId: zod.string().min(1),
+});
+
+/**
+ * @summary Get current Square Terminal checkout status
+ */
+
+export const GetSquareTerminalCheckoutParams = zod.object({
+  id: zod.coerce.string().min(1),
+});
+
+export const GetSquareTerminalCheckoutResponse = zod.record(
+  zod.string(),
+  zod.unknown(),
+);
+
+/**
+ * @summary Cancel a pending Square Terminal checkout
+ */
+
+export const CancelSquareTerminalCheckoutParams = zod.object({
+  id: zod.coerce.string().min(1),
+});
+
+export const CancelSquareTerminalCheckoutResponse = zod.record(
+  zod.string(),
+  zod.unknown(),
+);
+
+/**
+ * @summary Refund a completed Square payment
+ */
+
+export const createSquareRefundBodyAmountExclusiveMin = 0;
+
+export const createSquareRefundBodyReasonMax = 192;
+
+export const CreateSquareRefundBody = zod.object({
+  paymentId: zod.number().min(1),
+  amount: zod.number().gt(createSquareRefundBodyAmountExclusiveMin),
+  reason: zod.string().max(createSquareRefundBodyReasonMax).optional(),
+});
+
+/**
+ * @summary Preview conservative Square customer, catalog, or inventory synchronization
+ */
+export const PreviewSquareSyncParams = zod.object({
+  resource: zod.enum(["customers", "catalog", "inventory"]),
+});
+
+export const PreviewSquareSyncResponse = zod.object({
+  resource: zod.enum(["customers", "catalog", "inventory"]),
+  remote: zod.array(zod.record(zod.string(), zod.unknown())),
+  mappedSquareIds: zod.array(zod.string()).optional(),
+  policy: zod.string(),
+});
+
+/**
+ * @summary Record an explicit conservative Square sync application
+ */
+export const ApplySquareSyncParams = zod.object({
+  resource: zod.enum(["customers", "catalog", "inventory"]),
+});
+
+export const ApplySquareSyncBody = zod.object({});
+
+export const applySquareSyncResponseAppliedMin = 0;
+
+export const ApplySquareSyncResponse = zod.object({
+  resource: zod.enum(["customers", "catalog", "inventory"]),
+  applied: zod.number().min(applySquareSyncResponseAppliedMin),
+  policy: zod.string(),
+});
+
+/**
+ * @summary Receive a signature-verified Square webhook
+ */
+export const ReceiveSquareWebhookBody = zod.object({
+  event_id: zod.string(),
+  type: zod.string(),
+});

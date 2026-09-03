@@ -40,6 +40,7 @@ import userPreferencesRouter from "./user_preferences.js";
 import activityRouter from "./activity.js";
 import suppliersRouter from "./suppliers.js";
 import exportsRouter from "./exports.js";
+import squareRouter from "./square.js";
 
 const router: IRouter = Router();
 
@@ -88,5 +89,6 @@ router.use("/messages", messagesRouter);
 router.use("/activity", activityRouter);
 router.use("/suppliers", suppliersRouter);
 router.use("/exports", exportsRouter);
+router.use("/square", squareRouter);
 
 export default router;

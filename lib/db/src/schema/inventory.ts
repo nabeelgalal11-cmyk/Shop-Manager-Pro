@@ -20,6 +20,8 @@ export const inventoryTable = pgTable("inventory", {
   compatibleVehicles: text("compatible_vehicles"),
   defaultWarrantyMonths: integer("default_warranty_months"),
   defaultWarrantyMiles: integer("default_warranty_miles"),
+  squareCatalogObjectId: text("square_catalog_object_id").unique(),
+  squareLocationId: text("square_location_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

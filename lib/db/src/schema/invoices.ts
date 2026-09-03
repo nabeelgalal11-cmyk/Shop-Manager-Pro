@@ -28,6 +28,7 @@ export const invoicesTable = pgTable("invoices", {
   publicToken: text("public_token").unique(),
   stripeSessionId: text("stripe_session_id"),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
+  squarePaymentId: text("square_payment_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

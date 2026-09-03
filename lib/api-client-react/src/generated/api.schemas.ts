@@ -1263,6 +1263,110 @@ export interface ReorderReport {
   totalItems?: number;
 }
 
+export interface SquareLocation {
+  id: string;
+  name?: string;
+  status?: string;
+}
+
+export type SquareStatusEnvironment =
+  (typeof SquareStatusEnvironment)[keyof typeof SquareStatusEnvironment];
+
+export const SquareStatusEnvironment = {
+  sandbox: "sandbox",
+  production: "production",
+} as const;
+
+export interface SquareStatus {
+  configured: boolean;
+  environment: SquareStatusEnvironment;
+  locations: SquareLocation[];
+}
+
+export interface SquareInvoicePaymentInput {
+  /** @minLength 1 */
+  sourceId: string;
+  /** @minLength 1 */
+  locationId: string;
+}
+
+export interface SquarePaymentResult {
+  paymentId: string;
+  status: string;
+}
+
+export interface SquareTerminalCheckoutInput {
+  /** @minimum 1 */
+  invoiceId: number;
+  /** @minLength 1 */
+  deviceId: string;
+}
+
+export interface SquareTerminalCheckoutResult {
+  id: string;
+  status: string;
+}
+
+export interface SquareRefundInput {
+  /** @minimum 1 */
+  paymentId: number;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** @maxLength 192 */
+  reason?: string;
+}
+
+export interface SquareRefundResult {
+  id: string;
+  status: string;
+}
+
+export interface SquareRemoteObject {
+  [key: string]: unknown;
+}
+
+export type SquareSyncPreviewResource =
+  (typeof SquareSyncPreviewResource)[keyof typeof SquareSyncPreviewResource];
+
+export const SquareSyncPreviewResource = {
+  customers: "customers",
+  catalog: "catalog",
+  inventory: "inventory",
+} as const;
+
+export interface SquareSyncPreview {
+  resource: SquareSyncPreviewResource;
+  remote: SquareRemoteObject[];
+  mappedSquareIds?: string[];
+  policy: string;
+}
+
+export interface SquareSyncApplyInput {
+  [key: string]: unknown;
+}
+
+export type SquareSyncApplyResultResource =
+  (typeof SquareSyncApplyResultResource)[keyof typeof SquareSyncApplyResultResource];
+
+export const SquareSyncApplyResultResource = {
+  customers: "customers",
+  catalog: "catalog",
+  inventory: "inventory",
+} as const;
+
+export interface SquareSyncApplyResult {
+  resource: SquareSyncApplyResultResource;
+  /** @minimum 0 */
+  applied: number;
+  policy: string;
+}
+
+export interface SquareWebhookEvent {
+  event_id: string;
+  type: string;
+  [key: string]: unknown;
+}
+
 export type ExportInvoicesCsvParams = {
   from?: string;
   to?: string;
