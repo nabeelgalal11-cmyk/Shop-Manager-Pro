@@ -10,7 +10,9 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "package": "com.motors915.mobile"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
