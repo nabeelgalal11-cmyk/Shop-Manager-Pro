@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/915motors-mobile/"
+title = "915motors Mobile"
+description = "A native companion app for 915motors staff to select invoices, collect in-person payments with a paired Square Reader, and see payment status synchronized with the main repair shop system."
+version = "1.0.0"
+id = "artifacts/915motors-mobile"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/915motors-mobile/" ]
+localPort = 22687
+
+[services.development]
+run = "pnpm --filter @workspace/915motors-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/915motors-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/915motors-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "22687"
+BASE_PATH = "/915motors-mobile/"

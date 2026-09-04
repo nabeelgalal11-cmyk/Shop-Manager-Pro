@@ -6,9 +6,11 @@ id = "2JDhtgNG8ksTqnziUT5lL"
 uri = "file://attached_assets/hostgator-php/shopos-storage.php.txt"
 type = "text"
 title = "shopos-storage.php (HARDENED — paste new token, rename to .php, re-upload)"
+logical_id = "7456e02b-b90e-4844-b866-6ffb8fe99dd4"
 
 [[outputs]]
 id = "btXrQUBDgnW-FvyDJUhKE"
 uri = "file://attached_assets/hostgator-php/shopos-storage.tar.gz"
 type = "unspecified"
 title = "shopos-storage.tar.gz (alternative archive)"
+logical_id = "1e5dea34-ad8a-4e6c-bf9a-4211e44bfd21"
