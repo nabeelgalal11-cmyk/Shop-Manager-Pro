@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PaymentMethod } from "./paymentMethod";
+import type { PaymentStatus } from "./paymentStatus";
 
 export interface Payment {
   id: number;
@@ -14,6 +15,8 @@ export interface Payment {
   method: PaymentMethod;
   referenceNumber?: string;
   notes?: string;
+  status?: PaymentStatus;
+  failureReason?: string;
   paidAt: Date;
   createdAt: Date;
 }

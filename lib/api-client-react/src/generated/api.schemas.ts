@@ -5,6 +5,40 @@
  * ShopOS Auto Repair Management API
  * OpenAPI spec version: 0.1.0
  */
+export interface AuthUser {
+  id: number;
+  username: string;
+  firstName: string;
+  lastName: string;
+  /** @nullable */
+  email?: string | null;
+  role: string;
+  roles: string[];
+  active: boolean;
+}
+
+export interface LoginInput {
+  /** @minLength 1 */
+  username: string;
+  /** @minLength 1 */
+  password: string;
+  mobile?: boolean;
+}
+
+export interface MobileLoginResponse {
+  user: AuthUser;
+  permissions: string[];
+  mobileToken?: string;
+  mobileTokenExpiresAt?: string;
+}
+
+export interface CurrentUserResponse {
+  user: AuthUser;
+  permissions: string[];
+  resources?: string[];
+  actions?: string[];
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -146,8 +180,18 @@ export const PaymentMethod = {
   debit_card: "debit_card",
   paypal: "paypal",
   square: "square",
+  square_pos: "square_pos",
+  square_terminal: "square_terminal",
   stripe: "stripe",
   other: "other",
+} as const;
+
+export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
+
+export const PaymentStatus = {
+  pending: "pending",
+  succeeded: "succeeded",
+  failed: "failed",
 } as const;
 
 export interface Payment {
@@ -157,6 +201,8 @@ export interface Payment {
   method: PaymentMethod;
   referenceNumber?: string;
   notes?: string;
+  status?: PaymentStatus;
+  failureReason?: string;
   paidAt: string;
   createdAt: string;
 }
@@ -1293,6 +1339,64 @@ export interface SquareInvoicePaymentInput {
 export interface SquarePaymentResult {
   paymentId: string;
   status: string;
+}
+
+export interface SquarePosPrepareInput {
+  /** @minimum 1 */
+  invoiceId: number;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  /** @minLength 1 */
+  locationId?: string;
+}
+
+export type SquarePosPrepareResultAmountMoneyCurrencyCode =
+  (typeof SquarePosPrepareResultAmountMoneyCurrencyCode)[keyof typeof SquarePosPrepareResultAmountMoneyCurrencyCode];
+
+export const SquarePosPrepareResultAmountMoneyCurrencyCode = {
+  USD: "USD",
+} as const;
+
+export type SquarePosPrepareResultAmountMoney = {
+  /** @minimum 1 */
+  amount: number;
+  currencyCode: SquarePosPrepareResultAmountMoneyCurrencyCode;
+};
+
+export type SquarePosPrepareResultOptions = {
+  supportedTenderTypes: string[];
+};
+
+export type SquarePosPrepareResultVersion =
+  (typeof SquarePosPrepareResultVersion)[keyof typeof SquarePosPrepareResultVersion];
+
+export const SquarePosPrepareResultVersion = {
+  "13": "1.3",
+} as const;
+
+export interface SquarePosPrepareResult {
+  amountMoney: SquarePosPrepareResultAmountMoney;
+  callbackUrl: string;
+  clientId: string;
+  options: SquarePosPrepareResultOptions;
+  version: SquarePosPrepareResultVersion;
+  locationId: string;
+  state: string;
+  notes: string;
+  expiresAt: string;
+}
+
+export interface SquarePosCompleteInput {
+  /** @minLength 1 */
+  state: string;
+  /** @minLength 1 */
+  paymentId: string;
+}
+
+export interface SquarePosCompleteResult {
+  paymentId: string;
+  status: string;
+  invoiceId: number;
 }
 
 export interface SquareTerminalCheckoutInput {

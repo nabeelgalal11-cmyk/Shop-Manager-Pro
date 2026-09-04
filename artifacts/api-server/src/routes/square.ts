@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { db, invoicesTable, paymentsTable, squareMappingsTable, squareRefundsTable, squareSyncStatesTable, squareTerminalCheckoutsTable } from "@workspace/db";
 import { ApplySquareSyncBody, ApplySquareSyncParams, ApplySquareSyncResponse, CancelSquareTerminalCheckoutParams, CancelSquareTerminalCheckoutResponse, CreateSquareInvoicePaymentBody, CreateSquareInvoicePaymentParams, CreateSquareTerminalCheckoutBody, CreateSquareRefundBody, GetSquareStatusResponse, GetSquareTerminalCheckoutParams, GetSquareTerminalCheckoutResponse, PreviewSquareSyncParams, PreviewSquareSyncResponse } from "@workspace/api-zod";
-import { requirePermission } from "../lib/auth.js";
+import { getUser, requirePermission } from "../lib/auth.js";
 import { SquareClient, SquareError, centsToDollars, dollarsToCents } from "../lib/square.js";
 import { reconcileInvoiceAccounting, reconcileSquarePayment } from "../lib/square-accounting.js";
 
@@ -12,6 +13,58 @@ const fail = (res: any, err: unknown) => {
   res.status(e.status).json({ error: e.message, code: e.code });
 };
 const client = () => new SquareClient();
+const POS_CALLBACK_URL = "motors915://square-callback";
+const POS_STATE_LIFETIME_MS = 10 * 60 * 1000;
+type PosState = {
+  invoiceId: number;
+  amountCents: number;
+  userId: number;
+  locationId: string;
+  nonce: string;
+  exp: number;
+};
+
+function stateSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new SquareError("SESSION_SECRET is required for mobile payments", 503);
+  }
+  return secret || "dev-only-insecure-secret";
+}
+
+function signPosState(payload: PosState): string {
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = createHmac("sha256", stateSecret()).update(encoded).digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function verifyPosState(value: string): PosState {
+  const [encoded, signature, extra] = value.split(".");
+  if (!encoded || !signature || extra) throw new SquareError("Invalid payment state", 400);
+  const expected = createHmac("sha256", stateSecret()).update(encoded).digest();
+  const actual = Buffer.from(signature, "base64url");
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    throw new SquareError("Invalid payment state", 400);
+  }
+  let payload: PosState;
+  try {
+    payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as PosState;
+  } catch {
+    throw new SquareError("Invalid payment state", 400);
+  }
+  if (
+    !Number.isSafeInteger(payload.invoiceId) ||
+    !Number.isSafeInteger(payload.amountCents) ||
+    !Number.isSafeInteger(payload.userId) ||
+    !Number.isSafeInteger(payload.exp) ||
+    !payload.locationId ||
+    !payload.nonce ||
+    payload.exp <= Date.now()
+  ) {
+    throw new SquareError("Payment state is invalid or expired", 400);
+  }
+  return payload;
+}
 function parsed<T>(result: { success: boolean; data?: T; error?: { message: string } }, res: any): T | null {
   if (result.success) return result.data as T;
   res.status(400).json({ error: result.error?.message ?? "Invalid request" });
@@ -42,6 +95,110 @@ router.post("/invoices/:invoiceId/payment", requirePermission("payments", "creat
     });
     res.status(201).json({ paymentId: payment.id, status: payment.status });
   } catch (err) { req.log?.warn({ err }, "Square invoice payment failed"); fail(res, err); }
+});
+
+router.post("/pos/prepare", requirePermission("payments", "create"), async (req, res): Promise<void> => {
+  try {
+    const invoiceId = Number(req.body?.invoiceId);
+    const amountCents = dollarsToCents(req.body?.amount);
+    const requestedLocationId = req.body?.locationId ? String(req.body.locationId) : null;
+    if (!Number.isSafeInteger(invoiceId) || invoiceId <= 0 || amountCents <= 0) {
+      throw new SquareError("A valid invoice and positive payment amount are required", 400);
+    }
+    const applicationId = process.env.SQUARE_APPLICATION_ID?.trim();
+    if (!applicationId) throw new SquareError("Square application ID is not configured", 503, "SQUARE_NOT_CONFIGURED");
+    const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+    if (!invoice) throw new SquareError("Invoice not found", 404);
+    if (invoice.status === "paid" || invoice.status === "void" || Number(invoice.balance) <= 0) {
+      throw new SquareError("Invoice is not open for payment", 409);
+    }
+    if (amountCents > dollarsToCents(invoice.balance)) {
+      throw new SquareError("Payment amount exceeds the outstanding invoice balance", 409);
+    }
+    const locations = (await client().locations()).locations;
+    const activeLocations = locations.filter((location) => location.status === "ACTIVE");
+    const location = requestedLocationId
+      ? activeLocations.find((candidate) => candidate.id === requestedLocationId)
+      : activeLocations[0];
+    if (!location?.id) throw new SquareError("No matching active Square location is available", 409);
+    const user = getUser(req)!;
+    const expiresAt = new Date(Date.now() + POS_STATE_LIFETIME_MS);
+    const statePayload: PosState = {
+      invoiceId,
+      amountCents,
+      userId: user.id,
+      locationId: location.id,
+      nonce: randomBytes(12).toString("base64url"),
+      exp: expiresAt.getTime(),
+    };
+    const notes = `Invoice ${invoice.invoiceNumber} [915:${statePayload.nonce}]`;
+    res.json({
+      amountMoney: { amount: amountCents, currencyCode: "USD" },
+      callbackUrl: POS_CALLBACK_URL,
+      clientId: applicationId,
+      options: { supportedTenderTypes: ["CREDIT_CARD"] },
+      version: "1.3",
+      locationId: location.id,
+      state: signPosState(statePayload),
+      notes,
+      expiresAt: expiresAt.toISOString(),
+    });
+  } catch (err) {
+    fail(res, err);
+  }
+});
+
+router.post("/pos/complete", requirePermission("payments", "create"), async (req, res): Promise<void> => {
+  try {
+    const state = verifyPosState(String(req.body?.state ?? ""));
+    const paymentId = String(req.body?.paymentId ?? "").trim();
+    if (!paymentId) throw new SquareError("Square payment ID is required", 400);
+    if (getUser(req)!.id !== state.userId) throw new SquareError("Payment state belongs to another user", 403);
+    let payment: any;
+    try {
+      payment = (await client().getPayment(paymentId)).payment;
+    } catch (err) {
+      if (err instanceof SquareError && (err.status === 404 || err.code === "NOT_FOUND")) {
+        throw new SquareError(
+          "Square returned a legacy transaction ID that cannot be verified through the Payments API; the invoice was not credited",
+          409,
+          "UNVERIFIABLE_POS_TRANSACTION",
+        );
+      }
+      throw err;
+    }
+    if (!payment?.id) throw new SquareError("Square payment could not be verified", 409);
+    if (payment.location_id !== state.locationId) throw new SquareError("Square payment location does not match", 409);
+    if (payment.amount_money?.currency !== "USD" || payment.amount_money?.amount !== state.amountCents) {
+      throw new SquareError("Square payment amount does not match", 409);
+    }
+    const marker = `[915:${state.nonce}]`;
+    if (!String(payment.note ?? "").includes(marker)) {
+      throw new SquareError("Square payment reference does not match", 409);
+    }
+    const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, state.invoiceId));
+    if (!invoice) throw new SquareError("Invoice not found", 404);
+    const [existing] = await db.select().from(paymentsTable).where(eq(paymentsTable.squarePaymentId, payment.id));
+    if (existing && existing.invoiceId !== state.invoiceId) {
+      throw new SquareError("Square payment is already associated with another invoice", 409);
+    }
+    await db.transaction(async (tx) => {
+      await tx.insert(paymentsTable).values({
+        invoiceId: state.invoiceId,
+        amount: "0",
+        method: "square_pos",
+        status: "pending",
+        referenceNumber: payment.id,
+        squarePaymentId: payment.id,
+        notes: `Square POS app switch ${marker}`,
+        paidAt: new Date(),
+      }).onConflictDoNothing();
+      await reconcileSquarePayment(tx, payment);
+    });
+    res.json({ paymentId: payment.id, status: payment.status, invoiceId: state.invoiceId });
+  } catch (err) {
+    fail(res, err);
+  }
 });
 
 router.post("/terminal/checkouts", requirePermission("payments", "create"), async (req, res): Promise<void> => {

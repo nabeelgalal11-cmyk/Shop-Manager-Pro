@@ -15,6 +15,8 @@ export const PaymentMethod = {
   debit_card: "debit_card",
   paypal: "paypal",
   square: "square",
+  square_pos: "square_pos",
+  square_terminal: "square_terminal",
   stripe: "stripe",
   other: "other",
 } as const;

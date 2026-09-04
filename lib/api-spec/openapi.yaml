@@ -7,6 +7,8 @@ servers:
   - url: /api
     description: Base API path
 tags:
+  - name: auth
+    description: Session and mobile bearer authentication
   - name: health
     description: Health operations
   - name: customers
@@ -53,6 +55,38 @@ tags:
     description: Square payment, Terminal, refund, and conservative synchronization operations
 
 paths:
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Sign in with optional mobile bearer token issuance
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileLoginResponse"
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUserResponse"
+
   # ---- EXPORTS / BOOKKEEPING ----
   /exports/invoices.csv:
     get:
@@ -2015,6 +2049,30 @@ paths:
         "201":
           description: Payment created
           content: { application/json: { schema: { $ref: "#/components/schemas/SquarePaymentResult" } } }
+  /square/pos/prepare:
+    post:
+      operationId: prepareSquarePosPayment
+      tags: [square]
+      summary: Prepare a signed Square Point of Sale app-switch payment
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SquarePosPrepareInput" } } }
+      responses:
+        "200":
+          description: Validated Point of Sale handoff fields
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquarePosPrepareResult" } } }
+  /square/pos/complete:
+    post:
+      operationId: completeSquarePosPayment
+      tags: [square]
+      summary: Verify and reconcile a returned Square Point of Sale payment
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SquarePosCompleteInput" } } }
+      responses:
+        "200":
+          description: Reconciled payment
+          content: { application/json: { schema: { $ref: "#/components/schemas/SquarePosCompleteResult" } } }
   /square/terminal/checkouts:
     post:
       operationId: createSquareTerminalCheckout
@@ -2111,6 +2169,41 @@ components:
       required: true
       schema: { type: string, enum: [customers, catalog, inventory] }
   schemas:
+    AuthUser:
+      type: object
+      required: [id, username, firstName, lastName, role, roles, active]
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: [string, "null"] }
+        role: { type: string }
+        roles: { type: array, items: { type: string } }
+        active: { type: boolean }
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1 }
+        password: { type: string, minLength: 1 }
+        mobile: { type: boolean, default: false }
+    MobileLoginResponse:
+      type: object
+      required: [user, permissions]
+      properties:
+        user: { $ref: "#/components/schemas/AuthUser" }
+        permissions: { type: array, items: { type: string } }
+        mobileToken: { type: string }
+        mobileTokenExpiresAt: { type: string, format: date-time }
+    CurrentUserResponse:
+      type: object
+      required: [user, permissions]
+      properties:
+        user: { $ref: "#/components/schemas/AuthUser" }
+        permissions: { type: array, items: { type: string } }
+        resources: { type: array, items: { type: string } }
+        actions: { type: array, items: { type: string } }
     HealthStatus:
       type: object
       properties:
@@ -3667,10 +3760,15 @@ components:
           type: number
         method:
           type: string
-          enum: [cash, check, credit_card, debit_card, paypal, square, stripe, other]
+          enum: [cash, check, credit_card, debit_card, paypal, square, square_pos, square_terminal, stripe, other]
         referenceNumber:
           type: string
         notes:
+          type: string
+        status:
+          type: string
+          enum: [pending, succeeded, failed]
+        failureReason:
           type: string
         paidAt:
           type: string
@@ -4350,6 +4448,48 @@ components:
       properties:
         paymentId: { type: string }
         status: { type: string }
+    SquarePosPrepareInput:
+      type: object
+      required: [invoiceId, amount]
+      properties:
+        invoiceId: { type: integer, minimum: 1 }
+        amount: { type: number, exclusiveMinimum: 0 }
+        locationId: { type: string, minLength: 1 }
+    SquarePosPrepareResult:
+      type: object
+      required: [amountMoney, callbackUrl, clientId, options, version, locationId, state, notes, expiresAt]
+      properties:
+        amountMoney:
+          type: object
+          required: [amount, currencyCode]
+          properties:
+            amount: { type: integer, minimum: 1 }
+            currencyCode: { type: string, enum: [USD] }
+        callbackUrl: { type: string }
+        clientId: { type: string }
+        options:
+          type: object
+          required: [supportedTenderTypes]
+          properties:
+            supportedTenderTypes: { type: array, items: { type: string } }
+        version: { type: string, enum: ["1.3"] }
+        locationId: { type: string }
+        state: { type: string }
+        notes: { type: string }
+        expiresAt: { type: string, format: date-time }
+    SquarePosCompleteInput:
+      type: object
+      required: [state, paymentId]
+      properties:
+        state: { type: string, minLength: 1 }
+        paymentId: { type: string, minLength: 1 }
+    SquarePosCompleteResult:
+      type: object
+      required: [paymentId, status, invoiceId]
+      properties:
+        paymentId: { type: string }
+        status: { type: string }
+        invoiceId: { type: integer }
     SquareTerminalCheckoutInput:
       type: object
       required: [invoiceId, deviceId]

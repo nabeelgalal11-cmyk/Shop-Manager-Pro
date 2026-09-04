@@ -2,13 +2,13 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, employeesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { getUser, recordLogin, requireAuth } from "../lib/auth.js";
+import { getUser, issueMobileToken, recordLogin, requireAuth } from "../lib/auth.js";
 import { getPermissionsForRoles, RESOURCES, ACTIONS } from "../lib/permissions.js";
 
 const router: Router = Router();
 
 router.post("/login", async (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, password, mobile } = req.body || {};
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password required" });
   }
@@ -36,6 +36,7 @@ router.post("/login", async (req, res) => {
 
   const roles = emp.roles && emp.roles.length > 0 ? emp.roles : [emp.role];
   const permsSet = await getPermissionsForRoles(roles);
+  const mobileAuth = mobile === true ? issueMobileToken(emp.id) : null;
   res.json({
     user: {
       id: emp.id,
@@ -48,6 +49,10 @@ router.post("/login", async (req, res) => {
       active: emp.active,
     },
     permissions: Array.from(permsSet),
+    ...(mobileAuth ? {
+      mobileToken: mobileAuth.token,
+      mobileTokenExpiresAt: mobileAuth.expiresAt.toISOString(),
+    } : {}),
   });
 });
 

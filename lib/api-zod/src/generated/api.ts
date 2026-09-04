@@ -8,6 +8,53 @@
 import * as zod from "zod";
 
 /**
+ * @summary Sign in with optional mobile bearer token issuance
+ */
+
+export const loginBodyMobileDefault = false;
+
+export const LoginBody = zod.object({
+  username: zod.string().min(1),
+  password: zod.string().min(1),
+  mobile: zod.boolean().default(loginBodyMobileDefault),
+});
+
+export const LoginResponse = zod.object({
+  user: zod.object({
+    id: zod.number(),
+    username: zod.string(),
+    firstName: zod.string(),
+    lastName: zod.string(),
+    email: zod.string().nullish(),
+    role: zod.string(),
+    roles: zod.array(zod.string()),
+    active: zod.boolean(),
+  }),
+  permissions: zod.array(zod.string()),
+  mobileToken: zod.string().optional(),
+  mobileTokenExpiresAt: zod.coerce.date().optional(),
+});
+
+/**
+ * @summary Get the authenticated user
+ */
+export const GetCurrentUserResponse = zod.object({
+  user: zod.object({
+    id: zod.number(),
+    username: zod.string(),
+    firstName: zod.string(),
+    lastName: zod.string(),
+    email: zod.string().nullish(),
+    role: zod.string(),
+    roles: zod.array(zod.string()),
+    active: zod.boolean(),
+  }),
+  permissions: zod.array(zod.string()),
+  resources: zod.array(zod.string()).optional(),
+  actions: zod.array(zod.string()).optional(),
+});
+
+/**
  * @summary Download invoices as CSV (QuickBooks-friendly)
  */
 export const ExportInvoicesCsvQueryParams = zod.object({
@@ -320,11 +367,15 @@ export const GetCustomerStatementResponse = zod.object({
               "debit_card",
               "paypal",
               "square",
+              "square_pos",
+              "square_terminal",
               "stripe",
               "other",
             ]),
             referenceNumber: zod.string().optional(),
             notes: zod.string().optional(),
+            status: zod.enum(["pending", "succeeded", "failed"]).optional(),
+            failureReason: zod.string().optional(),
             paidAt: zod.coerce.date(),
             createdAt: zod.coerce.date(),
           }),
@@ -1189,11 +1240,15 @@ export const GetInvoicesResponse = zod.object({
               "debit_card",
               "paypal",
               "square",
+              "square_pos",
+              "square_terminal",
               "stripe",
               "other",
             ]),
             referenceNumber: zod.string().optional(),
             notes: zod.string().optional(),
+            status: zod.enum(["pending", "succeeded", "failed"]).optional(),
+            failureReason: zod.string().optional(),
             paidAt: zod.coerce.date(),
             createdAt: zod.coerce.date(),
           }),
@@ -1369,11 +1424,15 @@ export const GetInvoiceResponse = zod.object({
           "debit_card",
           "paypal",
           "square",
+          "square_pos",
+          "square_terminal",
           "stripe",
           "other",
         ]),
         referenceNumber: zod.string().optional(),
         notes: zod.string().optional(),
+        status: zod.enum(["pending", "succeeded", "failed"]).optional(),
+        failureReason: zod.string().optional(),
         paidAt: zod.coerce.date(),
         createdAt: zod.coerce.date(),
       }),
@@ -1541,11 +1600,15 @@ export const UpdateInvoiceResponse = zod.object({
           "debit_card",
           "paypal",
           "square",
+          "square_pos",
+          "square_terminal",
           "stripe",
           "other",
         ]),
         referenceNumber: zod.string().optional(),
         notes: zod.string().optional(),
+        status: zod.enum(["pending", "succeeded", "failed"]).optional(),
+        failureReason: zod.string().optional(),
         paidAt: zod.coerce.date(),
         createdAt: zod.coerce.date(),
       }),
@@ -3613,11 +3676,15 @@ export const GetPaymentsResponse = zod.object({
         "debit_card",
         "paypal",
         "square",
+        "square_pos",
+        "square_terminal",
         "stripe",
         "other",
       ]),
       referenceNumber: zod.string().optional(),
       notes: zod.string().optional(),
+      status: zod.enum(["pending", "succeeded", "failed"]).optional(),
+      failureReason: zod.string().optional(),
       paidAt: zod.coerce.date(),
       createdAt: zod.coerce.date(),
     }),
@@ -3666,11 +3733,15 @@ export const GetPaymentResponse = zod.object({
     "debit_card",
     "paypal",
     "square",
+    "square_pos",
+    "square_terminal",
     "stripe",
     "other",
   ]),
   referenceNumber: zod.string().optional(),
   notes: zod.string().optional(),
+  status: zod.enum(["pending", "succeeded", "failed"]).optional(),
+  failureReason: zod.string().optional(),
   paidAt: zod.coerce.date(),
   createdAt: zod.coerce.date(),
 });
@@ -4563,6 +4634,50 @@ export const CreateSquareInvoicePaymentParams = zod.object({
 export const CreateSquareInvoicePaymentBody = zod.object({
   sourceId: zod.string().min(1),
   locationId: zod.string().min(1),
+});
+
+/**
+ * @summary Prepare a signed Square Point of Sale app-switch payment
+ */
+
+export const prepareSquarePosPaymentBodyAmountExclusiveMin = 0;
+
+export const PrepareSquarePosPaymentBody = zod.object({
+  invoiceId: zod.number().min(1),
+  amount: zod.number().gt(prepareSquarePosPaymentBodyAmountExclusiveMin),
+  locationId: zod.string().min(1).optional(),
+});
+
+export const PrepareSquarePosPaymentResponse = zod.object({
+  amountMoney: zod.object({
+    amount: zod.number().min(1),
+    currencyCode: zod.enum(["USD"]),
+  }),
+  callbackUrl: zod.string(),
+  clientId: zod.string(),
+  options: zod.object({
+    supportedTenderTypes: zod.array(zod.string()),
+  }),
+  version: zod.enum(["1.3"]),
+  locationId: zod.string(),
+  state: zod.string(),
+  notes: zod.string(),
+  expiresAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Verify and reconcile a returned Square Point of Sale payment
+ */
+
+export const CompleteSquarePosPaymentBody = zod.object({
+  state: zod.string().min(1),
+  paymentId: zod.string().min(1),
+});
+
+export const CompleteSquarePosPaymentResponse = zod.object({
+  paymentId: zod.string(),
+  status: zod.string(),
+  invoiceId: zod.number(),
 });
 
 /**

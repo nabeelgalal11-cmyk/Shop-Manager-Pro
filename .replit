@@ -32,3 +32,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 HOSTGATOR_PUBLIC_BASE_URL = "https://Znmotors.com"
+SQUARE_APPLICATION_ID = "sq0idp-ZBXRyzxhOfjb-s7CD-PxWg"

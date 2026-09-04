@@ -37,6 +37,7 @@ import type {
   CreateRepairOrderInput,
   CreateSupplierInput,
   CreateVehicleInput,
+  CurrentUserResponse,
   Customer,
   CustomerListResponse,
   CustomerStatement,
@@ -78,6 +79,8 @@ import type {
   InventoryListResponse,
   Invoice,
   InvoiceListResponse,
+  LoginInput,
+  MobileLoginResponse,
   Payment,
   PaymentListResponse,
   Reminder,
@@ -92,6 +95,10 @@ import type {
   ServiceHistoryEntry,
   SquareInvoicePaymentInput,
   SquarePaymentResult,
+  SquarePosCompleteInput,
+  SquarePosCompleteResult,
+  SquarePosPrepareInput,
+  SquarePosPrepareResult,
   SquareRefundInput,
   SquareRefundResult,
   SquareRemoteObject,
@@ -127,6 +134,167 @@ type AwaitedInput<T> = PromiseLike<T> | T;
 type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+/**
+ * @summary Sign in with optional mobile bearer token issuance
+ */
+export const getLoginUrl = () => {
+  return `/api/auth/login`;
+};
+
+export const login = async (
+  loginInput: LoginInput,
+  options?: RequestInit,
+): Promise<MobileLoginResponse> => {
+  return customFetch<MobileLoginResponse>(getLoginUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(loginInput),
+  });
+};
+
+export const getLoginMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof login>>,
+    TError,
+    { data: BodyType<LoginInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof login>>,
+  TError,
+  { data: BodyType<LoginInput> },
+  TContext
+> => {
+  const mutationKey = ["login"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof login>>,
+    { data: BodyType<LoginInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return login(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type LoginMutationResult = NonNullable<
+  Awaited<ReturnType<typeof login>>
+>;
+export type LoginMutationBody = BodyType<LoginInput>;
+export type LoginMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Sign in with optional mobile bearer token issuance
+ */
+export const useLogin = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof login>>,
+    TError,
+    { data: BodyType<LoginInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof login>>,
+  TError,
+  { data: BodyType<LoginInput> },
+  TContext
+> => {
+  return useMutation(getLoginMutationOptions(options));
+};
+
+/**
+ * @summary Get the authenticated user
+ */
+export const getGetCurrentUserUrl = () => {
+  return `/api/auth/me`;
+};
+
+export const getCurrentUser = async (
+  options?: RequestInit,
+): Promise<CurrentUserResponse> => {
+  return customFetch<CurrentUserResponse>(getGetCurrentUserUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCurrentUserQueryKey = () => {
+  return [`/api/auth/me`] as const;
+};
+
+export const getGetCurrentUserQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCurrentUser>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCurrentUser>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCurrentUserQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentUser>>> = ({
+    signal,
+  }) => getCurrentUser({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCurrentUser>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCurrentUserQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCurrentUser>>
+>;
+export type GetCurrentUserQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get the authenticated user
+ */
+
+export function useGetCurrentUser<
+  TData = Awaited<ReturnType<typeof getCurrentUser>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCurrentUser>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCurrentUserQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Download invoices as CSV (QuickBooks-friendly)
@@ -8509,6 +8677,183 @@ export const useCreateSquareInvoicePayment = <
   TContext
 > => {
   return useMutation(getCreateSquareInvoicePaymentMutationOptions(options));
+};
+
+/**
+ * @summary Prepare a signed Square Point of Sale app-switch payment
+ */
+export const getPrepareSquarePosPaymentUrl = () => {
+  return `/api/square/pos/prepare`;
+};
+
+export const prepareSquarePosPayment = async (
+  squarePosPrepareInput: SquarePosPrepareInput,
+  options?: RequestInit,
+): Promise<SquarePosPrepareResult> => {
+  return customFetch<SquarePosPrepareResult>(getPrepareSquarePosPaymentUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(squarePosPrepareInput),
+  });
+};
+
+export const getPrepareSquarePosPaymentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof prepareSquarePosPayment>>,
+    TError,
+    { data: BodyType<SquarePosPrepareInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof prepareSquarePosPayment>>,
+  TError,
+  { data: BodyType<SquarePosPrepareInput> },
+  TContext
+> => {
+  const mutationKey = ["prepareSquarePosPayment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof prepareSquarePosPayment>>,
+    { data: BodyType<SquarePosPrepareInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return prepareSquarePosPayment(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PrepareSquarePosPaymentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof prepareSquarePosPayment>>
+>;
+export type PrepareSquarePosPaymentMutationBody =
+  BodyType<SquarePosPrepareInput>;
+export type PrepareSquarePosPaymentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Prepare a signed Square Point of Sale app-switch payment
+ */
+export const usePrepareSquarePosPayment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof prepareSquarePosPayment>>,
+    TError,
+    { data: BodyType<SquarePosPrepareInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof prepareSquarePosPayment>>,
+  TError,
+  { data: BodyType<SquarePosPrepareInput> },
+  TContext
+> => {
+  return useMutation(getPrepareSquarePosPaymentMutationOptions(options));
+};
+
+/**
+ * @summary Verify and reconcile a returned Square Point of Sale payment
+ */
+export const getCompleteSquarePosPaymentUrl = () => {
+  return `/api/square/pos/complete`;
+};
+
+export const completeSquarePosPayment = async (
+  squarePosCompleteInput: SquarePosCompleteInput,
+  options?: RequestInit,
+): Promise<SquarePosCompleteResult> => {
+  return customFetch<SquarePosCompleteResult>(
+    getCompleteSquarePosPaymentUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(squarePosCompleteInput),
+    },
+  );
+};
+
+export const getCompleteSquarePosPaymentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeSquarePosPayment>>,
+    TError,
+    { data: BodyType<SquarePosCompleteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeSquarePosPayment>>,
+  TError,
+  { data: BodyType<SquarePosCompleteInput> },
+  TContext
+> => {
+  const mutationKey = ["completeSquarePosPayment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeSquarePosPayment>>,
+    { data: BodyType<SquarePosCompleteInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return completeSquarePosPayment(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteSquarePosPaymentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeSquarePosPayment>>
+>;
+export type CompleteSquarePosPaymentMutationBody =
+  BodyType<SquarePosCompleteInput>;
+export type CompleteSquarePosPaymentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Verify and reconcile a returned Square Point of Sale payment
+ */
+export const useCompleteSquarePosPayment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeSquarePosPayment>>,
+    TError,
+    { data: BodyType<SquarePosCompleteInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeSquarePosPayment>>,
+  TError,
+  { data: BodyType<SquarePosCompleteInput> },
+  TContext
+> => {
+  return useMutation(getCompleteSquarePosPaymentMutationOptions(options));
 };
 
 /**

@@ -3,6 +3,7 @@ import createMemoryStore from "memorystore";
 import type { RequestHandler, Request, Response, NextFunction } from "express";
 import { db, employeesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { getPermissionsForRoles, hasPermission, type Resource, type Action } from "./permissions.js";
 
 const MemoryStore = createMemoryStore(session);
@@ -28,6 +29,41 @@ const isProd = process.env.NODE_ENV === "production";
 const sessionSecret = process.env.SESSION_SECRET;
 if (isProd && !sessionSecret) {
   throw new Error("SESSION_SECRET environment variable is required in production");
+}
+
+const MOBILE_TOKEN_LIFETIME_SECONDS = 60 * 60 * 24 * 7;
+type MobileTokenPayload = { sub: number; exp: number; typ: "mobile" };
+
+function authSecret(): string {
+  return sessionSecret || "dev-only-insecure-secret";
+}
+
+export function issueMobileToken(userId: number): { token: string; expiresAt: Date } {
+  const expiresAt = new Date(Date.now() + MOBILE_TOKEN_LIFETIME_SECONDS * 1000);
+  const payload: MobileTokenPayload = {
+    sub: userId,
+    exp: Math.floor(expiresAt.getTime() / 1000),
+    typ: "mobile",
+  };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = createHmac("sha256", authSecret()).update(encoded).digest("base64url");
+  return { token: `${encoded}.${signature}`, expiresAt };
+}
+
+function verifyMobileToken(token: string): MobileTokenPayload | null {
+  const [encoded, signature, extra] = token.split(".");
+  if (!encoded || !signature || extra) return null;
+  const expected = createHmac("sha256", authSecret()).update(encoded).digest();
+  const actual = Buffer.from(signature, "base64url");
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as MobileTokenPayload;
+    if (payload.typ !== "mobile" || !Number.isSafeInteger(payload.sub) || payload.sub <= 0) return null;
+    if (!Number.isSafeInteger(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 export const sessionMiddleware: RequestHandler = session({
@@ -73,11 +109,15 @@ async function loadUser(userId: number): Promise<AuthUser | null> {
 }
 
 export const attachUser: RequestHandler = async (req, _res, next) => {
-  if (req.session?.userId) {
-    const user = await loadUser(req.session.userId);
+  const authorization = req.get("authorization");
+  const bearer = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
+  const tokenPayload = bearer ? verifyMobileToken(bearer) : null;
+  const userId = bearer ? tokenPayload?.sub : req.session?.userId;
+  if (userId) {
+    const user = await loadUser(userId);
     if (user && user.active) {
       (req as any).user = user;
-    } else {
+    } else if (!bearer) {
       req.session.userId = undefined;
     }
   }
