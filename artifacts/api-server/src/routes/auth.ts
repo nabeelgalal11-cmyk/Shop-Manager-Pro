@@ -20,6 +20,26 @@ function isPrivileged(emp: { role: string; roles: string[] }, role: string): boo
   return roles.some((value) => value.toLowerCase() === role);
 }
 
+function getPublicOrigin(req: Parameters<Parameters<Router["post"]>[1]>[0]): string {
+  const configuredBaseUrl = process.env.PUBLIC_BASE_URL?.trim();
+  if (configuredBaseUrl) {
+    try {
+      const parsed = new URL(configuredBaseUrl);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return parsed.origin;
+      }
+    } catch {
+      // Fall back to the current request origin when the configured value is invalid.
+    }
+  }
+
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || req.get("host");
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  return `${protocol}://${host}`;
+}
+
 router.post("/forgot-password", async (req, res) => {
   const rawIdentifier = req.body?.identifier;
   const identifier = typeof rawIdentifier === "string" ? rawIdentifier.trim().toLowerCase() : "";
@@ -71,7 +91,7 @@ router.post("/forgot-password", async (req, res) => {
             expiresAt,
           });
         });
-        const origin = `${req.protocol}://${req.get("host")}`;
+        const origin = getPublicOrigin(req);
         const resetUrl = escapeHtml(`${origin}/reset-password?token=${encodeURIComponent(rawToken)}`);
         try {
           const result = await sendTemplatedEmail("password_reset_self_service", requester.email, {

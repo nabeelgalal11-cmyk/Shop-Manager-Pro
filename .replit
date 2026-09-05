@@ -32,5 +32,6 @@ channel = "stable-25_05"
 
 [userenv.shared]
 HOSTGATOR_PUBLIC_BASE_URL = "https://Znmotors.com"
+PUBLIC_BASE_URL = "https://shop-manager-pro.replit.app"
 SQUARE_APPLICATION_ID = "sq0idp-ZBXRyzxhOfjb-s7CD-PxWg"
 SQUARE_ENVIRONMENT = "production"
