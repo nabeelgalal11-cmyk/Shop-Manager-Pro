@@ -297,7 +297,14 @@ export async function sendTemplatedEmail(
   const subject = render(tpl.subject, vars);
   const html = render(tpl.bodyHtml, vars);
   const fromName = tpl.fromName || "915motors";
-  const fromEmailRaw = tpl.fromEmail || process.env.SMTP_FROM || process.env.SMTP_USER || "onboarding@resend.dev";
+  // Allow production to override an older persisted template sender. Existing
+  // templates may still contain onboarding@resend.dev from Resend test mode.
+  const fromEmailRaw =
+    process.env.RESEND_FROM_EMAIL?.trim() ||
+    process.env.SMTP_FROM?.trim() ||
+    process.env.SMTP_USER?.trim() ||
+    tpl.fromEmail ||
+    "onboarding@resend.dev";
   const from = `${fromName} <${fromEmailRaw}>`;
 
   // Prefer Resend when configured (better Gmail deliverability than shared-host SMTP)
