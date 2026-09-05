@@ -28,3 +28,93 @@
     "ssh2"
   ]
 }
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "start": "tsx index.ts",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "db:push:local": "pnpm exec drizzle-kit push --config=lib/db/drizzle.config.ts",
+    "db:push:prod": "pnpm exec drizzle-kit push --config=artifacts/api-server/drizzle.config.ts"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1",
+    "tsx": "^3.12.0",
+    "typescript": "~5.9.2"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2"
+  },
+  "overrides": {
+    "drizzle-orm": "0.45.2"
+  },
+  "onlyBuiltDependencies": [
+    "cpu-features",
+    "esbuild",
+    "ssh2"
+  ]
+}
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "start": "tsx index.ts",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "db:push:local": "pnpm exec drizzle-kit push --config=lib/db/drizzle.config.ts",
+    "db:push:prod": "pnpm exec drizzle-kit push --config=artifacts/api-server/drizzle.config.ts"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1",
+    "tsx": "^3.12.0",
+    "typescript": "~5.9.2"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2"
+  },
+  "overrides": {
+    "drizzle-orm": "0.45.2"
+  },
+  "onlyBuiltDependencies": [
+    "cpu-features",
+    "esbuild",
+    "ssh2"
+  ]
+}
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "start": "tsx index.ts",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "db:push:local": "pnpm exec drizzle-kit push --config=lib/db/drizzle.config.ts",
+    "db:push:prod": "pnpm exec drizzle-kit push --config=artifacts/api-server/drizzle.config.ts"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1",
+    "tsx": "^3.12.0",
+    "typescript": "~5.9.2"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2"
+  },
+  "overrides": {
+    "drizzle-orm": "0.45.2"
+  },
+  "onlyBuiltDependencies": [
+    "cpu-features",
+    "esbuild",
+    "ssh2"
+  ]
+}
