@@ -62,6 +62,8 @@ export * from "./exportCogsJournalCsvParams";
 export * from "./exportExpensesCsvParams";
 export * from "./exportInvoicesCsvParams";
 export * from "./exportPaymentsCsvParams";
+export * from "./forgotPasswordInput";
+export * from "./forgotPasswordResponse";
 export * from "./fromReorderInput";
 export * from "./fromReorderInputItemsItem";
 export * from "./getActivityEntityType";

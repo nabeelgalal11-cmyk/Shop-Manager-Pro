@@ -74,6 +74,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MobileLoginResponse"
+  /auth/forgot-password:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request that staff manually reset a password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "200":
+          description: Generic confirmation (does not disclose account existence)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordResponse"
   /auth/me:
     get:
       operationId: getCurrentUser
@@ -2188,6 +2207,17 @@ components:
         username: { type: string, minLength: 1 }
         password: { type: string, minLength: 1 }
         mobile: { type: boolean, default: false }
+    ForgotPasswordInput:
+      type: object
+      required: [identifier]
+      properties:
+        identifier: { type: string, minLength: 1, maxLength: 254, description: Username or email address }
+    ForgotPasswordResponse:
+      type: object
+      required: [ok, message]
+      properties:
+        ok: { type: boolean, example: true }
+        message: { type: string }
     MobileLoginResponse:
       type: object
       required: [user, permissions]

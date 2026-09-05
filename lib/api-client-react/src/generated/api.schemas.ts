@@ -25,6 +25,20 @@ export interface LoginInput {
   mobile?: boolean;
 }
 
+export interface ForgotPasswordInput {
+  /**
+   * Username or email address
+   * @minLength 1
+   * @maxLength 254
+   */
+  identifier: string;
+}
+
+export interface ForgotPasswordResponse {
+  ok: boolean;
+  message: string;
+}
+
 export interface MobileLoginResponse {
   user: AuthUser;
   permissions: string[];

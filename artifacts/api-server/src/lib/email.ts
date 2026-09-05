@@ -191,6 +191,23 @@ const DEFAULT_TEMPLATES = [
       Thank you for your business — {{shopName}}
     </p>`),
   },
+  {
+    key: "password_reset_request",
+    name: "Password Reset Request",
+    subject: "Password reset request for {{requesterUsername}}",
+    fromName: "915motors",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
+    enabled: "true",
+    bodyHtml: cardWrap("#b91c1c", "Password Reset Request", `
+    <p>A user has requested a password reset. No password or reset link was generated.</p>
+    <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
+      <tr><td style="padding: 8px 0; color: #6b7280;">Username</td><td style="padding: 8px 0; font-weight: bold;">{{requesterUsername}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Name</td><td style="padding: 8px 0; font-weight: bold;">{{requesterName}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Email</td><td style="padding: 8px 0; font-weight: bold;">{{requesterEmail}}</td></tr>
+      <tr><td style="padding: 8px 0; color: #6b7280;">Requested at</td><td style="padding: 8px 0; font-weight: bold;">{{requestedAt}}</td></tr>
+    </table>
+    <p>Use the authenticated Users page to manually set a new password for this user. Do not send passwords by email.</p>`),
+  },
 ];
 
 export async function seedEmailTemplates() {
@@ -235,6 +252,17 @@ export interface AppointmentEmailVars {
   serviceType: string;
   vehicleInfo: string;
   notes: string;
+}
+
+/** Escape values used in HTML email templates. */
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] || character);
 }
 
 function render(tpl: string, vars: Record<string, string>): string {

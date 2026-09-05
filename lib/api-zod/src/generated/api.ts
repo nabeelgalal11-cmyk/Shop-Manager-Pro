@@ -36,6 +36,24 @@ export const LoginResponse = zod.object({
 });
 
 /**
+ * @summary Request that staff manually reset a password
+ */
+export const requestPasswordResetBodyIdentifierMax = 254;
+
+export const RequestPasswordResetBody = zod.object({
+  identifier: zod
+    .string()
+    .min(1)
+    .max(requestPasswordResetBodyIdentifierMax)
+    .describe("Username or email address"),
+});
+
+export const RequestPasswordResetResponse = zod.object({
+  ok: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
  * @summary Get the authenticated user
  */
 export const GetCurrentUserResponse = zod.object({

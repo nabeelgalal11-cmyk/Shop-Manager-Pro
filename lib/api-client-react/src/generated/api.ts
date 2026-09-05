@@ -52,6 +52,8 @@ import type {
   ExportExpensesCsvParams,
   ExportInvoicesCsvParams,
   ExportPaymentsCsvParams,
+  ForgotPasswordInput,
+  ForgotPasswordResponse,
   FromReorderInput,
   GetActivityParams,
   GetAppointmentsParams,
@@ -219,6 +221,92 @@ export const useLogin = <
   TContext
 > => {
   return useMutation(getLoginMutationOptions(options));
+};
+
+/**
+ * @summary Request that staff manually reset a password
+ */
+export const getRequestPasswordResetUrl = () => {
+  return `/api/auth/forgot-password`;
+};
+
+export const requestPasswordReset = async (
+  forgotPasswordInput: ForgotPasswordInput,
+  options?: RequestInit,
+): Promise<ForgotPasswordResponse> => {
+  return customFetch<ForgotPasswordResponse>(getRequestPasswordResetUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(forgotPasswordInput),
+  });
+};
+
+export const getRequestPasswordResetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestPasswordReset>>,
+    TError,
+    { data: BodyType<ForgotPasswordInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestPasswordReset>>,
+  TError,
+  { data: BodyType<ForgotPasswordInput> },
+  TContext
+> => {
+  const mutationKey = ["requestPasswordReset"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestPasswordReset>>,
+    { data: BodyType<ForgotPasswordInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestPasswordReset(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestPasswordResetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestPasswordReset>>
+>;
+export type RequestPasswordResetMutationBody = BodyType<ForgotPasswordInput>;
+export type RequestPasswordResetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Request that staff manually reset a password
+ */
+export const useRequestPasswordReset = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestPasswordReset>>,
+    TError,
+    { data: BodyType<ForgotPasswordInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestPasswordReset>>,
+  TError,
+  { data: BodyType<ForgotPasswordInput> },
+  TContext
+> => {
+  return useMutation(getRequestPasswordResetMutationOptions(options));
 };
 
 /**
