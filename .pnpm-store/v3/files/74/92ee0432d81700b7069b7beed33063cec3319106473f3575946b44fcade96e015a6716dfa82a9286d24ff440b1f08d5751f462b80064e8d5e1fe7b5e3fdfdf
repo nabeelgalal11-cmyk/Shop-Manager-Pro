@@ -1,0 +1,19 @@
+<p align="center">
+  <a href="https://launch.dev">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://launch.dev/images/readme-banner-dark.png">
+      <img alt="npx create-launch - get your app to the app stores" src="https://launch.dev/images/readme-banner-light.png">
+    </picture>
+  </a>
+</p>
+
+```bash
+# Launch your app, or launch from a monorepo
+npx create-launch@latest
+npx create-launch@latest --project ./apps/expo
+
+# More info
+npx create-launch@latest --help
+bun create launch --help
+pnpm create launch --help
+```

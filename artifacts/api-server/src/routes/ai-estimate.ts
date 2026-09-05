@@ -3,10 +3,16 @@ import OpenAI from "openai";
 
 const router: IRouter = Router();
 
-const openai = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-});
+let _openai: OpenAI | null = null;
+function getOpenAI() {
+  if (!_openai) {
+    _openai = new OpenAI({
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    });
+  }
+  return _openai;
+}
 
 router.post("/", async (req, res) => {
   const { vehicle, repair } = req.body;
@@ -48,7 +54,7 @@ Rules:
 - Be practical. Consider rust, access difficulty, and real shop conditions.`;
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: "gpt-5.2",
       max_completion_tokens: 1024,
       messages: [{ role: "user", content: prompt }],
