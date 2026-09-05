@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { db, employeesTable, passwordResetTokensTable } from "@workspace/db";
@@ -20,7 +20,13 @@ function isPrivileged(emp: { role: string; roles: string[] }, role: string): boo
   return roles.some((value) => value.toLowerCase() === role);
 }
 
-function getPublicOrigin(req: Parameters<Parameters<Router["post"]>[1]>[0]): string {
+function getPublicOrigin(req: Request): string {
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || req.get("host");
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  if (host) return `${protocol}://${host}`;
+
   const configuredBaseUrl = process.env.PUBLIC_BASE_URL?.trim();
   if (configuredBaseUrl) {
     try {
@@ -29,15 +35,11 @@ function getPublicOrigin(req: Parameters<Parameters<Router["post"]>[1]>[0]): str
         return parsed.origin;
       }
     } catch {
-      // Fall back to the current request origin when the configured value is invalid.
+      // Fall through to the request protocol if the fallback is invalid.
     }
   }
 
-  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const host = forwardedHost || req.get("host");
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const protocol = forwardedProto || req.protocol;
-  return `${protocol}://${host}`;
+  return `${protocol}://localhost`;
 }
 
 router.post("/forgot-password", async (req, res) => {
