@@ -1,3 +1,4 @@
 - [DB env vars](db-env-vars.md) — API server uses DATABASE_URL; NEON_DATABASE_URL is a separate connection; always run migrations against DATABASE_URL
+- [Reset-token migrations](reset-token-migrations.md) — a successful migration against the wrong database can leave password recovery returning generic success while token queries fail
 - [PartsTech API access](partstech-api-access.md) — direct catalog pricing requires both shop credentials and PartsTech-issued management-system partner credentials
 - [Square phone-reader payments](square-phone-reader-payments.md) — use Square POS app switching with the existing phone-paired reader; verify returned payments server-side
