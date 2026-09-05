@@ -1,0 +1,12 @@
+FROM node:22-slim
+
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    build-essential \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable pnpm
+RUN printf "dangerously-allow-all-builds=true\nverify-deps-before-run=false\n" > /root/.npmrc
+
+WORKDIR /app

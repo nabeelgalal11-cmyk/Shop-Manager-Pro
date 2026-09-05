@@ -20,6 +20,13 @@ export default defineConfig({
   },
   server: {
     allowedHosts: true,
+    host: "0.0.0.0",
+    proxy: {
+      "/api": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+      },
+    },
   },
   root: path.resolve(import.meta.dirname),
   build: {

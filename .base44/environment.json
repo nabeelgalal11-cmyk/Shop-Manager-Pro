@@ -1,0 +1,18 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    { "name": "DATABASE_URL", "description": "PostgreSQL connection string (Neon or compatible)", "requiredAtBoot": true },
+    { "name": "SESSION_SECRET", "description": "Express session secret", "requiredAtBoot": false },
+    { "name": "OPENAI_API_KEY", "description": "OpenAI API key for AI estimate features", "requiredAtBoot": false },
+    { "name": "RESEND_API_KEY", "description": "Resend API key for email", "requiredAtBoot": false },
+    { "name": "RESEND_FROM_EMAIL", "description": "From email address for Resend", "requiredAtBoot": false },
+    { "name": "SMTP_FROM", "description": "From email address for SMTP", "requiredAtBoot": false },
+    { "name": "HOSTGATOR_STORAGE_TOKEN", "description": "HostGator storage API token", "requiredAtBoot": false },
+    { "name": "HOSTGATOR_PUBLIC_BASE_URL", "description": "HostGator public base URL for file storage", "requiredAtBoot": false },
+    { "name": "APPOINTMENT_WEBHOOK_API_KEY", "description": "Webhook API key for appointment notifications", "requiredAtBoot": false },
+    { "name": "PORT", "description": "Server port (overridden to 3001 in dev)", "requiredAtBoot": false },
+    { "name": "NODE_ENV", "description": "Environment mode (overridden to development in dev)", "requiredAtBoot": false }
+  ]
+}
