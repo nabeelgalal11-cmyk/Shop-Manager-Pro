@@ -65,6 +65,7 @@ import SettingsMessaging from "@/pages/settings-messaging";
 import PayInvoice from "@/pages/pay";
 import InspectionPublic from "@/pages/inspection-public";
 import EstimatePublic from "@/pages/estimate-public";
+import ResetPassword from "@/pages/reset-password";
 import { useLocation as useWouterLocation } from "wouter";
 
 const queryClient = new QueryClient();
@@ -160,6 +161,7 @@ function AuthGate() {
   if (location.startsWith("/pay/")) return <PayInvoice />;
   if (location.startsWith("/inspection/")) return <InspectionPublic />;
   if (location.startsWith("/estimate/")) return <EstimatePublic />;
+  if (location.startsWith("/reset-password")) return <ResetPassword />;
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/20">

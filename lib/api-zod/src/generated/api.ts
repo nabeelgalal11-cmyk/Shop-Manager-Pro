@@ -54,6 +54,22 @@ export const RequestPasswordResetResponse = zod.object({
 });
 
 /**
+ * @summary Reset a password using a one-time email token
+ */
+
+export const submitPasswordResetBodyNewPasswordMin = 6;
+
+export const SubmitPasswordResetBody = zod.object({
+  token: zod.string().min(1),
+  newPassword: zod.string().min(submitPasswordResetBodyNewPasswordMin),
+});
+
+export const SubmitPasswordResetResponse = zod.object({
+  ok: zod.boolean(),
+  message: zod.string(),
+});
+
+/**
  * @summary Get the authenticated user
  */
 export const GetCurrentUserResponse = zod.object({

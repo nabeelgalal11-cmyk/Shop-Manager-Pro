@@ -71,12 +71,12 @@ export default function LoginPage() {
               <div>
                 <h2 className="text-lg font-semibold">Forgot password?</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Enter your username or email and our staff will review your request.
+                   Enter your username or email. If this is an eligible admin account with an email address, you’ll receive a secure link; otherwise an administrator will review the request.
                 </p>
               </div>
               {forgotSuccess ? (
                 <div className="text-sm bg-primary/10 border border-primary/20 rounded px-3 py-3" role="status">
-                  If an account matches the information provided, an administrator will review the request.
+                   If this is an eligible account, follow the secure link sent by email; otherwise an administrator will review the request.
                 </div>
               ) : (
                 <>

@@ -208,6 +208,22 @@ const DEFAULT_TEMPLATES = [
     </table>
     <p>Use the authenticated Users page to manually set a new password for this user. Do not send passwords by email.</p>`),
   },
+  {
+    key: "password_reset_self_service",
+    name: "Password Reset Self-Service",
+    subject: "Reset your 915motors password",
+    fromName: "915motors",
+    fromEmail: process.env.SMTP_USER || "onboarding@resend.dev",
+    enabled: "true",
+    bodyHtml: cardWrap("#2563eb", "Reset Your Password", `
+    <p>Hi {{requesterName}},</p>
+    <p>Use the secure link below to choose a new password for your 915motors account.</p>
+    <p style="text-align:center;margin:28px 0;">
+      <a href="{{resetUrl}}" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;display:inline-block;font-weight:bold;">Reset password</a>
+    </p>
+    <p style="font-size:12px;color:#6b7280;word-break:break-all;">Or open this link: {{resetUrl}}</p>
+    <p>This link expires in {{expiresIn}} and can only be used once. Never share this link with anyone.</p>`),
+  },
 ];
 
 export async function seedEmailTemplates() {

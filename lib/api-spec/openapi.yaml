@@ -93,6 +93,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ForgotPasswordResponse"
+  /auth/reset-password:
+    post:
+      operationId: submitPasswordReset
+      tags: [auth]
+      summary: Reset a password using a one-time email token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetPasswordResponse"
   /auth/me:
     get:
       operationId: getCurrentUser
@@ -2217,6 +2236,19 @@ components:
       required: [ok, message]
       properties:
         ok: { type: boolean, example: true }
+        message: { type: string }
+    ResetPasswordInput:
+      type: object
+      required: [token, newPassword]
+      additionalProperties: false
+      properties:
+        token: { type: string, minLength: 1 }
+        newPassword: { type: string, minLength: 6 }
+    ResetPasswordResponse:
+      type: object
+      required: [ok, message]
+      properties:
+        ok: { type: boolean }
         message: { type: string }
     MobileLoginResponse:
       type: object

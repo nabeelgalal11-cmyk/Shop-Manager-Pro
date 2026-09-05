@@ -126,6 +126,8 @@ export * from "./repairOrderProfitabilityReportRange";
 export * from "./repairOrderProfitabilityReportSummary";
 export * from "./repairOrderProfitabilityRow";
 export * from "./repairOrderStatus";
+export * from "./resetPasswordInput";
+export * from "./resetPasswordResponse";
 export * from "./revenueChartPoint";
 export * from "./sendEstimate200";
 export * from "./serviceCount";

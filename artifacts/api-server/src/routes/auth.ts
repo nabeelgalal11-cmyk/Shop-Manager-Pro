@@ -1,7 +1,8 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db, employeesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { createHash, randomBytes } from "node:crypto";
+import { db, employeesTable, passwordResetTokensTable } from "@workspace/db";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { getUser, issueMobileToken, recordLogin, requireAuth } from "../lib/auth.js";
 import { getPermissionsForRoles, RESOURCES, ACTIONS } from "../lib/permissions.js";
 import { escapeHtml, sendTemplatedEmail } from "../lib/email.js";
@@ -12,7 +13,7 @@ const router: Router = Router();
 const forgotPasswordCooldownMs = 60_000;
 const forgotPasswordRequests = new Map<string, number>();
 const forgotPasswordMessage =
-  "If an account matches the information provided, an administrator will review the request.";
+  "If this is an eligible account, follow the secure link sent by email; otherwise an administrator will review the request.";
 
 function isPrivileged(emp: { role: string; roles: string[] }, role: string): boolean {
   const roles = emp.roles?.length ? emp.roles : [emp.role];
@@ -56,6 +57,33 @@ router.post("/forgot-password", async (req, res) => {
         requesterEmail: escapeHtml(requester.email || "Not provided"),
         requestedAt: escapeHtml(new Date(now).toISOString()),
       };
+      if (requester.email && isPrivileged(requester, "admin")) {
+        const rawToken = randomBytes(32).toString("hex");
+        const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+        const expiresAt = new Date(now + 30 * 60 * 1000);
+        await db.transaction(async (tx) => {
+          await tx.update(passwordResetTokensTable)
+            .set({ usedAt: new Date(now) })
+            .where(and(eq(passwordResetTokensTable.employeeId, requester.id), isNull(passwordResetTokensTable.usedAt)));
+          await tx.insert(passwordResetTokensTable).values({
+            employeeId: requester.id,
+            tokenHash,
+            expiresAt,
+          });
+        });
+        const origin = `${req.protocol}://${req.get("host")}`;
+        const resetUrl = escapeHtml(`${origin}/reset-password?token=${encodeURIComponent(rawToken)}`);
+        try {
+          const result = await sendTemplatedEmail("password_reset_self_service", requester.email, {
+            requesterName: escapeHtml(`${requester.firstName} ${requester.lastName}`.trim()),
+            resetUrl,
+            expiresIn: "30 minutes",
+          });
+          if (!result.ok) logger.warn({ template: "password_reset_self_service" }, "Self-service password reset email could not be delivered");
+        } catch (error) {
+          logger.warn({ err: error instanceof Error ? error.message : "unknown" }, "Self-service password reset email failed");
+        }
+      }
       await Promise.all(recipients.map(async (recipient) => {
         try {
           const result = await sendTemplatedEmail("password_reset_request", recipient.email!, vars);
@@ -69,6 +97,40 @@ router.post("/forgot-password", async (req, res) => {
     logger.warn({ err: error instanceof Error ? error.message : "unknown" }, "Password reset request processing failed");
   }
   return res.json({ ok: true, message: forgotPasswordMessage });
+});
+
+router.post("/reset-password", async (req, res) => {
+  const rawToken = typeof req.body?.token === "string" ? req.body.token : "";
+  const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+  if (newPassword.length < 6 || !rawToken) {
+    return res.status(400).json({ error: "Invalid or expired reset request" });
+  }
+  const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+  const now = new Date();
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [token] = await tx.select().from(passwordResetTokensTable).where(and(
+        eq(passwordResetTokensTable.tokenHash, tokenHash),
+        isNull(passwordResetTokensTable.usedAt),
+        gt(passwordResetTokensTable.expiresAt, now),
+      )).limit(1);
+      if (!token) return false;
+      const [claimed] = await tx.update(passwordResetTokensTable)
+        .set({ usedAt: now })
+        .where(and(eq(passwordResetTokensTable.id, token.id), isNull(passwordResetTokensTable.usedAt)))
+        .returning({ id: passwordResetTokensTable.id });
+      if (!claimed) return false;
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+      await tx.update(employeesTable).set({ passwordHash, updatedAt: now })
+        .where(and(eq(employeesTable.id, token.employeeId), eq(employeesTable.active, true)));
+      return true;
+    });
+    if (!result) return res.status(400).json({ error: "Invalid or expired reset request" });
+    return res.json({ ok: true, message: "Password reset successfully" });
+  } catch (error) {
+    logger.warn({ err: error instanceof Error ? error.message : "unknown" }, "Password reset failed");
+    return res.status(400).json({ error: "Invalid or expired reset request" });
+  }
 });
 
 router.post("/login", async (req, res) => {

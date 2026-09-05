@@ -39,6 +39,18 @@ export interface ForgotPasswordResponse {
   message: string;
 }
 
+export interface ResetPasswordInput {
+  /** @minLength 1 */
+  token: string;
+  /** @minLength 6 */
+  newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  ok: boolean;
+  message: string;
+}
+
 export interface MobileLoginResponse {
   user: AuthUser;
   permissions: string[];

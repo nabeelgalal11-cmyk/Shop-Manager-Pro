@@ -91,6 +91,8 @@ import type {
   RepairOrder,
   RepairOrderListResponse,
   RepairOrderProfitabilityReport,
+  ResetPasswordInput,
+  ResetPasswordResponse,
   RevenueChartPoint,
   SendEstimate200,
   ServiceCount,
@@ -307,6 +309,92 @@ export const useRequestPasswordReset = <
   TContext
 > => {
   return useMutation(getRequestPasswordResetMutationOptions(options));
+};
+
+/**
+ * @summary Reset a password using a one-time email token
+ */
+export const getSubmitPasswordResetUrl = () => {
+  return `/api/auth/reset-password`;
+};
+
+export const submitPasswordReset = async (
+  resetPasswordInput: ResetPasswordInput,
+  options?: RequestInit,
+): Promise<ResetPasswordResponse> => {
+  return customFetch<ResetPasswordResponse>(getSubmitPasswordResetUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(resetPasswordInput),
+  });
+};
+
+export const getSubmitPasswordResetMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitPasswordReset>>,
+    TError,
+    { data: BodyType<ResetPasswordInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof submitPasswordReset>>,
+  TError,
+  { data: BodyType<ResetPasswordInput> },
+  TContext
+> => {
+  const mutationKey = ["submitPasswordReset"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof submitPasswordReset>>,
+    { data: BodyType<ResetPasswordInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return submitPasswordReset(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SubmitPasswordResetMutationResult = NonNullable<
+  Awaited<ReturnType<typeof submitPasswordReset>>
+>;
+export type SubmitPasswordResetMutationBody = BodyType<ResetPasswordInput>;
+export type SubmitPasswordResetMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reset a password using a one-time email token
+ */
+export const useSubmitPasswordReset = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof submitPasswordReset>>,
+    TError,
+    { data: BodyType<ResetPasswordInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof submitPasswordReset>>,
+  TError,
+  { data: BodyType<ResetPasswordInput> },
+  TContext
+> => {
+  return useMutation(getSubmitPasswordResetMutationOptions(options));
 };
 
 /**
