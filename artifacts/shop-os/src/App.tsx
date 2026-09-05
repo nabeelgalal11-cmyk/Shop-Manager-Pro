@@ -1,4 +1,5 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
+import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -69,6 +70,43 @@ import ResetPassword from "@/pages/reset-password";
 import { useLocation as useWouterLocation } from "wouter";
 
 const queryClient = new QueryClient();
+
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("Authenticated application render failed", error, info);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/20 p-6">
+        <div className="w-full max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
+          <h1 className="text-lg font-semibold">The app could not finish loading</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your sign-in is still safe. Reload the app to start a fresh session.
+          </p>
+          <button
+            type="button"
+            className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            onClick={() => window.location.replace("/")}
+          >
+            Reload sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
+}
 
 function Router() {
   return (
@@ -175,16 +213,18 @@ function AuthGate() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <AuthProvider>
-            <AuthGate />
-          </AuthProvider>
-        </WouterRouter>
-        <Toaster />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <AuthProvider>
+              <AuthGate />
+            </AuthProvider>
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }
 

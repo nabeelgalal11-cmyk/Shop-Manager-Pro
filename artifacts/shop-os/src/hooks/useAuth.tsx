@@ -78,6 +78,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       permissions: new Set(data.permissions || []),
       loading: false,
     });
+    // Let the browser rehydrate the authenticated app from the persisted
+    // session. This avoids rendering the large authenticated tree from a
+    // partially transitioned login state.
+    window.location.assign("/");
   }, []);
 
   const logout = useCallback(async () => {
