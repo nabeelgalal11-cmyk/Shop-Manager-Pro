@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { Link, useLocation } from "wouter";
+import { useState, useMemo, type FormEvent } from "react";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Wrench } from "lucide-react";
 
 export default function ResetPasswordPage() {
-  const [location] = useLocation();
-  const token = new URLSearchParams(location.split("?")[1] || "").get("token") || "";
+  const token = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("token") || "";
+  }, []);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -18,7 +20,7 @@ export default function ResetPasswordPage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
-    if (!token) return setError("This reset link is invalid or expired.");
+    if (!token) return setError("This reset link is missing its token. Request a new reset email.");
     if (password.length < 6) return setError("Password must be at least 6 characters.");
     if (password !== confirm) return setError("Passwords do not match.");
     setSubmitting(true);
