@@ -1,5 +1,4 @@
 import { useState, useMemo, type FormEvent } from "react";
-import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,13 +42,13 @@ export default function ResetPasswordPage() {
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="space-y-3 text-center"><div className="mx-auto h-14 w-14 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow"><Wrench className="h-7 w-7" /></div><CardTitle>Reset your password</CardTitle></CardHeader>
       <CardContent>
-        {success ? <div className="space-y-4 text-center"><p className="text-sm" role="status">Your password has been reset successfully.</p><Link href="/" className="text-primary hover:underline">Return to sign in</Link></div> :
+        {success ? <div className="space-y-4 text-center"><p className="text-sm" role="status">Your password has been reset successfully.</p><a href="/" className="text-primary hover:underline">Return to sign in</a></div> :
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-2"><Label htmlFor="new-password">New password</Label><Input id="new-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
             <div className="space-y-2"><Label htmlFor="confirm-password">Confirm new password</Label><Input id="confirm-password" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></div>
             {error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded px-3 py-2" role="alert">{error}</div>}
             <Button type="submit" className="w-full" disabled={submitting}>{submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Reset password</Button>
-            <Link href="/" className="block text-center text-sm text-primary hover:underline">Back to sign in</Link>
+             <a href="/" className="block text-center text-sm text-primary hover:underline">Back to sign in</a>
           </form>}
       </CardContent>
     </Card>
