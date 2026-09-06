@@ -4,3 +4,4 @@
 - [Square phone-reader payments](square-phone-reader-payments.md) — use Square POS app switching with the existing phone-paired reader; verify returned payments server-side
 - [Auth transition handling](auth-navigation.md) — after session-changing auth flows, use a full navigation and clear stale sessions before returning to sign-in
 - [Render pnpm pin](render-pnpm-pin.md) — Render may select a broken Corepack pnpm default; keep the workspace packageManager pinned to the lockfile-compatible pnpm version
+- [React Query monorepo resolution](react-query-monorepo.md) — dedupe React Query in Vite when shared workspace clients import generated hooks
