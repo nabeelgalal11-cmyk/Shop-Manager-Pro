@@ -73,9 +73,12 @@ const queryClient = new QueryClient();
 
 class AppErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { error: Error | null }
+  { error: Error | null; signingOut: boolean }
 > {
-  state: { error: Error | null } = { error: null };
+  state: { error: Error | null; signingOut: boolean } = {
+    error: null,
+    signingOut: false,
+  };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
@@ -84,6 +87,18 @@ class AppErrorBoundary extends React.Component<
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("Authenticated application render failed", error, info);
   }
+
+  returnToSignIn = async () => {
+    this.setState({ signingOut: true });
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      window.location.replace("/");
+    }
+  };
 
   render() {
     if (!this.state.error) return this.props.children;
@@ -95,12 +110,16 @@ class AppErrorBoundary extends React.Component<
           <p className="mt-2 text-sm text-muted-foreground">
             Your sign-in is still safe. Reload the app to start a fresh session.
           </p>
+          <p className="mt-3 break-words rounded bg-muted px-3 py-2 text-left text-xs text-muted-foreground">
+            {this.state.error.message || "Unknown render error"}
+          </p>
           <button
             type="button"
             className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            onClick={() => window.location.replace("/")}
+            onClick={this.returnToSignIn}
+            disabled={this.state.signingOut}
           >
-            Reload sign in
+            {this.state.signingOut ? "Returning to sign in…" : "Return to sign in"}
           </button>
         </div>
       </div>
