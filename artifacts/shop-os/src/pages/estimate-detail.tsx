@@ -16,6 +16,7 @@ import { ArrowLeft, Printer, Send, Copy, Plus, Trash2, Save, X } from "lucide-re
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 export default function EstimateDetail() {
   const [match, params] = useRoute("/estimates/:id");
@@ -212,37 +213,59 @@ export default function EstimateDetail() {
               </div>
               <div className="space-y-3">
                 {draftItems.map((item, idx) => (
-                  <div key={idx} className="flex items-start gap-3">
-                    <Select value={item.kind} onValueChange={(v) => updateDraftItem(idx, 'kind', v)}>
-                      <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="labor">Labor</SelectItem>
-                        <SelectItem value="part">Part</SelectItem>
-                        <SelectItem value="fee">Fee</SelectItem>
-                        <SelectItem value="discount">Discount</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      placeholder="Description"
-                      value={item.description}
-                      onChange={(e) => updateDraftItem(idx, 'description', e.target.value)}
-                      className="flex-1"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Qty"
-                      value={item.quantity}
-                      onChange={(e) => updateDraftItem(idx, 'quantity', e.target.value)}
-                      className="w-[80px]"
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Price"
-                      value={item.unitPrice}
-                      onChange={(e) => updateDraftItem(idx, 'unitPrice', e.target.value)}
-                      className="w-[100px]"
-                    />
-                    <Button variant="ghost" size="icon" onClick={() => removeDraftItem(idx)} className="text-destructive">
+                  <div key={idx} className="grid grid-cols-1 items-end gap-3 rounded-md border p-3 sm:grid-cols-[120px_minmax(0,1fr)_80px_100px_auto]">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`draft-kind-${idx}`} className="text-xs">Type</Label>
+                      <Select value={item.kind} onValueChange={(v) => updateDraftItem(idx, 'kind', v)}>
+                        <SelectTrigger id={`draft-kind-${idx}`}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="labor">Labor</SelectItem>
+                          <SelectItem value="part">Part</SelectItem>
+                          <SelectItem value="fee">Fee</SelectItem>
+                          <SelectItem value="discount">Discount</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`draft-description-${idx}`} className="text-xs">Description</Label>
+                      <Input
+                        id={`draft-description-${idx}`}
+                        placeholder="Describe the work or part"
+                        value={item.description}
+                        onChange={(e) => updateDraftItem(idx, 'description', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`draft-quantity-${idx}`} className="text-xs">Quantity</Label>
+                      <Input
+                        id={`draft-quantity-${idx}`}
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={item.quantity}
+                        onChange={(e) => updateDraftItem(idx, 'quantity', e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={`draft-unit-price-${idx}`} className="text-xs">Unit Price</Label>
+                      <Input
+                        id={`draft-unit-price-${idx}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.unitPrice}
+                        onChange={(e) => updateDraftItem(idx, 'unitPrice', e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeDraftItem(idx)}
+                      className="text-destructive"
+                      aria-label={`Remove item ${idx + 1}`}
+                      title={`Remove item ${idx + 1}`}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
