@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useCreateRepairOrder, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetEmployees, getGetEmployeesQueryKey, type RepairOrderInput } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
@@ -28,7 +28,6 @@ export default function RepairOrdersNew() {
   const { toast } = useToast();
 
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
-  const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
   const { data: employees } = useGetEmployees({ role: "technician" }, { query: { queryKey: getGetEmployeesQueryKey({ role: "technician" }) } });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -38,6 +37,19 @@ export default function RepairOrdersNew() {
       complaint: "",
     },
   });
+
+  const selectedCustomerId = form.watch("customerId");
+  const vehicleParams = selectedCustomerId ? { customerId: selectedCustomerId, limit: 100 } : undefined;
+  const { data: vehicles } = useGetVehicles(vehicleParams, {
+    query: {
+      queryKey: getGetVehiclesQueryKey(vehicleParams),
+      enabled: !!selectedCustomerId,
+    },
+  });
+
+  useEffect(() => {
+    form.resetField("vehicleId");
+  }, [selectedCustomerId, form]);
 
   const createRepairOrder = useCreateRepairOrder();
 
@@ -112,10 +124,24 @@ export default function RepairOrdersNew() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Vehicle <span className="text-destructive">*</span></FormLabel>
-                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                        <FormControl><SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger></FormControl>
+                      <Select
+                        onValueChange={(val) => field.onChange(Number(val))}
+                        value={field.value ? String(field.value) : undefined}
+                        disabled={!selectedCustomerId}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={selectedCustomerId ? "Select a vehicle" : "Select a customer first"} />
+                          </SelectTrigger>
+                        </FormControl>
                         <SelectContent>
-                          {vehicles?.data?.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}{v.licensePlate ? ` — ${v.licensePlate}` : ""}</SelectItem>)}
+                          {vehicles?.data?.length
+                            ? vehicles.data.map(v => (
+                              <SelectItem key={v.id} value={String(v.id)}>
+                                {v.year} {v.make} {v.model}{v.licensePlate ? ` — ${v.licensePlate}` : ""}
+                              </SelectItem>
+                            ))
+                            : <div className="px-2 py-1.5 text-sm text-muted-foreground">No vehicles for this customer</div>}
                         </SelectContent>
                       </Select>
                       <FormMessage />

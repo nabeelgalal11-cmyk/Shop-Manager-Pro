@@ -37,6 +37,18 @@ const money = (value: bigint) => {
   return `${sign}${n / 100n}.${(n % 100n).toString().padStart(2, "0")}`;
 };
 const quantity = (value: bigint) => `${value / 1000n}.${(value % 1000n).toString().padStart(3, "0")}`;
+const timestamp = (value: unknown, field: string): Date | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null || value === "") return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) throw new WorkflowError(`Invalid ${field}`);
+    return value;
+  }
+  if (typeof value !== "string") throw new WorkflowError(`Invalid ${field}`);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) throw new WorkflowError(`Invalid ${field}`);
+  return parsed;
+};
 const event = (tx: Tx, repairOrderId: number, eventType: any, actorId: number | null, payload: Record<string, unknown> = {}) =>
   tx.insert(repairOrderEventsTable).values({ repairOrderId, eventType, actorId, payload });
 const snapshot = (customer: any, vehicle: any) => ({
@@ -46,7 +58,7 @@ const snapshot = (customer: any, vehicle: any) => ({
 
 export async function createRepairOrder(input: {
   customerId: number; vehicleId: number; assignedToId?: number | null; priority?: "low" | "normal" | "high" | "urgent";
-  complaint?: string | null; diagnosis?: string | null; notes?: string | null; mileageIn?: number | null; promisedAt?: Date | null;
+  complaint?: string | null; diagnosis?: string | null; notes?: string | null; mileageIn?: number | null; promisedAt?: Date | string | null;
 }, actorId: number) {
   return db.transaction(async (tx) => {
     const [[actor], [customer], [vehicle]] = await Promise.all([
@@ -57,8 +69,19 @@ export async function createRepairOrder(input: {
     if (!actor) throw new WorkflowError("Authenticated employee no longer exists", 401);
     if (!customer) throw new WorkflowError("Customer not found", 404);
     if (!vehicle || vehicle.customerId !== customer.id) throw new WorkflowError("Vehicle does not belong to customer", 422);
+    const promisedAt = timestamp(input.promisedAt, "promisedAt");
     const [ro] = await tx.insert(repairOrdersTable).values({
-      ...input, createdById: actorId, status: "open",
+      customerId: input.customerId,
+      vehicleId: input.vehicleId,
+      assignedToId: input.assignedToId ?? null,
+      priority: input.priority ?? "normal",
+      complaint: input.complaint ?? null,
+      diagnosis: input.diagnosis ?? null,
+      notes: input.notes ?? null,
+      mileageIn: input.mileageIn ?? null,
+      promisedAt,
+      createdById: actorId,
+      status: "open",
       orderNumber: `RO-${Date.now()}-${randomBytes(3).toString("hex")}`,
     }).returning();
     await event(tx, ro.id, "opened", actorId);
@@ -68,10 +91,13 @@ export async function createRepairOrder(input: {
 
 export async function updateIntake(repairOrderId: number, version: number, input: Partial<{
   assignedToId: number | null; priority: "low" | "normal" | "high" | "urgent"; complaint: string | null;
-  diagnosis: string | null; notes: string | null; mileageIn: number | null; mileageOut: number | null; promisedAt: Date | null;
+  diagnosis: string | null; notes: string | null; mileageIn: number | null; mileageOut: number | null; promisedAt: Date | string | null;
 }>, actorId: number) {
   const allowed = ["assignedToId", "priority", "complaint", "diagnosis", "notes", "mileageIn", "mileageOut", "promisedAt"] as const;
   const patch = Object.fromEntries(Object.entries(input).filter(([key]) => (allowed as readonly string[]).includes(key)));
+  if (Object.prototype.hasOwnProperty.call(patch, "promisedAt")) {
+    patch.promisedAt = timestamp(patch.promisedAt, "promisedAt") ?? null;
+  }
   return db.transaction(async (tx) => {
     const [ro] = await tx.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, repairOrderId)).for("update");
     if (!ro) throw new WorkflowError("Repair order not found", 404);

@@ -91,9 +91,15 @@ test("staff repair route rejects unauthenticated requests", async () => {
 test("real auth session creates an RO and customer/vehicle mismatch is rejected by API", async () => {
   const cookie = await login(adminUsername);
   const created = await request("/api/repair-orders", {
-    method: "POST", body: JSON.stringify({ customerId, vehicleId }),
+    method: "POST", body: JSON.stringify({
+      customerId,
+      vehicleId,
+      promisedAt: "2026-09-30T00:00:00.000Z",
+    }),
   }, cookie);
   assert.equal(created.status, 201);
+  const createdOrder = await created.json() as { promisedAt: string };
+  assert.equal(createdOrder.promisedAt, "2026-09-30T00:00:00.000Z");
 
   const [other] = await db.insert(customersTable).values({ firstName: "Wrong", lastName: `${prefix}wrong` }).returning();
   const mismatch = await request("/api/repair-orders", {
