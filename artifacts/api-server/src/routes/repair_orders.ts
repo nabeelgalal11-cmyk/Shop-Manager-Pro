@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remindersTable, usedCarsTable } from "@workspace/db";
-import { eq, sql, desc, and, gte } from "drizzle-orm";
+import { repairOrdersTable, customersTable, vehiclesTable, employeesTable, remindersTable, usedCarsTable, estimatesTable, invoicesTable, lineItemsTable, paymentsTable } from "@workspace/db";
+import { eq, sql, desc, and, gte, inArray } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { sendSms } from "../lib/sms.js";
 import { recordActivity } from "../lib/activity.js";
@@ -305,6 +305,123 @@ router.post("/", async (req, res) => {
   }
 
   res.status(201).json(await enrichOrder(order));
+});
+
+router.get("/:id/workflow", async (req, res) => {
+  const id = Number(req.params.id);
+  const [order] = await db.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
+  if (!order) return res.status(404).json({ error: "Repair order not found" });
+
+  const [estimates, invoices] = await Promise.all([
+    db.select().from(estimatesTable).where(eq(estimatesTable.repairOrderId, id)).orderBy(desc(estimatesTable.createdAt), desc(estimatesTable.id)),
+    db.select().from(invoicesTable).where(eq(invoicesTable.repairOrderId, id)).orderBy(desc(invoicesTable.createdAt), desc(invoicesTable.id)),
+  ]);
+  const payments = invoices.length
+    ? await db.select().from(paymentsTable).where(inArray(paymentsTable.invoiceId, invoices.map(invoice => invoice.id))).orderBy(desc(paymentsTable.paidAt))
+    : [];
+
+  res.json({ repairOrder: order, estimates, invoices, payments });
+});
+
+router.post("/:id/invoice", async (req, res) => {
+  const id = Number(req.params.id);
+  let result: { invoice: any; created: boolean };
+  try {
+    result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM repair_orders WHERE id = ${id} FOR UPDATE`);
+      const [order] = await tx.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
+      if (!order) throw Object.assign(new Error("Repair order not found"), { status: 404 });
+
+      const [existing] = await tx.select().from(invoicesTable)
+        .where(eq(invoicesTable.repairOrderId, id)).orderBy(desc(invoicesTable.id)).limit(1);
+      if (existing) return { invoice: existing, created: false };
+      if (order.status !== "completed") {
+        throw Object.assign(new Error("Repair order must be completed before it can be invoiced"), { status: 409 });
+      }
+
+      const linked = await tx.select().from(estimatesTable)
+        .where(eq(estimatesTable.repairOrderId, id))
+        .orderBy(desc(estimatesTable.createdAt), desc(estimatesTable.id));
+      const estimate = linked.find(candidate => candidate.status === "approved" || candidate.status === "converted");
+      if (!estimate) {
+        throw Object.assign(new Error("No approved estimate is linked to this repair order"), { status: 409 });
+      }
+      // Coordinate with the estimate conversion endpoint as well as retries
+      // to this endpoint, so both paths cannot invoice the same estimate.
+      await tx.execute(sql`SELECT id FROM estimates WHERE id = ${estimate.id} FOR UPDATE`);
+      const [invoiceForEstimate] = await tx.select().from(invoicesTable)
+        .where(eq(invoicesTable.estimateId, estimate.id)).orderBy(desc(invoicesTable.id)).limit(1);
+      if (invoiceForEstimate) return { invoice: invoiceForEstimate, created: false };
+      const items = (await tx.select().from(lineItemsTable).where(eq(lineItemsTable.estimateId, estimate.id)))
+        .filter(item => item.customerDecision === "approved");
+      if (!items.length) {
+        throw Object.assign(new Error("The linked estimate has no approved line items"), { status: 409 });
+      }
+
+      const subtotal = items.reduce((sum, item) => sum + Number(item.total), 0);
+      const [customer] = await tx.select().from(customersTable).where(eq(customersTable.id, estimate.customerId));
+      const taxRate = customer?.taxExempt ? 0 : Number(estimate.taxRate ?? 0);
+      const taxAmount = subtotal * (taxRate / 100);
+      const discount = Number(estimate.discountAmount ?? 0);
+      const total = subtotal + taxAmount - discount;
+      const [last] = await tx.select({ invoiceNumber: invoicesTable.invoiceNumber })
+        .from(invoicesTable).orderBy(desc(invoicesTable.id)).limit(1);
+      const nextNum = last ? Number(last.invoiceNumber.replace("INV-", "")) + 1 : 1001;
+
+      const [invoice] = await tx.insert(invoicesTable).values({
+        invoiceNumber: `INV-${nextNum}`,
+        customerId: estimate.customerId,
+        vehicleId: estimate.vehicleId,
+        repairOrderId: id,
+        estimateId: estimate.id,
+        status: "draft",
+        notes: estimate.notes,
+        subtotal: subtotal.toString(),
+        taxRate: taxRate.toString(),
+        taxAmount: taxAmount.toString(),
+        discountAmount: discount.toString(),
+        total: total.toString(),
+        amountPaid: "0",
+        balance: total.toString(),
+        taxExempt: customer?.taxExempt === true,
+        taxExemptNumber: customer?.taxExemptNumber ?? null,
+      }).returning();
+
+      await tx.insert(lineItemsTable).values(items.map(item => ({
+        invoiceId: invoice.id,
+        type: item.type,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.total,
+        partNumber: item.partNumber,
+        inventoryItemId: item.inventoryItemId,
+        unitCost: item.unitCost,
+        customerDecision: item.customerDecision,
+        decidedAt: item.decidedAt,
+        warrantyMonths: item.warrantyMonths,
+        warrantyMiles: item.warrantyMiles,
+      })));
+      return { invoice, created: true };
+    });
+  } catch (err: any) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
+    req.log?.error({ err, id }, "Repair order invoice transaction failed");
+    return res.status(500).json({ error: "Failed to create repair order invoice" });
+  }
+
+  const lineItems = await db.select().from(lineItemsTable).where(eq(lineItemsTable.invoiceId, result.invoice.id));
+  if (result.created) {
+    await recordActivity({
+      entityType: "invoice",
+      entityId: result.invoice.id,
+      eventType: "created",
+      meta: { invoiceNumber: result.invoice.invoiceNumber, repairOrderId: id, estimateId: result.invoice.estimateId },
+      customerId: result.invoice.customerId ?? null,
+      req,
+    });
+  }
+  res.status(result.created ? 201 : 200).json({ ...result.invoice, lineItems, payments: [] });
 });
 
 router.get("/:id", async (req, res) => {

@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import type Stripe from "stripe";
 import { db } from "@workspace/db";
 import { invoicesTable, lineItemsTable, paymentsTable, customersTable, vehiclesTable, repairOrdersTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { and, eq, sql, desc } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { sendSms } from "../lib/sms.js";
 import { recordActivity } from "../lib/activity.js";
@@ -285,12 +285,15 @@ router.put("/:id", async (req, res) => {
   try {
     result = await db.transaction(async (tx): Promise<Result> => {
       const [prev] = await tx.select({ status: invoicesTable.status }).from(invoicesTable).where(eq(invoicesTable.id, id));
-      const existingPayments = await tx.select().from(paymentsTable).where(eq(paymentsTable.invoiceId, id));
+      const existingPayments = await tx.select().from(paymentsTable).where(and(
+        eq(paymentsTable.invoiceId, id),
+        eq(paymentsTable.status, "succeeded"),
+      ));
       const amountPaid = existingPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-      const balance = total - amountPaid;
+      const balance = Math.max(0, total - amountPaid);
 
       const [invoice] = await tx.update(invoicesTable).set({
-        customerId, vehicleId, status, notes,
+        customerId, vehicleId, status: prev?.status === "void" ? "void" : (status ?? prev?.status), notes,
         taxRate: tax.toString(), taxAmount: taxAmount.toString(), discountAmount: discount.toString(),
         subtotal: subtotal.toString(), total: total.toString(), amountPaid: amountPaid.toString(), balance: balance.toString(),
         taxExempt: isExempt, taxExemptNumber: customer?.taxExemptNumber ?? null,

@@ -17,12 +17,35 @@ function calcTotals(items: any[], taxRate: number, discount: number) {
 }
 
 async function enrichEstimate(estimate: any) {
-  const [lineItems, customer, vehicle] = await Promise.all([
+  const [lineItems, customer, vehicle, repairOrder, invoices] = await Promise.all([
     db.select().from(lineItemsTable).where(eq(lineItemsTable.estimateId, estimate.id)),
     db.select().from(customersTable).where(eq(customersTable.id, estimate.customerId)).then(r => r[0]),
     estimate.vehicleId ? db.select().from(vehiclesTable).where(eq(vehiclesTable.id, estimate.vehicleId)).then(r => r[0]) : Promise.resolve(null),
+    estimate.repairOrderId ? db.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, estimate.repairOrderId)).then(r => r[0] ?? null) : Promise.resolve(null),
+    db.select().from(invoicesTable).where(eq(invoicesTable.estimateId, estimate.id)).orderBy(desc(invoicesTable.createdAt)),
   ]);
-  return { ...estimate, lineItems, customer, vehicle };
+  return { ...estimate, lineItems, customer, vehicle, repairOrder, invoices };
+}
+
+async function validateRepairOrderLink(repairOrderId: unknown, customerId: unknown, vehicleId: unknown) {
+  if (repairOrderId === undefined || repairOrderId === null || repairOrderId === "") return { repairOrderId: null };
+  const id = Number(repairOrderId);
+  if (!Number.isInteger(id) || id <= 0) return { error: "Invalid repairOrderId" };
+  const [order] = await db.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, id));
+  if (!order) return { error: "Repair order not found" };
+  if (Number(customerId) !== Number(order.customerId) || Number(vehicleId) !== Number(order.vehicleId)) {
+    return { error: "Estimate customer and vehicle must match the linked repair order" };
+  }
+  return { repairOrderId: id };
+}
+
+async function enrichConvertedInvoice(invoice: any) {
+  const [lineItems, customer, vehicle] = await Promise.all([
+    db.select().from(lineItemsTable).where(eq(lineItemsTable.invoiceId, invoice.id)),
+    db.select().from(customersTable).where(eq(customersTable.id, invoice.customerId)).then(r => r[0] ?? null),
+    invoice.vehicleId ? db.select().from(vehiclesTable).where(eq(vehiclesTable.id, invoice.vehicleId)).then(r => r[0] ?? null) : Promise.resolve(null),
+  ]);
+  return { ...invoice, lineItems, payments: [], customer, vehicle };
 }
 
 router.get("/", async (req, res) => {
@@ -44,13 +67,16 @@ router.post("/", async (req, res) => {
   const nextNum = last ? Number(last.estimateNumber.replace("EST-", "")) + 1 : 1001;
   const estimateNumber = `EST-${nextNum}`;
 
-  const { customerId, vehicleId, status, notes, taxRate, discountAmount, lineItems } = req.body;
+  const { customerId, vehicleId, repairOrderId, status: requestedStatus, notes, taxRate, discountAmount, lineItems } = req.body;
+  const status = requestedStatus === "decline" ? "declined" : requestedStatus;
+  const link = await validateRepairOrderLink(repairOrderId, customerId, vehicleId);
+  if (link.error) return res.status(link.error === "Repair order not found" ? 404 : 400).json({ error: link.error });
   const tax = taxRate ?? 0;
   const discount = discountAmount ?? 0;
   const { subtotal, taxAmount, total } = calcTotals(lineItems || [], tax, discount);
 
   const [estimate] = await db.insert(estimatesTable).values({
-    estimateNumber, customerId, vehicleId, status: status || "draft", notes,
+    estimateNumber, customerId, vehicleId, repairOrderId: link.repairOrderId, status: status || "draft", notes,
     taxRate: tax.toString(), taxAmount: taxAmount.toString(), discountAmount: discount.toString(),
     subtotal: subtotal.toString(), total: total.toString(),
   }).returning();
@@ -65,6 +91,11 @@ router.post("/", async (req, res) => {
       total: (Number(item.quantity) * Number(item.unitPrice)).toString(),
       partNumber: item.partNumber,
       inventoryItemId: item.inventoryItemId,
+      unitCost: item.unitCost != null ? item.unitCost.toString() : null,
+      customerDecision: item.customerDecision,
+      decidedAt: item.decidedAt ? new Date(item.decidedAt) : null,
+      warrantyMonths: item.warrantyMonths,
+      warrantyMiles: item.warrantyMiles,
     })));
   }
 
@@ -88,14 +119,21 @@ router.get("/:id", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { customerId, vehicleId, status, notes, taxRate, discountAmount, lineItems } = req.body;
+  const { customerId, vehicleId, repairOrderId, status: requestedStatus, notes, taxRate, discountAmount, lineItems } = req.body;
+  const status = requestedStatus === "decline" ? "declined" : requestedStatus;
   const tax = taxRate ?? 0;
   const discount = discountAmount ?? 0;
   const { subtotal, taxAmount, total } = calcTotals(lineItems || [], tax, discount);
 
-  const [prev] = await db.select({ status: estimatesTable.status }).from(estimatesTable).where(eq(estimatesTable.id, id));
+  const [prev] = await db.select().from(estimatesTable).where(eq(estimatesTable.id, id));
+  if (!prev) return res.status(404).json({ error: "Estimate not found" });
+  const effectiveCustomerId = customerId ?? prev.customerId;
+  const effectiveVehicleId = vehicleId !== undefined ? vehicleId : prev.vehicleId;
+  const effectiveRepairOrderId = repairOrderId !== undefined ? repairOrderId : prev.repairOrderId;
+  const link = await validateRepairOrderLink(effectiveRepairOrderId, effectiveCustomerId, effectiveVehicleId);
+  if (link.error) return res.status(link.error === "Repair order not found" ? 404 : 400).json({ error: link.error });
   const [estimate] = await db.update(estimatesTable).set({
-    customerId, vehicleId, status, notes,
+    customerId: effectiveCustomerId, vehicleId: effectiveVehicleId, repairOrderId: link.repairOrderId, status, notes,
     taxRate: tax.toString(), taxAmount: taxAmount.toString(), discountAmount: discount.toString(),
     subtotal: subtotal.toString(), total: total.toString(), updatedAt: new Date(),
   }).where(eq(estimatesTable.id, id)).returning();
@@ -132,6 +170,11 @@ router.put("/:id", async (req, res) => {
         total: (Number(item.quantity) * Number(item.unitPrice)).toString(),
         partNumber: item.partNumber,
         inventoryItemId: item.inventoryItemId,
+        unitCost: item.unitCost != null ? item.unitCost.toString() : null,
+        customerDecision: item.customerDecision,
+        decidedAt: item.decidedAt ? new Date(item.decidedAt) : null,
+        warrantyMonths: item.warrantyMonths,
+        warrantyMiles: item.warrantyMiles,
       })));
     }
   }
@@ -262,51 +305,68 @@ router.post("/:id/send", async (req, res) => {
 
 router.post("/:id/convert", async (req, res) => {
   const id = Number(req.params.id);
-  const [estimate] = await db.select().from(estimatesTable).where(eq(estimatesTable.id, id));
-  if (!estimate) return res.status(404).json({ error: "Estimate not found" });
-  const items = await db.select().from(lineItemsTable).where(eq(lineItemsTable.estimateId, id));
+  let result: { invoice: any; estimate: any; created: boolean };
+  try {
+    result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM estimates WHERE id = ${id} FOR UPDATE`);
+      const [estimate] = await tx.select().from(estimatesTable).where(eq(estimatesTable.id, id));
+      if (!estimate) throw Object.assign(new Error("Estimate not found"), { status: 404 });
 
-  // Look up customer to apply tax-exempt status on the new invoice.
-  const [customer] = estimate.customerId
-    ? await db.select().from(customersTable).where(eq(customersTable.id, estimate.customerId))
-    : [];
-  const isExempt = customer?.taxExempt === true;
+      const [existingInvoice] = await tx.select().from(invoicesTable)
+        .where(eq(invoicesTable.estimateId, id)).orderBy(desc(invoicesTable.id)).limit(1);
+      if (existingInvoice) return { invoice: existingInvoice, estimate, created: false };
 
-  // Recalculate totals with correct tax for exempt customers.
-  const effectiveTaxRate = isExempt ? 0 : Number(estimate.taxRate ?? 0);
-  const discount = Number(estimate.discountAmount ?? 0);
-  const subtotal = Number(estimate.subtotal ?? 0);
-  const taxAmount = subtotal * (effectiveTaxRate / 100);
-  const total = subtotal + taxAmount - discount;
+      if (estimate.status !== "approved" && !(estimate.status === "converted" && estimate.repairOrderId)) {
+        throw Object.assign(new Error(`Only approved estimates, or estimates converted to a repair order, can be invoiced (current status: ${estimate.status}).`), { status: 409 });
+      }
 
-  const [lastInv] = await db.select({ invoiceNumber: invoicesTable.invoiceNumber }).from(invoicesTable).orderBy(desc(invoicesTable.id)).limit(1);
-  const nextNum = lastInv ? Number(lastInv.invoiceNumber.replace("INV-", "")) + 1 : 1001;
-  const invoiceNumber = `INV-${nextNum}`;
+      const items = await tx.select().from(lineItemsTable).where(eq(lineItemsTable.estimateId, id));
+      const [customer] = await tx.select().from(customersTable).where(eq(customersTable.id, estimate.customerId));
+      const isExempt = customer?.taxExempt === true;
+      const effectiveTaxRate = isExempt ? 0 : Number(estimate.taxRate ?? 0);
+      const discount = Number(estimate.discountAmount ?? 0);
+      const subtotal = Number(estimate.subtotal ?? 0);
+      const taxAmount = subtotal * (effectiveTaxRate / 100);
+      const total = subtotal + taxAmount - discount;
+      const [lastInv] = await tx.select({ invoiceNumber: invoicesTable.invoiceNumber }).from(invoicesTable).orderBy(desc(invoicesTable.id)).limit(1);
+      const nextNum = lastInv ? Number(lastInv.invoiceNumber.replace("INV-", "")) + 1 : 1001;
 
-  const [invoice] = await db.insert(invoicesTable).values({
-    invoiceNumber, customerId: estimate.customerId, vehicleId: estimate.vehicleId, estimateId: estimate.id,
-    status: "draft", notes: estimate.notes,
-    subtotal: subtotal.toString(), taxRate: effectiveTaxRate.toString(), taxAmount: taxAmount.toString(),
-    discountAmount: discount.toString(), total: total.toString(),
-    amountPaid: "0", balance: total.toString(),
-    taxExempt: isExempt, taxExemptNumber: customer?.taxExemptNumber ?? null,
-  }).returning();
+      const [invoice] = await tx.insert(invoicesTable).values({
+        invoiceNumber: `INV-${nextNum}`, customerId: estimate.customerId, vehicleId: estimate.vehicleId,
+        repairOrderId: estimate.repairOrderId, estimateId: estimate.id,
+        status: "draft", notes: estimate.notes,
+        subtotal: subtotal.toString(), taxRate: effectiveTaxRate.toString(), taxAmount: taxAmount.toString(),
+        discountAmount: discount.toString(), total: total.toString(),
+        amountPaid: "0", balance: total.toString(),
+        taxExempt: isExempt, taxExemptNumber: customer?.taxExemptNumber ?? null,
+      }).returning();
 
-  if (items.length) {
-    await db.insert(lineItemsTable).values(items.map((item) => ({
-      invoiceId: invoice.id, type: item.type, description: item.description,
-      quantity: item.quantity, unitPrice: item.unitPrice, total: item.total,
-      partNumber: item.partNumber,
-    })));
+      if (items.length) {
+        await tx.insert(lineItemsTable).values(items.map((item) => ({
+          invoiceId: invoice.id, type: item.type, description: item.description,
+          quantity: item.quantity, unitPrice: item.unitPrice, total: item.total,
+          partNumber: item.partNumber, inventoryItemId: item.inventoryItemId,
+          unitCost: item.unitCost, customerDecision: item.customerDecision,
+          decidedAt: item.decidedAt, warrantyMonths: item.warrantyMonths,
+          warrantyMiles: item.warrantyMiles,
+        })));
+      }
+      await tx.update(estimatesTable).set({ status: "converted", updatedAt: new Date() }).where(eq(estimatesTable.id, id));
+      await tx.insert(estimateEventsTable).values({
+        estimateId: id, event: "converted_to_invoice",
+        actor: (req as any).user?.username ?? "shop",
+        metadata: { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber },
+      });
+      return { invoice, estimate, created: true };
+    });
+  } catch (err: any) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
+    req.log?.error({ err, id }, "Estimate convert-to-invoice transaction failed");
+    return res.status(500).json({ error: "Could not create invoice" });
   }
 
-  await db.update(estimatesTable).set({ status: "converted", updatedAt: new Date() }).where(eq(estimatesTable.id, id));
-  await db.insert(estimateEventsTable).values({
-    estimateId: id,
-    event: "converted_to_invoice",
-    actor: (req as any).user?.username ?? "shop",
-    metadata: { invoiceId: invoice.id, invoiceNumber: invoice.invoiceNumber },
-  });
+  const { invoice, estimate, created } = result;
+  if (!created) return res.json(await enrichConvertedInvoice(invoice));
 
   await recordActivity({
     entityType: "estimate",
@@ -325,9 +385,7 @@ router.post("/:id/convert", async (req, res) => {
     req,
   });
 
-  const [vehicle] = invoice.vehicleId ? await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, invoice.vehicleId)) : [null];
-  const lineItemsData = await db.select().from(lineItemsTable).where(eq(lineItemsTable.invoiceId, invoice.id));
-  res.status(201).json({ ...invoice, lineItems: lineItemsData, payments: [], customer: customer ?? null, vehicle });
+  res.status(201).json(await enrichConvertedInvoice(invoice));
 });
 
 /**
@@ -340,8 +398,9 @@ router.post("/:id/convert-to-ro", async (req, res) => {
   const id = Number(req.params.id);
   const [estimate] = await db.select().from(estimatesTable).where(eq(estimatesTable.id, id));
   if (!estimate) return res.status(404).json({ error: "Estimate not found" });
-  if (estimate.status === "converted") {
-    return res.status(409).json({ error: "Estimate already converted" });
+  if (estimate.repairOrderId) {
+    const [existing] = await db.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, estimate.repairOrderId));
+    if (existing) return res.json(existing);
   }
   // Convert is a post-approval action. Don't allow it for draft/sent/declined.
   if (estimate.status !== "approved") {
@@ -376,8 +435,19 @@ router.post("/:id/convert-to-ro", async (req, res) => {
     .reduce((s, i) => s + Number(i.quantity), 0);
 
   let order: any;
+  let createdNew = false;
   try {
     order = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM estimates WHERE id = ${id} FOR UPDATE`);
+      const [lockedEstimate] = await tx.select().from(estimatesTable).where(eq(estimatesTable.id, id));
+      if (!lockedEstimate) throw new Error("Estimate disappeared during conversion");
+      if (lockedEstimate.repairOrderId) {
+        const [existing] = await tx.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, lockedEstimate.repairOrderId));
+        if (existing) return existing;
+      }
+      if (lockedEstimate.status !== "approved") {
+        throw Object.assign(new Error(`Only approved estimates can be converted to a repair order (current status: ${lockedEstimate.status}).`), { status: 409 });
+      }
       const [last] = await tx.select({ orderNumber: repairOrdersTable.orderNumber })
         .from(repairOrdersTable).orderBy(desc(repairOrdersTable.id)).limit(1);
       const nextRoNum = last ? Number(last.orderNumber.replace("RO-", "")) + 1 : 1001;
@@ -394,9 +464,10 @@ router.post("/:id/convert-to-ro", async (req, res) => {
         parts,
         estimatedHours: estimatedHours > 0 ? estimatedHours.toFixed(2) : null,
       }).returning();
+      createdNew = true;
 
       await tx.update(estimatesTable)
-        .set({ status: "converted", updatedAt: new Date() })
+        .set({ status: "converted", repairOrderId: created.id, updatedAt: new Date() })
         .where(eq(estimatesTable.id, id));
 
       await tx.insert(estimateEventsTable).values({
@@ -413,7 +484,7 @@ router.post("/:id/convert-to-ro", async (req, res) => {
 
       return created;
     });
-    await recordActivity({
+    if (createdNew) await recordActivity({
       entityType: "estimate",
       entityId: id,
       eventType: "estimate_converted",
@@ -421,7 +492,7 @@ router.post("/:id/convert-to-ro", async (req, res) => {
       customerId: estimate.customerId ?? null,
       req,
     });
-    await recordActivity({
+    if (createdNew) await recordActivity({
       entityType: "repair_order",
       entityId: order.id,
       eventType: "created",
@@ -430,11 +501,12 @@ router.post("/:id/convert-to-ro", async (req, res) => {
       req,
     });
   } catch (err: any) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
     req.log?.error({ err: err?.message, id }, "Estimate convert-to-RO failed");
     return res.status(500).json({ error: "Could not create repair order" });
   }
 
-  res.status(201).json(order);
+  res.status(createdNew ? 201 : 200).json(order);
 });
 
 export default router;

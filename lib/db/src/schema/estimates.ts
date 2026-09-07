@@ -1,14 +1,16 @@
-import { pgTable, serial, text, numeric, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, integer, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { customersTable } from "./customers";
 import { vehiclesTable } from "./vehicles";
+import { repairOrdersTable } from "./repair_orders";
 
 export const estimatesTable = pgTable("estimates", {
   id: serial("id").primaryKey(),
   estimateNumber: text("estimate_number").notNull().unique(),
   customerId: integer("customer_id").notNull().references(() => customersTable.id),
   vehicleId: integer("vehicle_id").references(() => vehiclesTable.id),
+  repairOrderId: integer("repair_order_id").references(() => repairOrdersTable.id, { onDelete: "set null" }),
   status: text("status").notNull().default("draft"),
   notes: text("notes"),
   subtotal: numeric("subtotal", { precision: 10, scale: 2 }).notNull().default("0"),
@@ -25,7 +27,9 @@ export const estimatesTable = pgTable("estimates", {
   declineReason: text("decline_reason"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  repairOrderIdx: index("estimates_repair_order_idx").on(t.repairOrderId),
+}));
 
 export const insertEstimateSchema = createInsertSchema(estimatesTable).omit({
   id: true,
