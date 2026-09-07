@@ -122,6 +122,7 @@ export default function InvoiceDetail() {
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetInvoiceQueryKey(id) });
+          queryClient.invalidateQueries({ queryKey: getGetPaymentsQueryKey({ invoiceId: id }) });
           toast({ title: "Payment recorded successfully" });
           setPaymentOpen(false);
           setPayAmount("");

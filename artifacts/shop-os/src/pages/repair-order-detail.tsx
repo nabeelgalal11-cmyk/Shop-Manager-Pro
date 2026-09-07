@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useGetRepairOrder, getGetRepairOrderQueryKey,
   useUpdateRepairOrder, useDeleteRepairOrder,
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car, Pencil } from "lucide-react";
+import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car, Pencil, FileText, Receipt, CreditCard, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AttachmentsPanel } from "@/components/attachments-panel";
 import { ActivityTimeline } from "@/components/activity-timeline";
@@ -36,6 +36,12 @@ function fmtUsd(n: number) {
 }
 
 type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean; inventoryId?: number; unitCost?: number; warrantyMonths?: number | null; warrantyMiles?: number | null };
+
+type RepairWorkflow = {
+  estimates: Array<{ id: number; estimateNumber: string; status: string; total: string | number; createdAt: string }>;
+  invoices: Array<{ id: number; invoiceNumber: string; status: string; total: string | number; balance: string | number }>;
+  payments: Array<{ id: number; invoiceId: number; amount: string | number; status: string }>;
+};
 
 function formatWarranty(months?: number | null, miles?: number | null): string {
   const parts: string[] = [];
@@ -91,6 +97,31 @@ export default function RepairOrderDetail() {
 
   const { data: ro, isLoading } = useGetRepairOrder(id, {
     query: { enabled: !!id, queryKey: getGetRepairOrderQueryKey(id) },
+  });
+
+  const workflowQuery = useQuery<RepairWorkflow>({
+    queryKey: ["repair-order-workflow", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const response = await fetch(`/api/repair-orders/${id}/workflow`);
+      if (!response.ok) throw new Error("Could not load repair workflow");
+      return response.json();
+    },
+  });
+
+  const createInvoice = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`/api/repair-orders/${id}/invoice`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not create invoice");
+      return data as { id: number };
+    },
+    onSuccess: (invoice) => {
+      queryClient.invalidateQueries({ queryKey: ["repair-order-workflow", id] });
+      toast({ title: "Invoice ready" });
+      setLocation(`/invoices/${invoice.id}`);
+    },
+    onError: (error: Error) => toast({ title: error.message, variant: "destructive" }),
   });
 
   const { data: inventoryData } = useGetInventory(
@@ -461,6 +492,118 @@ export default function RepairOrderDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
+
+          <Card>
+            <CardHeader className="bg-muted/20 border-b pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base">Estimate, Approval &amp; Payment</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">Follow this repair from estimate through final payment.</p>
+                </div>
+                <Button size="sm" onClick={() => setLocation(`/estimates/new?repairOrderId=${id}`)}>
+                  <Plus className="h-4 w-4 mr-1.5" /> New Estimate
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-5 space-y-5">
+              {workflowQuery.isLoading ? (
+                <Skeleton className="h-24 w-full" />
+              ) : workflowQuery.isError ? (
+                <p className="text-sm text-destructive">The connected workflow could not be loaded.</p>
+              ) : (
+                <>
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-semibold">Estimates &amp; approvals</p>
+                    </div>
+                    {workflowQuery.data?.estimates.length ? (
+                      <div className="space-y-2">
+                        {workflowQuery.data.estimates.map((estimate) => (
+                          <button
+                            key={estimate.id}
+                            type="button"
+                            onClick={() => setLocation(`/estimates/${estimate.id}`)}
+                            className="w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left hover:bg-muted/30"
+                          >
+                            <div>
+                              <p className="font-medium text-sm">{estimate.estimateNumber}</p>
+                              <p className="text-xs text-muted-foreground">{formatDate(estimate.createdAt)}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={estimate.status === "approved" || estimate.status === "converted" ? "default" : estimate.status === "declined" ? "destructive" : "secondary"} className="capitalize">
+                                {estimate.status.replace("_", " ")}
+                              </Badge>
+                              <span className="font-semibold text-sm">{fmtUsd(Number(estimate.total))}</span>
+                              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No estimate yet. Create one before starting authorized work.</p>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm font-semibold">Final invoice &amp; payment</p>
+                      </div>
+                      {!workflowQuery.data?.invoices.length && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={ro.status !== "completed" || createInvoice.isPending}
+                          onClick={() => createInvoice.mutate()}
+                        >
+                          <Receipt className="h-4 w-4 mr-1.5" />
+                          {createInvoice.isPending ? "Creating..." : "Create Final Invoice"}
+                        </Button>
+                      )}
+                    </div>
+                    {workflowQuery.data?.invoices.length ? (
+                      <div className="space-y-2">
+                        {workflowQuery.data.invoices.map((invoice) => {
+                          const paid = workflowQuery.data?.payments
+                            .filter((payment) => payment.invoiceId === invoice.id && payment.status === "succeeded")
+                            .reduce((sum, payment) => sum + Number(payment.amount), 0) ?? 0;
+                          return (
+                            <button
+                              key={invoice.id}
+                              type="button"
+                              onClick={() => setLocation(`/invoices/${invoice.id}`)}
+                              className="w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left hover:bg-muted/30"
+                            >
+                              <div>
+                                <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
+                                <p className="text-xs text-muted-foreground">Paid {fmtUsd(paid)} · Balance {fmtUsd(Number(invoice.balance))}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={invoice.status === "paid" ? "default" : invoice.status === "overdue" ? "destructive" : "secondary"} className="capitalize">
+                                  {invoice.status}
+                                </Badge>
+                                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {ro.status === "completed"
+                          ? "Complete customer approval on an estimate, then create the final invoice."
+                          : "Mark the repair completed after authorized work is finished to create the final invoice."}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Complaint & Diagnosis */}
           <Card>

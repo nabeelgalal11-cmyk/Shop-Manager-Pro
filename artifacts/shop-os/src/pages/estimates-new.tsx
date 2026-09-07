@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useLocation } from "wouter";
-import { useCreateEstimate, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey } from "@workspace/api-client-react";
+import { useEffect, useState } from "react";
+import { useLocation, useSearch } from "wouter";
+import { useCreateEstimate, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetRepairOrder, getGetRepairOrderQueryKey } from "@workspace/api-client-react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -24,7 +24,8 @@ const lineItemSchema = z.object({
 const formSchema = z.object({
   customerId: z.coerce.number().min(1, "Customer is required"),
   vehicleId: z.coerce.number().optional(),
-  status: z.enum(["draft", "sent", "approved", "denied", "converted"]).default("draft"),
+  repairOrderId: z.coerce.number().optional(),
+  status: z.enum(["draft", "sent", "approved", "declined", "converted"]).default("draft"),
   notes: z.string().optional(),
   taxRate: z.coerce.number().min(0).default(0),
   discountAmount: z.coerce.number().min(0).default(0),
@@ -33,12 +34,17 @@ const formSchema = z.object({
 
 export default function EstimatesNew() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const repairOrderId = Number(new URLSearchParams(search).get("repairOrderId")) || 0;
   const { toast } = useToast();
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [cannedOpen, setCannedOpen] = useState(false);
   
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
   const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
+  const { data: repairOrder } = useGetRepairOrder(repairOrderId, {
+    query: { enabled: repairOrderId > 0, queryKey: getGetRepairOrderQueryKey(repairOrderId) },
+  });
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,6 +63,26 @@ export default function EstimatesNew() {
   });
 
   const createEstimate = useCreateEstimate();
+
+  useEffect(() => {
+    if (!repairOrder) return;
+    form.setValue("repairOrderId", repairOrder.id);
+    form.setValue("customerId", repairOrder.customerId);
+    form.setValue("vehicleId", repairOrder.vehicleId);
+    const existing = form.getValues("lineItems");
+    const isBlank = existing.length === 1 && !existing[0].description && existing[0].unitPrice === 0;
+    if (isBlank && repairOrder.parts?.length) {
+      form.setValue("lineItems", repairOrder.parts.map((part: any) => ({
+        type: part.name?.startsWith("[Labor]") ? "labor" : "part",
+        description: part.name?.replace(/^\[Labor\]\s*/, "") || "Repair item",
+        quantity: Number(part.quantity) || 1,
+        unitPrice: Number(part.unitPrice) || 0,
+      })));
+    }
+    if (!form.getValues("notes")) {
+      form.setValue("notes", `Estimate for repair order ${repairOrder.orderNumber}`);
+    }
+  }, [repairOrder, form]);
 
   function handleAIApply(items: { type: "labor" | "part" | "fee" | "discount"; description: string; quantity: number; unitPrice: number }[], notes: string) {
     const existing = form.getValues("lineItems");
@@ -89,7 +115,7 @@ export default function EstimatesNew() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     createEstimate.mutate(
-      { data: values },
+      { data: values as any },
       {
         onSuccess: (data) => {
           toast({ title: "Estimate created" });
@@ -105,9 +131,10 @@ export default function EstimatesNew() {
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/estimates")}><ArrowLeft className="h-5 w-5" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => setLocation(repairOrderId ? `/repair-orders/${repairOrderId}` : "/estimates")}><ArrowLeft className="h-5 w-5" /></Button>
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">New Estimate</h1>
+          {repairOrder && <p className="text-sm text-muted-foreground">Linked to repair order {repairOrder.orderNumber}</p>}
         </div>
         <Button type="button" variant="outline" onClick={() => setCannedOpen(true)}>
           <Wrench className="h-4 w-4 mr-2" /> Canned Job
