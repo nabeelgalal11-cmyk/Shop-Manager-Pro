@@ -145,7 +145,9 @@ export default function EstimatePublic() {
                     <span className="text-sm font-medium tabular-nums">{fmt(lineAmount(li))}</span>
                   </div>
                   <p className="text-xs text-muted-foreground capitalize mt-0.5">
-                    {li.kind} · {Number(li.quantity)} × {fmt(Number(li.unitPrice))}
+                    {li.kind === "labor"
+                      ? `${Number((li as any).estimatedHours ?? li.quantity)} hours × ${fmt(Number(li.unitPrice))}/hour`
+                      : `${li.kind} · ${Number(li.quantity)} × ${fmt(Number(li.unitPrice))}`}
                   </p>
                   <div className="grid grid-cols-2 gap-2 mt-3">
                     <Button

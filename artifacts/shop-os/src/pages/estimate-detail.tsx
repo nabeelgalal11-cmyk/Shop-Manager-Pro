@@ -42,7 +42,7 @@ export default function EstimateDetail() {
         setDraftItems(estimate.items.map((i: any) => ({
           kind: i.kind,
           description: i.description,
-          quantity: Number(i.quantity),
+          quantity: i.kind === "labor" ? Number(i.estimatedHours ?? i.quantity) : Number(i.quantity),
           unitPrice: Number(i.unitPrice),
         })));
       }
@@ -81,6 +81,7 @@ export default function EstimateDetail() {
       description: item.description,
       quantity: String(item.quantity),
       unitPrice: String(item.unitPrice),
+      ...(item.kind === "labor" ? { estimatedHours: String(item.quantity) } : {}),
     }));
 
     saveDraftItems.mutate({ revisionId: id, data: { items: payload } }, {
@@ -236,23 +237,29 @@ export default function EstimateDetail() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor={`draft-quantity-${idx}`} className="text-xs">Quantity</Label>
+                      <Label htmlFor={`draft-quantity-${idx}`} className="text-xs">
+                        {item.kind === "labor" ? "Hours" : "Quantity"}
+                      </Label>
                       <Input
                         id={`draft-quantity-${idx}`}
                         type="number"
                         min="0"
                         step="0.001"
+                        placeholder={item.kind === "labor" ? "e.g. 1.5" : "e.g. 2"}
                         value={item.quantity}
                         onChange={(e) => updateDraftItem(idx, 'quantity', e.target.value)}
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor={`draft-unit-price-${idx}`} className="text-xs">Unit Price</Label>
+                      <Label htmlFor={`draft-unit-price-${idx}`} className="text-xs">
+                        {item.kind === "labor" ? "Hourly Rate" : "Unit Price"}
+                      </Label>
                       <Input
                         id={`draft-unit-price-${idx}`}
                         type="number"
                         min="0"
                         step="0.01"
+                        placeholder={item.kind === "labor" ? "e.g. 125.00" : "e.g. 49.99"}
                         value={item.unitPrice}
                         onChange={(e) => updateDraftItem(idx, 'unitPrice', e.target.value)}
                       />
@@ -287,7 +294,7 @@ export default function EstimateDetail() {
                     setDraftItems(estimate.items.map((i: any) => ({
                       kind: i.kind,
                       description: i.description,
-                      quantity: Number(i.quantity),
+                      quantity: i.kind === "labor" ? Number(i.estimatedHours ?? i.quantity) : Number(i.quantity),
                       unitPrice: Number(i.unitPrice),
                     })));
                     if (estimate.items.length === 0) {
@@ -304,8 +311,8 @@ export default function EstimateDetail() {
                   <TableRow>
                     <TableHead>Description</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Unit Price</TableHead>
+                    <TableHead className="text-right">Quantity / Hours</TableHead>
+                    <TableHead className="text-right">Unit Price / Hourly Rate</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -314,7 +321,9 @@ export default function EstimateDetail() {
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.description}</TableCell>
                       <TableCell className="capitalize">{item.kind}</TableCell>
-                      <TableCell className="text-right">{item.quantity}</TableCell>
+                      <TableCell className="text-right">
+                        {item.kind === "labor" ? (item.estimatedHours ?? item.quantity) : item.quantity}
+                      </TableCell>
                       <TableCell className="text-right">{formatCurrency(Number(item.unitPrice))}</TableCell>
                       <TableCell className="text-right font-medium">
                         {formatCurrency(Number(item.quantity) * Number(item.unitPrice))}
@@ -370,13 +379,13 @@ export default function EstimateDetail() {
           Status: {status}
         </div>
         <table>
-          <thead><tr><th>Description</th><th>Type</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead>
+          <thead><tr><th>Description</th><th>Type</th><th>Quantity / Hours</th><th>Unit Price / Hourly Rate</th><th>Amount</th></tr></thead>
           <tbody>
             {estimate.items?.map((item: any) => (
               <tr key={item.id}>
                 <td>{item.description}</td>
                 <td style={{ textTransform: "capitalize" }}>{item.kind}</td>
-                <td>{item.quantity}</td>
+                <td>{item.kind === "labor" ? (item.estimatedHours ?? item.quantity) : item.quantity}</td>
                 <td>{formatCurrency(Number(item.unitPrice))}</td>
                 <td>{formatCurrency(Number(item.total))}</td>
               </tr>
