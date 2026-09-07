@@ -19,6 +19,9 @@
     "splash": {
       "backgroundColor": "#f8fafc"
     },
+    "extra": {
+      "apiBaseUrl": "https://app.915motorsusa.com"
+    },
     "plugins": ["expo-router"],
     "experiments": {
       "typedRoutes": true,

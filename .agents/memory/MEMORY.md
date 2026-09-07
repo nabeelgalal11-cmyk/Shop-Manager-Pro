@@ -5,3 +5,4 @@
 - [Auth transition handling](auth-navigation.md) — after session-changing auth flows, use a full navigation and clear stale sessions before returning to sign-in
 - [Render pnpm pin](render-pnpm-pin.md) — Render may select a broken Corepack pnpm default; keep the workspace packageManager pinned to the lockfile-compatible pnpm version
 - [React Query monorepo resolution](react-query-monorepo.md) — dedupe React Query in Vite when shared workspace clients import generated hooks
+- [Expo release API base URL](expo-api-base-url.md) — native bundles need a static production API fallback when build-time domain variables are absent

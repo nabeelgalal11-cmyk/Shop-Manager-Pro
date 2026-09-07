@@ -14,16 +14,28 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import {
   setAuthTokenGetter,
   setBaseUrl,
 } from '@workspace/api-client-react';
 import { AuthProvider, MOBILE_TOKEN_KEY } from '@/contexts/AuthContext';
 
+function normalizeApiUrl(value: string | undefined): string | null {
+  if (!value?.trim()) return null;
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
+}
+
+const configuredApiUrl =
+  normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL) ??
+  normalizeApiUrl(process.env.EXPO_PUBLIC_DOMAIN) ??
+  normalizeApiUrl(
+    (Constants.expoConfig?.extra as { apiBaseUrl?: string } | undefined)
+      ?.apiBaseUrl,
+  );
+
 setBaseUrl(
-  process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : null,
+  configuredApiUrl,
 );
 setAuthTokenGetter(() => AsyncStorage.getItem(MOBILE_TOKEN_KEY));
 
