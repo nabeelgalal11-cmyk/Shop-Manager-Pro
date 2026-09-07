@@ -81,6 +81,28 @@ function getDeploymentDomain() {
   process.exit(1);
 }
 
+function getConfiguredApiBaseUrl() {
+  if (process.env.EXPO_PUBLIC_API_URL?.trim()) {
+    return process.env.EXPO_PUBLIC_API_URL.trim();
+  }
+
+  try {
+    const appJson = JSON.parse(
+      fs.readFileSync(path.join(projectRoot, 'app.json'), 'utf-8'),
+    );
+    const configured = appJson.expo?.extra?.apiBaseUrl;
+    if (typeof configured === 'string' && configured.trim()) {
+      return configured.trim();
+    }
+  } catch (error) {
+    exitWithError(`Unable to read app.json for the API URL: ${error.message}`);
+  }
+
+  exitWithError(
+    'ERROR: No API URL found. Set EXPO_PUBLIC_API_URL or expo.extra.apiBaseUrl',
+  );
+}
+
 function prepareDirectories(timestamp) {
   console.log('Preparing build directories...');
 
@@ -153,7 +175,7 @@ function getExpoPublicReplId() {
   return process.env.REPL_ID || process.env.EXPO_PUBLIC_REPL_ID;
 }
 
-async function startMetro(expoPublicDomain, expoPublicReplId) {
+async function startMetro(expoPublicDomain, expoPublicReplId, apiBaseUrl) {
   const isRunning = await checkMetroHealth();
   if (isRunning) {
     console.log('Metro already running');
@@ -167,6 +189,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
   const env = {
     ...process.env,
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
+    EXPO_PUBLIC_API_URL: apiBaseUrl,
     EXPO_PUBLIC_REPL_ID: expoPublicReplId,
   };
 
@@ -553,6 +576,7 @@ async function main() {
   setupSignalHandlers();
 
   const domain = getDeploymentDomain();
+  const apiBaseUrl = getConfiguredApiBaseUrl();
   const expoPublicReplId = getExpoPublicReplId();
   const baseUrl = `https://${domain}`;
   const timestamp = `${Date.now()}-${process.pid}`;
@@ -560,7 +584,7 @@ async function main() {
   prepareDirectories(timestamp);
   clearMetroCache();
 
-  await startMetro(domain, expoPublicReplId);
+  await startMetro(domain, expoPublicReplId, apiBaseUrl);
 
   const downloadTimeout = 600000;
   const downloadPromise = downloadBundlesAndManifests(timestamp);
