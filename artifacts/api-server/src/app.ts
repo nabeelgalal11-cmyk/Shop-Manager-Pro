@@ -56,12 +56,16 @@ app.use(express.urlencoded({ extended: true }));
 app.use(sessionMiddleware);
 app.use(attachUser);
 
-// Bootstrap permissions + admin user (best-effort, async fire-and-forget)
-seedDefaultPermissions().catch((err) => logger.error({ err }, "seedDefaultPermissions failed"));
-bootstrapAdmin().catch((err) => logger.error({ err }, "bootstrapAdmin failed"));
-import("./lib/email.js").then(({ seedEmailTemplates }) =>
-  seedEmailTemplates().catch((err) => logger.error({ err }, "seedEmailTemplates failed")),
-);
+// Bootstrap persistent application data only for real server processes. Tests
+// seed the exact roles and fixtures they need and must not leave background
+// imports running after their ephemeral HTTP server closes.
+if (process.env.NODE_ENV !== "test") {
+  seedDefaultPermissions().catch((err) => logger.error({ err }, "seedDefaultPermissions failed"));
+  bootstrapAdmin().catch((err) => logger.error({ err }, "bootstrapAdmin failed"));
+  import("./lib/email.js").then(({ seedEmailTemplates }) =>
+    seedEmailTemplates().catch((err) => logger.error({ err }, "seedEmailTemplates failed")),
+  );
+}
 
 // API routes
 app.use("/api", router);

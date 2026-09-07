@@ -1,87 +1,32 @@
 import { useState, useRef, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetRepairOrder, getGetRepairOrderQueryKey,
-  useUpdateRepairOrder, useDeleteRepairOrder,
-  useGetCustomerVehicles, getGetCustomerVehiclesQueryKey,
-  useGetInventory, getGetInventoryQueryKey,
-  useGetEmployees, getGetEmployeesQueryKey,
-  type UpdateRepairOrderInput,
-  type UpdateRepairOrderInputStatus,
+  useUpdateRepairOrderIntake,
+  useCreateRepairOrderRevision,
+  useCompleteRepairOrderWorkflow,
+  useCancelRepairOrderWorkflow,
+  useCreateRepairOrderFinalInvoice,
+  usePerformRepairOrderWorkItem,
+  useGetCustomer,
+  useGetVehicle,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, Trash2, Plus, X, Save, Package, Search, BoxIcon, Car, Pencil, FileText, Receipt, CreditCard, ExternalLink } from "lucide-react";
+import { ArrowLeft, Printer, Trash2, Plus, Save, FileText, Receipt, CreditCard, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { AttachmentsPanel } from "@/components/attachments-panel";
 import { ActivityTimeline } from "@/components/activity-timeline";
-import { CustomerMessageThread } from "@/components/customer-message-thread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@/hooks/useAuth";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
-function marginTone(pct: number): string {
-  if (pct >= 50) return "text-green-700 dark:text-green-500";
-  if (pct >= 30) return "text-amber-600 dark:text-amber-500";
-  return "text-red-600 dark:text-red-500";
+function fmtUsd(n: number | string) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n));
 }
-
-function fmtUsd(n: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
-}
-
-type Part = { name: string; partNumber?: string; quantity: number; unitPrice: number; fromInventory?: boolean; inventoryId?: number; unitCost?: number; warrantyMonths?: number | null; warrantyMiles?: number | null };
-
-type RepairWorkflow = {
-  estimates: Array<{ id: number; estimateNumber: string; status: string; total: string | number; createdAt: string }>;
-  invoices: Array<{ id: number; invoiceNumber: string; status: string; total: string | number; balance: string | number }>;
-  payments: Array<{ id: number; invoiceId: number; amount: string | number; status: string }>;
-};
-
-function formatWarranty(months?: number | null, miles?: number | null): string {
-  const parts: string[] = [];
-  if (months != null && months > 0) parts.push(`${months} mo`);
-  if (miles != null && miles > 0) parts.push(`${miles.toLocaleString()} mi`);
-  return parts.join(" / ");
-}
-
-type CompatResult = "compatible" | "universal" | "incompatible";
-
-function getCompatibility(
-  compatibleVehicles: string | null | undefined,
-  vehicle: { make: string; model: string; year: number } | null
-): CompatResult {
-  if (!compatibleVehicles) return "universal";
-  if (!vehicle) return "universal";
-  const cv = compatibleVehicles.toLowerCase();
-  const make = vehicle.make.toLowerCase();
-  const model = vehicle.model.toLowerCase();
-  const year = vehicle.year.toString();
-  if (cv.includes(make) && cv.includes(model)) return "compatible";
-  if (cv.includes(make) && cv.includes(year)) return "compatible";
-  if (cv.includes(make)) return "compatible";
-  return "incompatible";
-}
-
-const COMPAT_BADGE: Record<CompatResult, { label: string; className: string }> = {
-  compatible: { label: "✓ Fits this car", className: "bg-green-100 text-green-700 border-green-300" },
-  universal: { label: "Universal", className: "bg-slate-100 text-slate-500 border-slate-200" },
-  incompatible: { label: "✗ Other vehicle", className: "bg-orange-100 text-orange-600 border-orange-300" },
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-slate-100 text-slate-700",
-  in_progress: "bg-blue-100 text-blue-700",
-  waiting_parts: "bg-yellow-100 text-yellow-700",
-  completed: "bg-green-100 text-green-700",
-  delivered: "bg-purple-100 text-purple-700",
-  cancelled: "bg-red-100 text-red-700",
-};
 
 export default function RepairOrderDetail() {
   const [match, params] = useRoute("/repair-orders/:id");
@@ -90,323 +35,132 @@ export default function RepairOrderDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { can } = useAuth();
-  const canViewReports = can("reports", "view");
-
-  const { data: ro, isLoading } = useGetRepairOrder(id, {
+  const { data: workflow, isLoading } = useGetRepairOrder(id, {
     query: { enabled: !!id, queryKey: getGetRepairOrderQueryKey(id) },
   });
 
-  const workflowQuery = useQuery<RepairWorkflow>({
-    queryKey: ["repair-order-workflow", id],
-    enabled: !!id,
-    queryFn: async () => {
-      const response = await fetch(`/api/repair-orders/${id}/workflow`);
-      if (!response.ok) throw new Error("Could not load repair workflow");
-      return response.json();
-    },
+  const { data: customer } = useGetCustomer(workflow?.repairOrder?.customerId as number, {
+    query: { enabled: !!workflow?.repairOrder?.customerId }
   });
 
-  const createInvoice = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`/api/repair-orders/${id}/invoice`, { method: "POST" });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Could not create invoice");
-      return data as { id: number };
-    },
-    onSuccess: (invoice) => {
-      queryClient.invalidateQueries({ queryKey: ["repair-order-workflow", id] });
-      toast({ title: "Invoice ready" });
-      setLocation(`/invoices/${invoice.id}`);
-    },
-    onError: (error: Error) => toast({ title: error.message, variant: "destructive" }),
+  const { data: vehicle } = useGetVehicle(workflow?.repairOrder?.vehicleId as number, {
+    query: { enabled: !!workflow?.repairOrder?.vehicleId }
   });
 
-  const { data: inventoryData } = useGetInventory(
-    { limit: 200 },
-    { query: { queryKey: getGetInventoryQueryKey({ limit: 200 }) } }
-  );
-  const allInventory = Array.isArray(inventoryData) ? inventoryData : inventoryData?.data ?? [];
+  const updateIntake = useUpdateRepairOrderIntake();
+  const createRevision = useCreateRepairOrderRevision();
+  const completeWorkflow = useCompleteRepairOrderWorkflow();
+  const cancelWorkflow = useCancelRepairOrderWorkflow();
+  const createInvoice = useCreateRepairOrderFinalInvoice();
+  const performWork = usePerformRepairOrderWorkItem();
 
-  const [diagnosis, setDiagnosis] = useState<string | null>(null);
-  const [parts, setParts] = useState<Part[] | null>(null);
-  const [newPart, setNewPart] = useState<Part>({ name: "", partNumber: "", quantity: 1, unitPrice: 0 });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showAll, setShowAll] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
-  // ── Edit Details mode ──────────────────────────────
-  const [editingDetails, setEditingDetails] = useState(false);
-  const [editForm, setEditForm] = useState<{
-    orderNumber: string;
-    createdAt: string;
-    vehicleId: string;
-    priority: string;
-    assignedToId: string;
-    mileageIn: string;
-    mileageOut: string;
-    estimatedHours: string;
-    actualHours: string;
-    promisedDate: string;
-    complaint: string;
-    notes: string;
-  } | null>(null);
-  const [editError, setEditError] = useState<string | null>(null);
+  const [diagnosis, setDiagnosis] = useState("");
+  const [notes, setNotes] = useState("");
+  const [priority, setPriority] = useState<"normal" | "high" | "urgent">("normal");
 
-  const { data: employeesData } = useGetEmployees(
-    { role: "technician" },
-    { query: { queryKey: getGetEmployeesQueryKey({ role: "technician" }), enabled: editingDetails } }
-  );
-  const techList = Array.isArray(employeesData) ? employeesData : employeesData?.data ?? [];
-
-  const customerIdForVehicles = ro?.customerId ?? 0;
-  const { data: customerVehicles } = useGetCustomerVehicles(
-    customerIdForVehicles,
-    { query: { queryKey: getGetCustomerVehiclesQueryKey(customerIdForVehicles), enabled: editingDetails && customerIdForVehicles > 0 } }
-  );
-  const vehicleList = Array.isArray(customerVehicles) ? customerVehicles : customerVehicles?.data ?? [];
-
-  const updateRO = useUpdateRepairOrder();
-  const deleteRO = useDeleteRepairOrder();
-
-  const toDateInput = (v: any) => {
-    if (!v) return "";
-    if (typeof v === "string") {
-      const m = v.match(/^(\d{4}-\d{2}-\d{2})/);
-      if (m) return m[1];
-    }
-    const d = new Date(v);
-    if (isNaN(d.getTime())) return "";
-    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-  };
-
-  const fromDateInput = (s: string): Date | null => {
-    if (!s) return null;
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return null;
-    return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
-  };
-
-  const formatDate = (v: any) => {
-    if (!v) return "";
-    if (typeof v === "string") {
-      const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (m) return `${Number(m[2])}/${Number(m[3])}/${m[1]}`;
-    }
-    const d = new Date(v);
-    if (isNaN(d.getTime())) return "";
-    return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
-  };
-
-  const startEdit = () => {
-    if (!ro) return;
-    setEditForm({
-      orderNumber: ro.orderNumber || "",
-      createdAt: toDateInput(ro.createdAt),
-      vehicleId: ro.vehicleId ? String(ro.vehicleId) : "",
-      priority: ro.priority || "normal",
-      assignedToId: ro.assignedToId ? String(ro.assignedToId) : "none",
-      mileageIn: ro.mileageIn != null ? String(ro.mileageIn) : "",
-      mileageOut: ro.mileageOut != null ? String(ro.mileageOut) : "",
-      estimatedHours: ro.estimatedHours != null ? String(ro.estimatedHours) : "",
-      actualHours: ro.actualHours != null ? String(ro.actualHours) : "",
-      promisedDate: toDateInput(ro.promisedDate),
-      complaint: ro.complaint ?? "",
-      notes: ro.notes ?? "",
-    });
-    setEditError(null);
-    setEditingDetails(true);
-  };
-
-  const cancelEdit = () => {
-    setEditingDetails(false);
-    setEditForm(null);
-    setEditError(null);
-  };
-
-  const saveEdit = () => {
-    if (!editForm) return;
-    setEditError(null);
-
-    // Validate
-    const numOrErr = (v: string, label: string, allowDecimal: boolean) => {
-      if (v.trim() === "") return { ok: true, value: null };
-      const n = Number(v);
-      if (!Number.isFinite(n) || n < 0 || (!allowDecimal && !Number.isInteger(n))) {
-        return { ok: false, error: `${label} must be a positive number` };
-      }
-      return { ok: true, value: n };
-    };
-
-    const mIn = numOrErr(editForm.mileageIn, "Mileage In", false);
-    if (!mIn.ok) return setEditError(mIn.error!);
-    const mOut = numOrErr(editForm.mileageOut, "Mileage Out", false);
-    if (!mOut.ok) return setEditError(mOut.error!);
-    const est = numOrErr(editForm.estimatedHours, "Estimated Hours", true);
-    if (!est.ok) return setEditError(est.error!);
-    const act = numOrErr(editForm.actualHours, "Actual Hours", true);
-    if (!act.ok) return setEditError(act.error!);
-
-    if (editForm.createdAt && isNaN(new Date(editForm.createdAt).getTime())) {
-      return setEditError("Created date is invalid");
-    }
-    if (editForm.promisedDate && isNaN(new Date(editForm.promisedDate).getTime())) {
-      return setEditError("Promised date is invalid");
-    }
-
-    if (!editForm.vehicleId) {
-      return setEditError("Please select a vehicle");
-    }
-    const trimmedOrderNumber = editForm.orderNumber.trim();
-    if (!trimmedOrderNumber) {
-      return setEditError("Order number cannot be empty");
-    }
-
-    const payload: UpdateRepairOrderInput = {
-      orderNumber: trimmedOrderNumber,
-      vehicleId: Number(editForm.vehicleId),
-      priority: editForm.priority,
-      assignedToId: editForm.assignedToId === "none" ? null : Number(editForm.assignedToId),
-      mileageIn: mIn.value,
-      mileageOut: mOut.value,
-      estimatedHours: est.value,
-      actualHours: act.value,
-      promisedDate: fromDateInput(editForm.promisedDate),
-      complaint: editForm.complaint,
-      notes: editForm.notes,
-    };
-    const createdAtDate = fromDateInput(editForm.createdAt);
-    if (createdAtDate) {
-      payload.createdAt = createdAtDate;
-    }
-
-    updateRO.mutate({ id, data: payload }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
-        toast({ title: "Repair order updated" });
-        setEditingDetails(false);
-        setEditForm(null);
-      },
-      onError: () => {
-        setEditError("Failed to save changes. Please try again.");
-        toast({ title: "Failed to save", variant: "destructive" });
-      },
-    });
-  };
-
-  const currentDiagnosis = diagnosis !== null ? diagnosis : (ro?.diagnosis ?? "");
-  const currentParts: Part[] = parts !== null ? parts : ((ro?.parts as Part[]) ?? []);
-
-  // Vehicle from the repair order (for compatibility matching)
-  const vehicle = ro
-    ? { make: ro.vehicle?.make ?? "", model: ro.vehicle?.model ?? "", year: ro.vehicle?.year ?? 0, licensePlate: ro.vehicle?.licensePlate ?? null }
-    : null;
-
-  // Filter & sort inventory: compatible first, then universal, then incompatible (hidden by default)
-  const inventoryMatches = (() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return [];
-    const filtered = allInventory.filter(item =>
-      item.name.toLowerCase().includes(q) ||
-      (item.partNumber ?? "").toLowerCase().includes(q) ||
-      (item.category ?? "").toLowerCase().includes(q)
-    );
-    const scored = filtered.map(item => {
-      const compat = getCompatibility((item as any).compatibleVehicles, vehicle);
-      return { item, compat, score: compat === "compatible" ? 0 : compat === "universal" ? 1 : 2 };
-    });
-    scored.sort((a, b) => a.score - b.score);
-    return showAll ? scored.slice(0, 10) : scored.filter(r => r.compat !== "incompatible").slice(0, 8);
-  })();
-
-  // Close dropdown on outside click
+  // Sync state when workflow loads
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const selectInventoryItem = (item: typeof allInventory[0]) => {
-    setNewPart({
-      name: item.name,
-      partNumber: item.partNumber ?? "",
-      quantity: 1,
-      unitPrice: Number(item.sellPrice),
-      fromInventory: true,
-      inventoryId: item.id,
-      unitCost: Number(item.costPrice),
-      warrantyMonths: item.defaultWarrantyMonths ?? null,
-      warrantyMiles: item.defaultWarrantyMiles ?? null,
-    });
-    setSearchQuery(item.name);
-    setShowDropdown(false);
-  };
-
-  const saveDiagnosis = () => {
-    updateRO.mutate({ id, data: { diagnosis: currentDiagnosis } }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
-        toast({ title: "Diagnosis saved" });
-      },
-      onError: () => toast({ title: "Failed to save", variant: "destructive" }),
-    });
-  };
-
-  const saveParts = (updated: Part[]) => {
-    updateRO.mutate({ id, data: { parts: updated } }, {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
-        toast({ title: "Parts updated" });
-      },
-      onError: () => toast({ title: "Failed to update parts", variant: "destructive" }),
-    });
-  };
-
-  const addPart = () => {
-    if (!newPart.name.trim()) {
-      toast({ title: "Part name is required", variant: "destructive" });
-      return;
+    if (workflow?.repairOrder) {
+      setDiagnosis(workflow.repairOrder.diagnosis || "");
+      setNotes(workflow.repairOrder.notes || "");
+      setPriority(workflow.repairOrder.priority as any);
     }
-    const safeQuantity = newPart.quantity > 0 ? newPart.quantity : 1;
-    const updated = [
-      ...currentParts,
-      { ...newPart, quantity: safeQuantity, partNumber: newPart.partNumber || undefined },
-    ];
-    setParts(updated);
-    saveParts(updated);
-    setNewPart({ name: "", partNumber: "", quantity: 1, unitPrice: 0 });
-    setSearchQuery("");
+  }, [workflow?.repairOrder]);
+
+  if (isLoading) {
+    return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
+  }
+
+  if (!workflow) {
+    return <div className="p-8 text-center">Repair Order not found</div>;
+  }
+
+  const { repairOrder, revisions, workItems, invoice } = workflow;
+  const customerName = customer ? `${customer.firstName} ${customer.lastName}` : `Customer #${repairOrder.customerId}`;
+  const vehicleName = vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : `Vehicle #${repairOrder.vehicleId}`;
+
+  const handleSaveIntake = () => {
+    updateIntake.mutate(
+      {
+        id,
+        data: {
+          version: repairOrder.version,
+          diagnosis,
+          notes,
+          priority
+        }
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
+          toast({ title: "Repair order updated" });
+        },
+        onError: (err: any) => toast({ title: "Failed to update", description: err.message, variant: "destructive" }),
+      }
+    );
   };
 
-  const removePart = (index: number) => {
-    const updated = currentParts.filter((_, i) => i !== index);
-    setParts(updated);
-    saveParts(updated);
+  const handleCreateRevision = () => {
+    createRevision.mutate(
+      { id, data: { kind: "estimate", taxRateBps: 850 } }, // Defaulting to 8.5%
+      {
+        onSuccess: (revision: any) => {
+          toast({ title: "New revision created" });
+          setLocation(`/estimates/${revision.id}`);
+        },
+        onError: (err: any) => toast({ title: "Failed to create revision", description: err.message, variant: "destructive" }),
+      }
+    );
   };
 
-  const updateStatus = (newStatus: UpdateRepairOrderInputStatus) => {
-    updateRO.mutate({ id, data: { status: newStatus } }, {
+  const handleComplete = () => {
+    if (!confirm("Are you sure you want to complete this repair order? All authorized work should be marked as performed.")) return;
+    completeWorkflow.mutate({ id }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
-        toast({ title: "Status updated" });
+        toast({ title: "Repair order completed" });
       },
+      onError: (err: any) => toast({ title: "Failed to complete", description: err.message, variant: "destructive" }),
     });
   };
 
-  const handleDelete = () => {
-    deleteRO.mutate({ id }, {
+  const handleCancel = () => {
+    if (!cancelReason.trim()) return toast({ title: "Reason required", variant: "destructive" });
+    cancelWorkflow.mutate({ id, data: { reason: cancelReason } }, {
       onSuccess: () => {
-        toast({ title: "Repair order deleted" });
-        setLocation("/repair-orders");
+        queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
+        toast({ title: "Repair order cancelled" });
+        setCancelOpen(false);
       },
+      onError: (err: any) => toast({ title: "Failed to cancel", description: err.message, variant: "destructive" }),
     });
   };
+
+  const handleCreateInvoice = () => {
+    createInvoice.mutate({ id }, {
+      onSuccess: (inv: any) => {
+        queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
+        toast({ title: "Final invoice created" });
+        setLocation(`/invoices/${inv.id}`);
+      },
+      onError: (err: any) => toast({ title: "Failed to create invoice", description: err.message, variant: "destructive" }),
+    });
+  };
+
+  const handlePerformWork = (workItemId: number) => {
+    performWork.mutate({ workItemId }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(id) });
+        toast({ title: "Work marked as performed" });
+      },
+      onError: (err: any) => toast({ title: "Failed to perform work", description: err.message, variant: "destructive" }),
+    });
+  };
+
 
   const handlePrint = () => {
     const el = printRef.current;
@@ -416,19 +170,12 @@ export default function RepairOrderDetail() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Repair Order ${ro?.orderNumber}</title>
+          <title>Repair Order ${repairOrder.orderNumber}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
             h1 { font-size: 22px; margin-bottom: 4px; }
             h2 { font-size: 16px; margin: 16px 0 6px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
             .meta { color: #555; font-size: 13px; margin-bottom: 16px; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-            .label { font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 2px; }
-            .value { font-size: 14px; }
-            table { width: 100%; border-collapse: collapse; font-size: 13px; }
-            th { background: #f0f0f0; text-align: left; padding: 6px 8px; font-size: 12px; }
-            td { padding: 6px 8px; border-bottom: 1px solid #eee; }
-            .total-row td { font-weight: bold; border-top: 2px solid #ddd; }
             .box { background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; padding: 12px; font-size: 13px; min-height: 60px; white-space: pre-wrap; }
             @media print { body { padding: 0; } }
           </style>
@@ -441,16 +188,6 @@ export default function RepairOrderDetail() {
     setTimeout(() => { printWindow.print(); }, 300);
   };
 
-  const partsTotal = currentParts.reduce((sum, p) => sum + p.quantity * p.unitPrice, 0);
-
-  if (isLoading) {
-    return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
-  }
-
-  if (!ro) {
-    return <div className="p-8 text-center">Repair Order not found</div>;
-  }
-
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
@@ -460,785 +197,230 @@ export default function RepairOrderDetail() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">RO: {ro.orderNumber}</h1>
-            <p className="text-muted-foreground text-sm">
-              {ro.customer?.firstName} {ro.customer?.lastName} &bull;{" "}
-              {ro.vehicle?.year} {ro.vehicle?.make} {ro.vehicle?.model}
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight">RO: {repairOrder.orderNumber}</h1>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className="capitalize">
+                {repairOrder.status.replace("_", " ")}
+              </Badge>
+              <span className="text-sm text-muted-foreground">{customerName} &bull; {vehicleName}</span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={ro.status} onValueChange={updateStatus} disabled={updateRO.isPending}>
-            <SelectTrigger className="w-[170px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="waiting_parts">Waiting Parts</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="delivered">Delivered</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" /> Print
           </Button>
-          <Button variant="destructive" size="icon" onClick={handleDelete}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          {repairOrder.status !== "completed" && repairOrder.status !== "cancelled" && (
+            <>
+              <Button className="bg-green-600 hover:bg-green-700" onClick={handleComplete} disabled={completeWorkflow.isPending}>
+                <CheckCircle2 className="h-4 w-4 mr-2" /> Complete RO
+              </Button>
+              <Button variant="destructive" onClick={() => setCancelOpen(true)} disabled={cancelWorkflow.isPending}>
+                <XCircle className="h-4 w-4 mr-2" /> Cancel RO
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
-
           <Card>
             <CardHeader className="bg-muted/20 border-b pb-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">Estimate, Approval &amp; Payment</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">Follow this repair from estimate through final payment.</p>
+                  <CardTitle className="text-base">Estimates &amp; Revisions</CardTitle>
                 </div>
-                <Button size="sm" onClick={() => setLocation(`/estimates/new?repairOrderId=${id}`)}>
+                <Button size="sm" onClick={handleCreateRevision} disabled={createRevision.isPending}>
                   <Plus className="h-4 w-4 mr-1.5" /> New Estimate
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="pt-5 space-y-5">
-              {workflowQuery.isLoading ? (
-                <Skeleton className="h-24 w-full" />
-              ) : workflowQuery.isError ? (
-                <p className="text-sm text-destructive">The connected workflow could not be loaded.</p>
-              ) : (
-                <>
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-sm font-semibold">Estimates &amp; approvals</p>
-                    </div>
-                    {workflowQuery.data?.estimates.length ? (
-                      <div className="space-y-2">
-                        {workflowQuery.data.estimates.map((estimate) => (
-                          <button
-                            key={estimate.id}
-                            type="button"
-                            onClick={() => setLocation(`/estimates/${estimate.id}`)}
-                            className="w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left hover:bg-muted/30"
-                          >
-                            <div>
-                              <p className="font-medium text-sm">{estimate.estimateNumber}</p>
-                              <p className="text-xs text-muted-foreground">{formatDate(estimate.createdAt)}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={estimate.status === "approved" || estimate.status === "converted" ? "default" : estimate.status === "declined" ? "destructive" : "secondary"} className="capitalize">
-                                {estimate.status.replace("_", " ")}
-                              </Badge>
-                              <span className="font-semibold text-sm">{fmtUsd(Number(estimate.total))}</span>
-                              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                            </div>
-                          </button>
-                        ))}
+              {revisions.length > 0 ? (
+                <div className="space-y-2">
+                  {revisions.map((rev: any) => (
+                    <button
+                      key={rev.id}
+                      type="button"
+                      onClick={() => setLocation(`/estimates/${rev.id}`)}
+                      className="w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left hover:bg-muted/30"
+                    >
+                      <div>
+                        <p className="font-medium text-sm capitalize">{rev.kind} #{rev.revisionNo}</p>
                       </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No estimate yet. Create one before starting authorized work.</p>
-                    )}
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <div className="flex items-center justify-between gap-3 mb-2">
                       <div className="flex items-center gap-2">
-                        <Receipt className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-sm font-semibold">Final invoice &amp; payment</p>
+                        <Badge variant="secondary" className="capitalize">
+                          {rev.status.replace("_", " ")}
+                        </Badge>
+                        <span className="font-semibold text-sm">{fmtUsd(rev.total)}</span>
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                       </div>
-                      {!workflowQuery.data?.invoices.length && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={ro.status !== "completed" || createInvoice.isPending}
-                          onClick={() => createInvoice.mutate()}
-                        >
-                          <Receipt className="h-4 w-4 mr-1.5" />
-                          {createInvoice.isPending ? "Creating..." : "Create Final Invoice"}
-                        </Button>
-                      )}
-                    </div>
-                    {workflowQuery.data?.invoices.length ? (
-                      <div className="space-y-2">
-                        {workflowQuery.data.invoices.map((invoice) => {
-                          const paid = workflowQuery.data?.payments
-                            .filter((payment) => payment.invoiceId === invoice.id && payment.status === "succeeded")
-                            .reduce((sum, payment) => sum + Number(payment.amount), 0) ?? 0;
-                          return (
-                            <button
-                              key={invoice.id}
-                              type="button"
-                              onClick={() => setLocation(`/invoices/${invoice.id}`)}
-                              className="w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left hover:bg-muted/30"
-                            >
-                              <div>
-                                <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
-                                <p className="text-xs text-muted-foreground">Paid {fmtUsd(paid)} · Balance {fmtUsd(Number(invoice.balance))}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={invoice.status === "paid" ? "default" : invoice.status === "overdue" ? "destructive" : "secondary"} className="capitalize">
-                                  {invoice.status}
-                                </Badge>
-                                <CreditCard className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        {ro.status === "completed"
-                          ? "Complete customer approval on an estimate, then create the final invoice."
-                          : "Mark the repair completed after authorized work is finished to create the final invoice."}
-                      </p>
-                    )}
-                  </div>
-                </>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No revisions yet. Create an estimate to begin.</p>
               )}
             </CardContent>
           </Card>
 
-          {/* Complaint & Diagnosis */}
           <Card>
             <CardHeader className="bg-muted/20 border-b pb-3">
-              <CardTitle className="text-base">Complaint &amp; Diagnosis</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-5 space-y-5">
-              <div>
-                <p className="text-sm font-semibold mb-2">Customer Complaint</p>
-                <div className="p-3 bg-muted/30 rounded-md border text-sm min-h-[70px] whitespace-pre-wrap">
-                  {ro.complaint || <span className="text-muted-foreground">No complaint recorded.</span>}
-                </div>
-              </div>
-              <div>
-                <p className="text-sm font-semibold mb-2">Technician Diagnosis</p>
-                <Textarea
-                  placeholder="Enter technician diagnosis..."
-                  value={currentDiagnosis}
-                  onChange={(e) => setDiagnosis(e.target.value)}
-                  className="min-h-[110px]"
-                />
-                <div className="flex justify-end mt-2">
-                  <Button size="sm" onClick={saveDiagnosis} disabled={updateRO.isPending}>
-                    <Save className="h-3.5 w-3.5 mr-1.5" />
-                    {updateRO.isPending ? "Saving..." : "Save Diagnosis"}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Parts Needed */}
-          <Card>
-            <CardHeader className="bg-muted/20 border-b pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Package className="h-4 w-4" /> Parts Needed
-              </CardTitle>
+              <CardTitle className="text-base">Authorized Work Items</CardTitle>
             </CardHeader>
             <CardContent className="pt-5 space-y-4">
-
-              {/* Parts Table */}
-              {currentParts.length > 0 && (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/40">
-                      <tr>
-                        <th className="text-left px-3 py-2 font-medium">Part Name</th>
-                        <th className="text-left px-3 py-2 font-medium">Part #</th>
-                        <th className="text-right px-3 py-2 font-medium">Qty</th>
-                        <th className="text-right px-3 py-2 font-medium">Unit Price</th>
-                        <th className="text-left px-3 py-2 font-medium">Warranty</th>
-                        <th className="text-right px-3 py-2 font-medium">Total</th>
-                        <th className="px-3 py-2" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {currentParts.map((part, i) => (
-                        <tr key={i} className="border-t hover:bg-muted/20">
-                          <td className="px-3 py-2">
-                            <div className="flex items-center gap-1.5">
-                              {part.fromInventory && (
-                                <BoxIcon className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" title="From inventory" />
-                              )}
-                              <span className="font-medium">{part.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 text-muted-foreground font-mono text-xs">{part.partNumber || "—"}</td>
-                          <td className="px-3 py-2 text-right">{part.quantity}</td>
-                          <td className="px-3 py-2 text-right">${Number(part.unitPrice).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground">
-                            {formatWarranty(part.warrantyMonths, part.warrantyMiles) || "—"}
-                          </td>
-                          <td className="px-3 py-2 text-right font-medium">
-                            ${(part.quantity * Number(part.unitPrice)).toFixed(2)}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={() => removePart(i)}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t bg-muted/20">
-                        <td colSpan={5} className="px-3 py-2 font-semibold text-right">Parts Total</td>
-                        <td className="px-3 py-2 font-bold text-right">${partsTotal.toFixed(2)}</td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
+              {workItems.length > 0 ? (
+                <div className="space-y-3">
+                  {workItems.map((item: any) => (
+                    <div key={item.id} className="flex items-center justify-between border rounded p-3">
+                      <div>
+                        <p className="font-medium text-sm">{item.description}</p>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {item.kind} &bull; Qty: {item.quantity} &bull; {fmtUsd(item.unitPrice)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Badge variant={item.status === "performed" ? "default" : "outline"} className="capitalize">
+                          {item.status}
+                        </Badge>
+                        {item.status === "authorized" && repairOrder.status !== "completed" && (
+                          <Button size="sm" variant="outline" onClick={() => handlePerformWork(item.id)} disabled={performWork.isPending}>
+                            <CheckCircle2 className="h-4 w-4 mr-1.5" /> Mark Performed
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No authorized work yet. Customer must approve an estimate.</p>
               )}
-
-              {/* Add Part Form */}
-              <div className="rounded-md border bg-muted/10 p-4 space-y-3">
-                <p className="text-sm font-semibold">Add Part</p>
-
-                {/* Inventory Search */}
-                <div className="space-y-1.5" ref={dropdownRef}>
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Search Inventory</p>
-                    {vehicle?.make && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 border rounded px-2 py-0.5">
-                        <Car className="h-3 w-3" />
-                        {vehicle.year} {vehicle.make} {vehicle.model}{vehicle.licensePlate ? ` — ${vehicle.licensePlate}` : ""}
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <Input
-                      placeholder="Search by part name, number or category..."
-                      className="pl-9"
-                      value={searchQuery}
-                      onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setNewPart(p => ({ ...p, name: e.target.value, partNumber: "", unitPrice: 0, fromInventory: false }));
-                        setShowDropdown(true);
-                      }}
-                      onFocus={() => searchQuery.trim() && setShowDropdown(true)}
-                    />
-                    {/* Dropdown Results */}
-                    {showDropdown && inventoryMatches.length > 0 && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg overflow-hidden">
-                        {inventoryMatches.map(({ item, compat }) => {
-                          const badge = COMPAT_BADGE[compat];
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              className="w-full text-left px-3 py-2.5 hover:bg-muted/60 flex items-center justify-between gap-4 border-b last:border-0 transition-colors"
-                              onMouseDown={(e) => { e.preventDefault(); selectInventoryItem(item); }}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <BoxIcon className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <p className="text-sm font-medium truncate">{item.name}</p>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium whitespace-nowrap ${badge.className}`}>
-                                      {badge.label}
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground">
-                                    {item.partNumber && <span className="font-mono mr-2">{item.partNumber}</span>}
-                                    <span>{item.category}</span>
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="text-right flex-shrink-0">
-                                <p className="text-sm font-semibold">${Number(item.sellPrice).toFixed(2)}</p>
-                                <p className={`text-xs ${item.quantity <= item.minQuantity ? "text-destructive" : "text-muted-foreground"}`}>
-                                  {item.quantity <= item.minQuantity ? `⚠ ${item.quantity} left` : `${item.quantity} in stock`}
-                                </p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                        {/* Show-all toggle row */}
-                        <button
-                          type="button"
-                          className="w-full text-xs text-center px-3 py-2 text-muted-foreground hover:bg-muted/40 border-t transition-colors"
-                          onMouseDown={(e) => { e.preventDefault(); setShowAll(v => !v); }}
-                        >
-                          {showAll ? "Hide parts for other vehicles" : "Also show parts for other vehicles ↓"}
-                        </button>
-                      </div>
-                    )}
-                    {showDropdown && searchQuery.trim().length >= 1 && inventoryMatches.length === 0 && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded-md shadow-lg overflow-hidden">
-                        <div className="px-3 py-3 text-sm text-muted-foreground">
-                          No matching parts for this vehicle — you can still add manually below.
-                        </div>
-                        <button
-                          type="button"
-                          className="w-full text-xs text-center px-3 py-2 text-primary hover:bg-muted/40 border-t transition-colors"
-                          onMouseDown={(e) => { e.preventDefault(); setShowAll(true); }}
-                        >
-                          Show all inventory regardless of vehicle ↓
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Manual / Auto-filled Part Fields */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <Input
-                    placeholder="Part name *"
-                    value={newPart.name}
-                    onChange={(e) => { setNewPart(p => ({ ...p, name: e.target.value })); setSearchQuery(e.target.value); }}
-                    className="sm:col-span-2"
-                  />
-                  <Input
-                    placeholder="Part # (optional)"
-                    value={newPart.partNumber}
-                    onChange={(e) => setNewPart(p => ({ ...p, partNumber: e.target.value }))}
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Price $"
-                    min={0}
-                    step={0.01}
-                    value={newPart.unitPrice || ""}
-                    onChange={(e) => setNewPart(p => ({ ...p, unitPrice: Number(e.target.value) }))}
-                  />
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <Input
-                    type="number"
-                    placeholder="Warranty months"
-                    min={0}
-                    value={newPart.warrantyMonths ?? ""}
-                    onChange={(e) => setNewPart(p => ({ ...p, warrantyMonths: e.target.value === "" ? null : Number(e.target.value) }))}
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Warranty miles"
-                    min={0}
-                    value={newPart.warrantyMiles ?? ""}
-                    onChange={(e) => setNewPart(p => ({ ...p, warrantyMiles: e.target.value === "" ? null : Number(e.target.value) }))}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Qty:</span>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={newPart.quantity === 0 ? "" : newPart.quantity}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setNewPart(p => ({ ...p, quantity: v === "" ? 0 : Math.max(0, Number(v)) }));
-                      }}
-                      onBlur={() => setNewPart(p => ({ ...p, quantity: p.quantity > 0 ? p.quantity : 1 }))}
-                      className="w-20"
-                    />
-                  </div>
-                  {newPart.fromInventory && (
-                    <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50 gap-1">
-                      <BoxIcon className="h-3 w-3" /> From Inventory
-                    </Badge>
-                  )}
-                  <div className="flex-1" />
-                  <Button size="sm" onClick={addPart} disabled={updateRO.isPending}>
-                    <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Part
-                  </Button>
-                </div>
-              </div>
             </CardContent>
           </Card>
 
-          {/* Profitability — only visible to users with reports:view */}
-          {canViewReports && ro.profitability && (() => {
-            const p = ro.profitability;
-            return (
-              <Card>
-                <CardHeader className="bg-muted/20 border-b pb-3">
-                  <CardTitle className="text-base">Profitability</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-5 space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Revenue</p>
-                      <p className="text-lg font-semibold">{fmtUsd(p.totalRevenue)}</p>
-                      <p className="text-[11px] text-muted-foreground">Parts {fmtUsd(p.partsRevenue)} · Labor {fmtUsd(p.laborRevenue)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Cost</p>
-                      <p className="text-lg font-semibold">{fmtUsd(p.totalCost)}</p>
-                      <p className="text-[11px] text-muted-foreground">Parts {fmtUsd(p.partsCost)} · Labor {fmtUsd(p.laborCost)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Gross Profit</p>
-                      <p className={`text-lg font-semibold ${p.grossProfit >= 0 ? "text-green-700 dark:text-green-500" : "text-red-600 dark:text-red-500"}`}>
-                        {p.grossProfit >= 0 ? "+" : ""}{fmtUsd(p.grossProfit)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Margin</p>
-                      <p className={`text-lg font-semibold ${marginTone(p.grossMarginPct)}`}>
-                        {p.grossMarginPct.toFixed(1)}%
-                      </p>
-                    </div>
+          <Card>
+            <CardHeader className="bg-muted/20 border-b pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-base">Final Invoice</CardTitle>
+                {!invoice && repairOrder.status === "completed" && (
+                  <Button size="sm" onClick={handleCreateInvoice} disabled={createInvoice.isPending}>
+                    <Receipt className="h-4 w-4 mr-1.5" /> Create Final Invoice
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="pt-5 space-y-5">
+              {invoice ? (
+                <button
+                  type="button"
+                  onClick={() => setLocation(`/invoices/${invoice.id}`)}
+                  className="w-full flex items-center justify-between gap-3 rounded-md border p-3 text-left hover:bg-muted/30"
+                >
+                  <div>
+                    <p className="font-medium text-sm">{invoice.invoiceNumber}</p>
+                    <p className="text-xs text-muted-foreground">Balance: {fmtUsd(invoice.balance)}</p>
                   </div>
-
-                  <Separator />
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Hours Billed / Worked</p>
-                      <p className="font-medium">{p.laborHoursBilled.toFixed(2)} / {p.laborHoursWorked.toFixed(2)} hrs</p>
-                    </div>
-                    {p.hasTimeEntries && p.techEfficiencyPct != null && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Tech Efficiency</p>
-                        <p className="font-medium">{p.techEfficiencyPct.toFixed(1)}%</p>
-                      </div>
-                    )}
-                    {p.effectiveLaborRate != null && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Effective Labor Rate</p>
-                        <p className="font-medium">{fmtUsd(p.effectiveLaborRate)}/hr</p>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <Badge variant={invoice.status === "paid" ? "default" : "secondary"} className="capitalize">
+                      {invoice.status}
+                    </Badge>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
-
-                  <div className="text-[11px] text-muted-foreground space-y-1 pt-1">
-                    <p>Shop labor rate: {fmtUsd(p.laborRate)}/hr.</p>
-                    {!p.hasTimeEntries && (
-                      <p className="text-amber-600 dark:text-amber-500">
-                        ⚠ No time entries yet — labor cost estimated from RO hours × shop rate.
-                      </p>
-                    )}
-                    {!p.partsCostKnown && (
-                      <p className="text-amber-600 dark:text-amber-500">
-                        ⚠ Some parts have no cost on file — parts cost may be understated.
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })()}
+                </button>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {repairOrder.status === "completed"
+                    ? "Repair order is completed. Create the final invoice to bill the customer."
+                    : "Complete the repair order first to generate a final invoice."}
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
           <Card>
-            <CardHeader className="bg-muted/20 border-b pb-3 flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">Details</CardTitle>
-              {!editingDetails && (
-                <Button variant="ghost" size="sm" className="h-7 -mr-2" onClick={startEdit}>
-                  <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
-                </Button>
-              )}
+            <CardHeader className="bg-muted/20 border-b pb-3">
+              <CardTitle className="text-base">Intake Details</CardTitle>
             </CardHeader>
-            <CardContent className="pt-5 space-y-4 text-sm">
-              {!editingDetails && (
-                <>
-                  <div>
-                    <p className="text-muted-foreground mb-1">Status</p>
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[ro.status] || "bg-gray-100 text-gray-700"}`}>
-                      {ro.status.replace("_", " ")}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground mb-1">Priority</p>
-                    <Badge variant={ro.priority === "urgent" ? "destructive" : "secondary"} className="capitalize">
-                      {ro.priority}
-                    </Badge>
-                  </div>
-                  <Separator />
-                  <div>
-                    <p className="text-muted-foreground mb-1">Assigned Technician</p>
-                    <p className="font-medium">
-                      {ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground mb-1">Mileage In</p>
-                    <p className="font-medium">{ro.mileageIn ? ro.mileageIn.toLocaleString() + " mi" : "—"}</p>
-                  </div>
-                  {ro.mileageOut != null && (
-                    <div>
-                      <p className="text-muted-foreground mb-1">Mileage Out</p>
-                      <p className="font-medium">{ro.mileageOut.toLocaleString()} mi</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-muted-foreground mb-1">Estimated Hours</p>
-                    <p className="font-medium">{ro.estimatedHours ? ro.estimatedHours + " hrs" : "—"}</p>
-                  </div>
-                  {ro.actualHours != null && (
-                    <div>
-                      <p className="text-muted-foreground mb-1">Actual Hours</p>
-                      <p className="font-medium">{ro.actualHours} hrs</p>
-                    </div>
-                  )}
-                  <Separator />
-                  <div>
-                    <p className="text-muted-foreground mb-1">Created</p>
-                    <p className="font-medium">{formatDate(ro.createdAt)}</p>
-                  </div>
-                  {ro.promisedDate && (
-                    <div>
-                      <p className="text-muted-foreground mb-1">Promised Date</p>
-                      <p className="font-medium">{formatDate(ro.promisedDate)}</p>
-                    </div>
-                  )}
-                  {ro.notes && (
-                    <>
-                      <Separator />
-                      <div>
-                        <p className="text-muted-foreground mb-1">Internal Notes</p>
-                        <p className="font-medium whitespace-pre-wrap">{ro.notes}</p>
-                      </div>
-                    </>
-                  )}
-                  {currentParts.length > 0 && (
-                    <>
-                      <Separator />
-                      <div>
-                        <p className="text-muted-foreground mb-1">Parts</p>
-                        <p className="font-medium">{currentParts.length} part{currentParts.length !== 1 ? "s" : ""}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground mb-1">Parts Total</p>
-                        <p className="font-bold text-base">${partsTotal.toFixed(2)}</p>
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-
-              {editingDetails && editForm && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Order Number</label>
-                    <Input
-                      value={editForm.orderNumber}
-                      onChange={(e) => setEditForm({ ...editForm, orderNumber: e.target.value })}
-                      placeholder="RO-1001"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Vehicle</label>
-                    <Select value={editForm.vehicleId} onValueChange={(v) => setEditForm({ ...editForm, vehicleId: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger>
-                      <SelectContent>
-                        {vehicleList.map(v => (
-                          <SelectItem key={v.id} value={String(v.id)}>
-                            {v.year} {v.make} {v.model}{v.licensePlate ? ` — ${v.licensePlate}` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[11px] text-muted-foreground mt-1">Only this customer's vehicles are listed.</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Priority</label>
-                    <Select value={editForm.priority} onValueChange={(v) => setEditForm({ ...editForm, priority: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Assigned Technician</label>
-                    <Select value={editForm.assignedToId} onValueChange={(v) => setEditForm({ ...editForm, assignedToId: v })}>
-                      <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Unassigned</SelectItem>
-                        {techList.map(e => (
-                          <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Mileage In</label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={editForm.mileageIn}
-                        onChange={(e) => setEditForm({ ...editForm, mileageIn: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Mileage Out</label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={editForm.mileageOut}
-                        onChange={(e) => setEditForm({ ...editForm, mileageOut: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Est. Hours</label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.25}
-                        value={editForm.estimatedHours}
-                        onChange={(e) => setEditForm({ ...editForm, estimatedHours: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Actual Hours</label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.25}
-                        value={editForm.actualHours}
-                        onChange={(e) => setEditForm({ ...editForm, actualHours: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Created Date</label>
-                    <Input
-                      type="date"
-                      value={editForm.createdAt}
-                      onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Promised Date</label>
-                    <Input
-                      type="date"
-                      value={editForm.promisedDate}
-                      onChange={(e) => setEditForm({ ...editForm, promisedDate: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Customer Complaint</label>
-                    <Textarea
-                      rows={3}
-                      value={editForm.complaint}
-                      onChange={(e) => setEditForm({ ...editForm, complaint: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">Internal Notes</label>
-                    <Textarea
-                      rows={3}
-                      placeholder="Notes visible only to shop staff..."
-                      value={editForm.notes}
-                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                    />
-                  </div>
-
-                  {editError && (
-                    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                      {editError}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <Button size="sm" onClick={saveEdit} disabled={updateRO.isPending} className="flex-1">
-                      <Save className="h-3.5 w-3.5 mr-1.5" />
-                      {updateRO.isPending ? "Saving..." : "Save Changes"}
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={cancelEdit} disabled={updateRO.isPending}>
-                      Cancel
-                    </Button>
-                  </div>
+            <CardContent className="pt-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase text-muted-foreground">Priority</label>
+                <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase text-muted-foreground">Customer Complaint</label>
+                <div className="p-3 bg-muted/30 rounded-md border text-sm min-h-[70px] whitespace-pre-wrap">
+                  {repairOrder.complaint || <span className="text-muted-foreground">No complaint recorded.</span>}
                 </div>
-              )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase text-muted-foreground">Technician Diagnosis</label>
+                <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold uppercase text-muted-foreground">Internal Notes</label>
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </div>
+              <Button className="w-full" onClick={handleSaveIntake} disabled={updateIntake.isPending}>
+                <Save className="h-4 w-4 mr-2" /> {updateIntake.isPending ? "Saving..." : "Save Intake"}
+              </Button>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {ro.customerId ? (
-        <CustomerMessageThread
-          customerId={ro.customerId}
-          repairOrderId={ro.id}
-          title="Messages on this Repair Order"
-        />
-      ) : null}
-
-      <AttachmentsPanel
-        ownerType="repair_order"
-        ownerId={ro.id}
-        title="Photos & Documents"
-        description="Before/after photos, photos of failed parts, customer signatures, supporting PDFs."
-      />
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Repair Order</DialogTitle>
+            <DialogDescription>
+              Provide a reason for cancellation. This will halt all active workflows.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Textarea
+                placeholder="Reason..."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)}>Back</Button>
+            <Button variant="destructive" onClick={handleCancel} disabled={cancelWorkflow.isPending}>
+              Confirm Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ActivityTimeline
         entityType="repair_order"
-        entityId={ro.id}
-        description="Status changes, notes, assignments, customer communications, and attachments for this RO."
+        entityId={repairOrder.id}
+        description="Workflow changes and events for this repair order."
       />
 
-      {/* Print Template (hidden) */}
       <div ref={printRef} style={{ display: "none" }}>
-        <h1>Repair Order: {ro.orderNumber}</h1>
-        <p className="meta">
-          Customer: {ro.customer?.firstName} {ro.customer?.lastName} &bull;{" "}
-          Vehicle: {ro.vehicle?.year} {ro.vehicle?.make} {ro.vehicle?.model}{ro.vehicle?.licensePlate ? ` — Plate ${ro.vehicle.licensePlate}` : ""} &bull;{" "}
-          Status: {ro.status?.replace("_", " ")} &bull; Priority: {ro.priority}
-        </p>
-        <div className="grid">
-          <div><div className="label">Technician</div><div className="value">{ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned"}</div></div>
-          <div><div className="label">Mileage In</div><div className="value">{ro.mileageIn ? ro.mileageIn.toLocaleString() + " mi" : "—"}</div></div>
-          <div><div className="label">Created</div><div className="value">{formatDate(ro.createdAt)}</div></div>
-          <div><div className="label">Promised Date</div><div className="value">{ro.promisedDate ? formatDate(ro.promisedDate) : "—"}</div></div>
+        <h1>Repair Order: {repairOrder.orderNumber}</h1>
+        <div className="meta">
+          Customer ID: {repairOrder.customerId} &bull;
+          Vehicle ID: {repairOrder.vehicleId} &bull;
+          Status: {repairOrder.status}
         </div>
         <h2>Customer Complaint</h2>
-        <div className="box">{ro.complaint || "No complaint recorded."}</div>
-        <h2>Technician Diagnosis</h2>
-        <div className="box">{currentDiagnosis || "No diagnosis recorded."}</div>
-        {currentParts.length > 0 && (
-          <>
-            <h2>Parts Needed</h2>
-            <table>
-              <thead>
-                <tr><th>Part Name</th><th>Part #</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr>
-              </thead>
-              <tbody>
-                {currentParts.map((part, i) => (
-                  <tr key={i}>
-                    <td>{part.name}</td>
-                    <td>{part.partNumber || "—"}</td>
-                    <td>{part.quantity}</td>
-                    <td>${Number(part.unitPrice).toFixed(2)}</td>
-                    <td>${(part.quantity * Number(part.unitPrice)).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="total-row">
-                  <td colSpan={4} style={{ textAlign: "right" }}>Parts Total</td>
-                  <td>${partsTotal.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </>
-        )}
+        <div className="box">{repairOrder.complaint || "None"}</div>
+        <h2>Diagnosis</h2>
+        <div className="box">{repairOrder.diagnosis || "None"}</div>
       </div>
     </div>
   );

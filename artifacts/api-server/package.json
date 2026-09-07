@@ -7,7 +7,8 @@
     "build": "tsc -b && node build.mjs",
     "start": "node --enable-source-maps dist/index.mjs",
     "dev": "NODE_ENV=development pnpm run build && pnpm run start",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:repair": "NODE_ENV=test node --require tsx/cjs -e \"require('../../lib/db/test/domain_rules.test.ts')\" && NODE_ENV=test node --require tsx/cjs -e \"require('./test/repair-workflow.integration.test.ts')\" && NODE_ENV=test node --require tsx/cjs -e \"require('./test/repair-routes.test.ts')\""
   },
   "dependencies": {
     "@google-cloud/storage": "^7.19.0",

@@ -548,7 +548,6 @@ async function queryRelatedRepairs(vehicleId: number, sinceDate: Date | null, un
     complaint: repairOrdersTable.complaint,
     diagnosis: repairOrdersTable.diagnosis,
     status: repairOrdersTable.status,
-    parts: repairOrdersTable.parts,
     completedAt: repairOrdersTable.completedAt,
     createdAt: repairOrdersTable.createdAt,
     technicianFirstName: employeesTable.firstName,

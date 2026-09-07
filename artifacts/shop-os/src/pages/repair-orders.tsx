@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft, Printer, List, LayoutGrid, CarFront } from "lucide-react";
+import { Plus, Search, ChevronRight, AlertTriangle, Clock, CheckCircle2, Wrench, ChevronLeft, Printer, List, LayoutGrid, CarFront, FileSearch, ShieldCheck, XCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -40,12 +40,8 @@ const formatDate = (v: any) => {
 };
 
 function buildOrderHtml(ro: any, isLast: boolean): string {
-  const parts: Array<{ name: string; partNumber?: string; quantity: number; unitPrice: number | string }> =
-    Array.isArray(ro.parts) ? ro.parts : [];
-  const partsTotal = parts.reduce(
-    (sum, p) => sum + Number(p.quantity || 0) * Number(p.unitPrice || 0),
-    0
-  );
+  const parts: Array<{ name: string; partNumber?: string; quantity: number; unitPrice: number | string }> = [];
+  const partsTotal = 0;
   const tech = ro.assignedTo ? `${ro.assignedTo.firstName} ${ro.assignedTo.lastName}` : "Unassigned";
   const customer = ro.customer ? `${ro.customer.firstName} ${ro.customer.lastName}` : "—";
   const vehicle = ro.vehicle
@@ -239,10 +235,13 @@ export default function RepairOrders() {
 
   const getStatusBadge = (status: string) => {
     switch(status) {
-      case 'pending': return <Badge variant="secondary" className="bg-muted text-muted-foreground"><Clock className="mr-1 h-3 w-3" /> Pending</Badge>;
+      case 'open': return <Badge variant="secondary" className="bg-muted text-muted-foreground"><Clock className="mr-1 h-3 w-3" /> Open</Badge>;
+      case 'diagnosing': return <Badge variant="outline" className="border-blue-500 text-blue-700 bg-blue-50 dark:bg-blue-950/20"><FileSearch className="mr-1 h-3 w-3" /> Diagnosing</Badge>;
+      case 'awaiting_approval': return <Badge variant="outline" className="border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/20"><AlertTriangle className="mr-1 h-3 w-3" /> Awaiting Approval</Badge>;
+      case 'authorized': return <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50 dark:bg-purple-950/20"><ShieldCheck className="mr-1 h-3 w-3" /> Authorized</Badge>;
       case 'in_progress': return <Badge className="bg-primary text-primary-foreground border-primary"><Wrench className="mr-1 h-3 w-3" /> In Progress</Badge>;
-      case 'waiting_parts': return <Badge variant="outline" className="border-orange-500 text-orange-600 bg-orange-50 dark:bg-orange-950/20"><AlertTriangle className="mr-1 h-3 w-3" /> Waiting Parts</Badge>;
       case 'completed': return <Badge className="bg-green-600 hover:bg-green-700 text-white"><CheckCircle2 className="mr-1 h-3 w-3" /> Completed</Badge>;
+      case 'cancelled': return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3" /> Cancelled</Badge>;
       default: return <Badge variant="outline">{status.replace('_', ' ')}</Badge>;
     }
   };

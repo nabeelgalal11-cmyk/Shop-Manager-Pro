@@ -1497,6 +1497,650 @@ export interface SquareWebhookEvent {
   [key: string]: unknown;
 }
 
+export interface WorkflowError {
+  error: string;
+}
+
+export type WorkflowRepairOrderStatus =
+  (typeof WorkflowRepairOrderStatus)[keyof typeof WorkflowRepairOrderStatus];
+
+export const WorkflowRepairOrderStatus = {
+  open: "open",
+  diagnosing: "diagnosing",
+  awaiting_approval: "awaiting_approval",
+  authorized: "authorized",
+  in_progress: "in_progress",
+  completed: "completed",
+  cancelled: "cancelled",
+} as const;
+
+export type WorkflowRepairOrderPriority =
+  (typeof WorkflowRepairOrderPriority)[keyof typeof WorkflowRepairOrderPriority];
+
+export const WorkflowRepairOrderPriority = {
+  low: "low",
+  normal: "normal",
+  high: "high",
+  urgent: "urgent",
+} as const;
+
+export interface WorkflowRepairOrder {
+  readonly id: number;
+  readonly orderNumber: string;
+  readonly customerId: number;
+  readonly vehicleId: number;
+  /** @nullable */
+  readonly usedCarId?: number | null;
+  readonly internal?: boolean;
+  /** @nullable */
+  assignedToId?: number | null;
+  readonly createdById: number;
+  readonly status: WorkflowRepairOrderStatus;
+  priority: WorkflowRepairOrderPriority;
+  /** @nullable */
+  complaint?: string | null;
+  /** @nullable */
+  diagnosis?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  mileageIn?: number | null;
+  /** @nullable */
+  mileageOut?: number | null;
+  /** @nullable */
+  promisedAt?: string | null;
+  readonly openedAt: string;
+  /** @nullable */
+  readonly completedAt?: string | null;
+  /** @nullable */
+  readonly cancelledAt?: string | null;
+  /** @nullable */
+  readonly cancellationReason?: string | null;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type RepairOrderInputPriority =
+  (typeof RepairOrderInputPriority)[keyof typeof RepairOrderInputPriority];
+
+export const RepairOrderInputPriority = {
+  low: "low",
+  normal: "normal",
+  high: "high",
+  urgent: "urgent",
+} as const;
+
+export interface RepairOrderInput {
+  customerId: number;
+  vehicleId: number;
+  /** @nullable */
+  assignedToId?: number | null;
+  priority?: RepairOrderInputPriority;
+  /** @nullable */
+  complaint?: string | null;
+  /** @nullable */
+  diagnosis?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  mileageIn?: number | null;
+  /** @nullable */
+  promisedAt?: string | null;
+}
+
+export type RepairOrderIntakeUpdatePriority =
+  (typeof RepairOrderIntakeUpdatePriority)[keyof typeof RepairOrderIntakeUpdatePriority];
+
+export const RepairOrderIntakeUpdatePriority = {
+  low: "low",
+  normal: "normal",
+  high: "high",
+  urgent: "urgent",
+} as const;
+
+export interface RepairOrderIntakeUpdate {
+  /** @minimum 1 */
+  version: number;
+  /** @nullable */
+  assignedToId?: number | null;
+  priority?: RepairOrderIntakeUpdatePriority;
+  /** @nullable */
+  complaint?: string | null;
+  /** @nullable */
+  diagnosis?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  mileageIn?: number | null;
+  /** @nullable */
+  mileageOut?: number | null;
+  /** @nullable */
+  promisedAt?: string | null;
+}
+
+export type EstimateItemKind =
+  (typeof EstimateItemKind)[keyof typeof EstimateItemKind];
+
+export const EstimateItemKind = {
+  part: "part",
+  labor: "labor",
+  fee: "fee",
+  discount: "discount",
+} as const;
+
+export interface EstimateItem {
+  readonly id: number;
+  readonly estimateRevisionId: number;
+  /** @minimum 1 */
+  position: number;
+  kind: EstimateItemKind;
+  description: string;
+  /** @pattern ^\d+(\.\d{1,3})?$ */
+  quantity: string;
+  /** @pattern ^\d+(\.\d{1,2})?$ */
+  unitPrice: string;
+  /** @nullable */
+  readonly unitCost?: string | null;
+  /** @nullable */
+  inventoryItemId?: number | null;
+  /** @nullable */
+  estimatedHours?: string | null;
+  /** @nullable */
+  warrantyMonths?: number | null;
+  /** @nullable */
+  warrantyMiles?: number | null;
+}
+
+export type EstimateItemInputKind =
+  (typeof EstimateItemInputKind)[keyof typeof EstimateItemInputKind];
+
+export const EstimateItemInputKind = {
+  part: "part",
+  labor: "labor",
+  fee: "fee",
+  discount: "discount",
+} as const;
+
+export interface EstimateItemInput {
+  /** @minimum 1 */
+  position: number;
+  kind: EstimateItemInputKind;
+  /** @minLength 1 */
+  description: string;
+  quantity: string | number;
+  unitPrice: string | number;
+  unitCost?: string | number | null;
+  /** @nullable */
+  inventoryItemId?: number | null;
+  estimatedHours?: string | number | null;
+  /**
+   * @minimum 0
+   * @nullable
+   */
+  warrantyMonths?: number | null;
+  /**
+   * @minimum 0
+   * @nullable
+   */
+  warrantyMiles?: number | null;
+}
+
+export type EstimateApprovalDecision =
+  (typeof EstimateApprovalDecision)[keyof typeof EstimateApprovalDecision];
+
+export const EstimateApprovalDecision = {
+  approved: "approved",
+  partially_approved: "partially_approved",
+  declined: "declined",
+} as const;
+
+export type EstimateApprovalMetadata = { [key: string]: unknown };
+
+export interface EstimateApproval {
+  readonly id: number;
+  readonly estimateRevisionId: number;
+  readonly decision: EstimateApprovalDecision;
+  /** @nullable */
+  readonly signerName?: string | null;
+  /** @nullable */
+  readonly signerEmail?: string | null;
+  /** @nullable */
+  readonly signatureUrl?: string | null;
+  readonly documentHash: string;
+  /** @nullable */
+  readonly requestIp?: string | null;
+  /** @nullable */
+  readonly requestUserAgent?: string | null;
+  readonly decidedAt: string;
+  readonly metadata: EstimateApprovalMetadata;
+  readonly createdAt: string;
+}
+
+export type EstimateRevisionKind =
+  (typeof EstimateRevisionKind)[keyof typeof EstimateRevisionKind];
+
+export const EstimateRevisionKind = {
+  estimate: "estimate",
+  supplement: "supplement",
+} as const;
+
+export type EstimateRevisionStatus =
+  (typeof EstimateRevisionStatus)[keyof typeof EstimateRevisionStatus];
+
+export const EstimateRevisionStatus = {
+  draft: "draft",
+  sent: "sent",
+  approved: "approved",
+  partially_approved: "partially_approved",
+  declined: "declined",
+  superseded: "superseded",
+} as const;
+
+export type EstimateRevisionCustomerSnapshot = { [key: string]: unknown };
+
+export type EstimateRevisionVehicleSnapshot = { [key: string]: unknown };
+
+export interface EstimateRevision {
+  readonly id: number;
+  readonly repairOrderId: number;
+  readonly revisionNo: number;
+  readonly kind: EstimateRevisionKind;
+  readonly status: EstimateRevisionStatus;
+  /** @nullable */
+  notes?: string | null;
+  readonly customerSnapshot: EstimateRevisionCustomerSnapshot;
+  readonly vehicleSnapshot: EstimateRevisionVehicleSnapshot;
+  readonly subtotal: string;
+  /**
+   * @minimum 0
+   * @maximum 10000
+   */
+  readonly taxRateBps: number;
+  readonly taxAmount: string;
+  readonly total: string;
+  /** @nullable */
+  readonly publicToken?: string | null;
+  /** @nullable */
+  readonly sentAt?: string | null;
+  readonly createdById: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type EstimateRevisionDetail = EstimateRevision & {
+  items: EstimateItem[];
+};
+
+export type EstimateRevisionCreateInputKind =
+  (typeof EstimateRevisionCreateInputKind)[keyof typeof EstimateRevisionCreateInputKind];
+
+export const EstimateRevisionCreateInputKind = {
+  estimate: "estimate",
+  supplement: "supplement",
+} as const;
+
+export interface EstimateRevisionCreateInput {
+  kind?: EstimateRevisionCreateInputKind;
+  /**
+   * @minimum 0
+   * @maximum 10000
+   */
+  taxRateBps?: number;
+}
+
+export interface EstimateRevisionItemsUpdate {
+  items: EstimateItemInput[];
+}
+
+export type EstimateDecisionInputDecision =
+  (typeof EstimateDecisionInputDecision)[keyof typeof EstimateDecisionInputDecision];
+
+export const EstimateDecisionInputDecision = {
+  approved: "approved",
+  declined: "declined",
+} as const;
+
+export interface EstimateDecisionInput {
+  /** @minLength 1 */
+  signerName: string;
+  /** @nullable */
+  signerEmail?: string | null;
+  decision: EstimateDecisionInputDecision;
+  approvedItemIds: number[];
+  declinedItemIds: number[];
+}
+
+export type EstimateDecisionResultDecision =
+  (typeof EstimateDecisionResultDecision)[keyof typeof EstimateDecisionResultDecision];
+
+export const EstimateDecisionResultDecision = {
+  approved: "approved",
+  partially_approved: "partially_approved",
+  declined: "declined",
+} as const;
+
+export interface EstimateDecisionResult {
+  readonly revisionId: number;
+  readonly approvalId: number;
+  readonly decision: EstimateDecisionResultDecision;
+}
+
+export type EstimateApprovalItemDecision =
+  (typeof EstimateApprovalItemDecision)[keyof typeof EstimateApprovalItemDecision];
+
+export const EstimateApprovalItemDecision = {
+  approved: "approved",
+  declined: "declined",
+} as const;
+
+export interface EstimateApprovalItem {
+  readonly id: number;
+  readonly approvalId: number;
+  readonly estimateItemId: number;
+  readonly decision: EstimateApprovalItemDecision;
+}
+
+export type RepairOrderWorkItemKind =
+  (typeof RepairOrderWorkItemKind)[keyof typeof RepairOrderWorkItemKind];
+
+export const RepairOrderWorkItemKind = {
+  part: "part",
+  labor: "labor",
+  fee: "fee",
+  discount: "discount",
+} as const;
+
+export type RepairOrderWorkItemStatus =
+  (typeof RepairOrderWorkItemStatus)[keyof typeof RepairOrderWorkItemStatus];
+
+export const RepairOrderWorkItemStatus = {
+  authorized: "authorized",
+  performed: "performed",
+  void: "void",
+} as const;
+
+export interface RepairOrderWorkItem {
+  readonly id: number;
+  readonly repairOrderId: number;
+  readonly sourceEstimateItemId: number;
+  readonly position: number;
+  readonly kind: RepairOrderWorkItemKind;
+  readonly description: string;
+  readonly quantity: string;
+  readonly unitPrice: string;
+  /** @nullable */
+  readonly unitCost?: string | null;
+  /** @nullable */
+  readonly estimatedHours?: string | null;
+  readonly status: RepairOrderWorkItemStatus;
+  readonly authorizedAt: string;
+  /** @nullable */
+  readonly performedAt?: string | null;
+  /** @nullable */
+  readonly performedById?: number | null;
+  /** @nullable */
+  readonly voidedAt?: string | null;
+  /** @nullable */
+  readonly voidReason?: string | null;
+  readonly createdAt: string;
+}
+
+export type WorkflowInvoiceItemKind =
+  (typeof WorkflowInvoiceItemKind)[keyof typeof WorkflowInvoiceItemKind];
+
+export const WorkflowInvoiceItemKind = {
+  part: "part",
+  labor: "labor",
+  fee: "fee",
+  discount: "discount",
+} as const;
+
+export interface WorkflowInvoiceItem {
+  readonly id: number;
+  readonly invoiceId: number;
+  readonly sourceWorkItemId: number;
+  readonly position: number;
+  readonly kind: WorkflowInvoiceItemKind;
+  readonly description: string;
+  readonly quantity: string;
+  readonly unitPrice: string;
+  /** @nullable */
+  readonly unitCost?: string | null;
+  readonly lineTotal: string;
+}
+
+export type WorkflowPaymentStatus =
+  (typeof WorkflowPaymentStatus)[keyof typeof WorkflowPaymentStatus];
+
+export const WorkflowPaymentStatus = {
+  pending: "pending",
+  succeeded: "succeeded",
+  failed: "failed",
+  refunded: "refunded",
+  void: "void",
+} as const;
+
+export interface WorkflowPayment {
+  readonly id: number;
+  readonly invoiceId: number;
+  readonly amount: string;
+  readonly status: WorkflowPaymentStatus;
+  readonly method: string;
+  /** @nullable */
+  readonly processor?: string | null;
+  /** @nullable */
+  readonly processorPaymentId?: string | null;
+  /** @nullable */
+  readonly processorEventId?: string | null;
+  readonly attemptKey: string;
+  /** @nullable */
+  readonly idempotencyKey?: string | null;
+  /** @nullable */
+  readonly parentPaymentId?: number | null;
+  /** @nullable */
+  readonly referenceNumber?: string | null;
+  /** @nullable */
+  readonly failureReason?: string | null;
+  /** @nullable */
+  readonly refundedAt?: string | null;
+  /** @nullable */
+  readonly voidedAt?: string | null;
+  /** @nullable */
+  readonly processedAt?: string | null;
+  readonly createdAt: string;
+}
+
+export type WorkflowInvoiceCustomerSnapshot = { [key: string]: unknown };
+
+export type WorkflowInvoiceVehicleSnapshot = { [key: string]: unknown };
+
+export type WorkflowInvoiceStatus =
+  (typeof WorkflowInvoiceStatus)[keyof typeof WorkflowInvoiceStatus];
+
+export const WorkflowInvoiceStatus = {
+  draft: "draft",
+  issued: "issued",
+  partially_paid: "partially_paid",
+  paid: "paid",
+  void: "void",
+} as const;
+
+export interface WorkflowInvoice {
+  readonly id: number;
+  readonly invoiceNumber: string;
+  readonly repairOrderId: number;
+  readonly customerSnapshot: WorkflowInvoiceCustomerSnapshot;
+  readonly vehicleSnapshot: WorkflowInvoiceVehicleSnapshot;
+  readonly status: WorkflowInvoiceStatus;
+  /** @nullable */
+  readonly notes?: string | null;
+  readonly subtotal: string;
+  readonly taxRateBps: number;
+  readonly taxAmount: string;
+  readonly total: string;
+  readonly amountPaid: string;
+  readonly balance: string;
+  readonly taxExempt: boolean;
+  /** @nullable */
+  readonly taxExemptNumber?: string | null;
+  /** @nullable */
+  readonly publicToken?: string | null;
+  /** @nullable */
+  readonly issuedAt?: string | null;
+  /** @nullable */
+  readonly issuedById?: number | null;
+  /** @nullable */
+  readonly voidedAt?: string | null;
+  /** @nullable */
+  readonly voidedById?: number | null;
+  /** @nullable */
+  readonly voidReason?: string | null;
+  readonly version: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type WorkflowInvoiceDetail = WorkflowInvoice & {
+  items: WorkflowInvoiceItem[];
+  payments: WorkflowPayment[];
+};
+
+export interface IssuedInvoiceResult {
+  invoice: WorkflowInvoice;
+  /** @nullable */
+  paymentUrl: string | null;
+}
+
+export interface CheckoutRedirect {
+  url: string;
+}
+
+export type PublicWorkflowInvoiceStatus =
+  (typeof PublicWorkflowInvoiceStatus)[keyof typeof PublicWorkflowInvoiceStatus];
+
+export const PublicWorkflowInvoiceStatus = {
+  issued: "issued",
+  partially_paid: "partially_paid",
+} as const;
+
+export type PublicWorkflowInvoiceLineItemsItem = { [key: string]: unknown };
+
+export type PublicWorkflowInvoicePaymentsItem = { [key: string]: unknown };
+
+export interface PublicWorkflowInvoice {
+  invoiceNumber: string;
+  status: PublicWorkflowInvoiceStatus;
+  subtotal: string;
+  taxAmount: string;
+  total: string;
+  amountPaid: string;
+  balance: string;
+  lineItems: PublicWorkflowInvoiceLineItemsItem[];
+  payments: PublicWorkflowInvoicePaymentsItem[];
+  [key: string]: unknown;
+}
+
+export interface PaymentInput {
+  invoiceId: number;
+  amount: string | number;
+  /** @minLength 1 */
+  method: string;
+  /** @minLength 1 */
+  attemptKey: string;
+  /** @nullable */
+  processor?: string | null;
+  /** @nullable */
+  processorPaymentId?: string | null;
+  /** @nullable */
+  referenceNumber?: string | null;
+}
+
+export interface PaymentReversalInput {
+  amount: string | number;
+  /** @minLength 1 */
+  reason: string;
+}
+
+export interface PaymentInvoiceResult {
+  payment: WorkflowPayment;
+  invoice: WorkflowInvoice;
+}
+
+export interface ReasonInput {
+  /** @minLength 1 */
+  reason: string;
+}
+
+export type PublicEstimateRevisionRevisionKind =
+  (typeof PublicEstimateRevisionRevisionKind)[keyof typeof PublicEstimateRevisionRevisionKind];
+
+export const PublicEstimateRevisionRevisionKind = {
+  estimate: "estimate",
+  supplement: "supplement",
+} as const;
+
+export type PublicEstimateRevisionRevisionCustomerSnapshot = {
+  [key: string]: unknown;
+};
+
+export type PublicEstimateRevisionRevisionVehicleSnapshot = {
+  [key: string]: unknown;
+};
+
+export type PublicEstimateRevisionRevision = {
+  readonly id: number;
+  readonly revisionNo: number;
+  readonly kind: PublicEstimateRevisionRevisionKind;
+  /** @nullable */
+  readonly notes?: string | null;
+  readonly customerSnapshot: PublicEstimateRevisionRevisionCustomerSnapshot;
+  readonly vehicleSnapshot: PublicEstimateRevisionRevisionVehicleSnapshot;
+  readonly subtotal: string;
+  /**
+   * @minimum 0
+   * @maximum 10000
+   */
+  readonly taxRateBps: number;
+  readonly taxAmount: string;
+  readonly total: string;
+};
+
+export interface PublicEstimateRevision {
+  revision: PublicEstimateRevisionRevision;
+  items: EstimateItem[];
+}
+
+/**
+ * Immutable workflow event returned by the repair-order aggregate.
+ */
+export interface RepairOrderEvent {
+  [key: string]: unknown;
+}
+
+export type RepairOrderWorkflowRevisionsItem = EstimateRevisionDetail & {
+  approval: EstimateApproval | null;
+};
+
+export interface RepairOrderWorkflow {
+  repairOrder: WorkflowRepairOrder;
+  revisions: RepairOrderWorkflowRevisionsItem[];
+  approvalItems: EstimateApprovalItem[];
+  workItems: RepairOrderWorkItem[];
+  invoice: WorkflowInvoiceDetail | null;
+  events: RepairOrderEvent[];
+}
+
+/**
+ * Requested resource was not found
+ */
+export type NotFoundErrorResponse = WorkflowError;
+
+/**
+ * The requested state transition is invalid
+ */
+export type WorkflowConflictResponse = WorkflowError;
+
 export type ExportInvoicesCsvParams = {
   from?: string;
   to?: string;
@@ -1553,15 +2197,6 @@ export const GetEstimatesStatus = {
   denied: "denied",
   converted: "converted",
 } as const;
-
-export type SendEstimate200 = {
-  emailed?: boolean;
-  smsed?: boolean;
-  channel?: string;
-  estimateUrl?: string;
-  publicToken?: string;
-  errors?: string[];
-};
 
 export type ConvertEstimateToRepairOrder201 = { [key: string]: unknown };
 

@@ -249,24 +249,22 @@ router.get("/used-car-profitability", requirePermission("used_cars", "view"), as
       GROUP BY used_car_id
     ) pli ON pli.used_car_id = c.id
     LEFT JOIN (
-      SELECT ro.used_car_id, SUM(COALESCE((
-        SELECT SUM((p->>'quantity')::numeric * (p->>'unitPrice')::numeric)
-        FROM jsonb_array_elements(COALESCE(ro.parts, '[]'::jsonb)) p
-      ), 0)) AS total
-      FROM repair_orders ro
+        SELECT ro.used_car_id, SUM(w.quantity::numeric * COALESCE(w.unit_cost, 0)::numeric) AS total
+        FROM repair_orders ro
+        JOIN repair_order_work_items w ON w.repair_order_id = ro.id AND w.kind = 'part'
       WHERE ro.internal = true AND ro.used_car_id IS NOT NULL
       GROUP BY ro.used_car_id
     ) ro_parts ON ro_parts.used_car_id = c.id
     LEFT JOIN (
       SELECT ro.used_car_id,
         SUM(
-          CASE WHEN te.has_entries THEN te.cost
-               ELSE COALESCE(ro.actual_hours, ro.estimated_hours, 0)::numeric * ${laborRate}
+           CASE WHEN te.has_entries THEN te.cost
+                ELSE 0
           END
         ) AS total,
         SUM(
-          CASE WHEN te.has_entries THEN te.hours
-               ELSE COALESCE(ro.actual_hours, ro.estimated_hours, 0)::numeric
+           CASE WHEN te.has_entries THEN te.hours
+                ELSE 0
           END
         ) AS hours
       FROM repair_orders ro

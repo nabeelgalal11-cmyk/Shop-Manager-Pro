@@ -1,300 +1,33 @@
-import { useLocation } from "wouter";
-import { useCreateInvoice, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetInventory, getGetInventoryQueryKey } from "@workspace/api-client-react";
-import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Plus, Trash2 } from "lucide-react";
-
-const lineItemSchema = z.object({
-  type: z.enum(["labor", "part", "fee", "discount"]),
-  description: z.string().min(1, "Required"),
-  quantity: z.coerce.number().min(1),
-  unitPrice: z.coerce.number().min(0),
-  inventoryItemId: z.coerce.number().int().positive().optional(),
-  unitCost: z.coerce.number().min(0).optional(),
-  warrantyMonths: z.coerce.number().int().min(0).nullable().optional(),
-  warrantyMiles: z.coerce.number().int().min(0).nullable().optional(),
-});
-
-const formSchema = z.object({
-  customerId: z.coerce.number().min(1, "Customer is required"),
-  vehicleId: z.coerce.number().optional(),
-  status: z.enum(["draft", "sent", "paid", "overdue", "void"]).default("draft"),
-  notes: z.string().optional(),
-  taxRate: z.coerce.number().min(0).default(0),
-  discountAmount: z.coerce.number().min(0).default(0),
-  dueDate: z.string().optional(),
-  lineItems: z.array(lineItemSchema).min(1, "At least one line item is required"),
-});
+import { AlertCircle, ArrowLeft } from "lucide-react";
 
 export default function InvoicesNew() {
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  
-  const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
-  const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
-  const { data: inventoryData } = useGetInventory({ limit: 200 }, { query: { queryKey: getGetInventoryQueryKey({ limit: 200 }) } });
-  const inventory = inventoryData?.data ?? [];
-  
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      customerId: 0,
-      status: "draft",
-      taxRate: 8.5,
-      discountAmount: 0,
-      lineItems: [{ type: "labor", description: "", quantity: 1, unitPrice: 0 }],
-    },
-  });
+  const search = useSearch();
+  const repairOrderId = new URLSearchParams(search).get("repairOrderId");
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "lineItems",
-  });
-
-  const createInvoice = useCreateInvoice();
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    createInvoice.mutate(
-      { data: values },
-      {
-        onSuccess: (data) => {
-          toast({ title: "Invoice created" });
-          setLocation(`/invoices/${data.id}`);
-        },
-        onError: () => {
-          toast({ title: "Error", variant: "destructive" });
-        }
-      }
-    );
-  }
+  useEffect(() => {
+    if (repairOrderId) {
+      setLocation(`/repair-orders/${repairOrderId}`);
+    }
+  }, [setLocation, repairOrderId]);
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/invoices")}><ArrowLeft className="h-5 w-5" /></Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">New Invoice</h1>
-        </div>
-      </div>
-      <Card className="shadow-sm border-border">
-        <CardContent className="pt-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => {
-                    const selectedCustomer = customers?.data?.find(c => c.id === field.value);
-                    const isExempt = (selectedCustomer as any)?.taxExempt === true;
-                    return (
-                    <FormItem>
-                      <FormLabel>Customer</FormLabel>
-                      <Select
-                        onValueChange={(val) => {
-                          const id = Number(val);
-                          field.onChange(id);
-                          const c = customers?.data?.find(x => x.id === id);
-                          if ((c as any)?.taxExempt) form.setValue("taxRate", 0);
-                        }}
-                        value={field.value ? String(field.value) : undefined}
-                      >
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers?.data?.map(c => (
-                            <SelectItem key={c.id} value={String(c.id)}>{c.firstName} {c.lastName}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {isExempt && (
-                        <div className="flex items-center gap-1.5 text-xs mt-1 text-amber-700">
-                          <span className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 font-semibold uppercase tracking-wide">
-                            Tax Exempt{(selectedCustomer as any).taxExemptNumber ? ` — ${(selectedCustomer as any).taxExemptNumber}` : ""}
-                          </span>
-                          <span className="text-muted-foreground">Tax rate set to 0%</span>
-                        </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                    );
-                  }}
-                />
-                <FormField
-                  control={form.control}
-                  name="vehicleId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle (Optional)</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {vehicles?.data?.map(v => (
-                            <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Line Items</h3>
-                  <Button type="button" variant="outline" size="sm" onClick={() => append({ type: "part", description: "", quantity: 1, unitPrice: 0 })}>
-                    <Plus className="h-4 w-4 mr-2" /> Add Item
-                  </Button>
-                </div>
-                {fields.map((field, index) => {
-                  const lineType = form.watch(`lineItems.${index}.type`);
-                  const linkedInvId = form.watch(`lineItems.${index}.inventoryItemId`);
-                  return (
-                  <div key={field.id} className="flex flex-wrap items-start gap-4 p-4 border rounded-md bg-muted/20">
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.type`}
-                      render={({ field }) => (
-                        <FormItem className="w-[150px]">
-                          <Select
-                            onValueChange={(val) => {
-                              field.onChange(val);
-                              if (val !== "part") {
-                                form.setValue(`lineItems.${index}.inventoryItemId`, undefined);
-                                form.setValue(`lineItems.${index}.unitCost`, undefined);
-                              }
-                            }}
-                            defaultValue={field.value}
-                          >
-                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="labor">Labor</SelectItem>
-                              <SelectItem value="part">Part</SelectItem>
-                              <SelectItem value="fee">Fee</SelectItem>
-                              <SelectItem value="discount">Discount</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
-                    {lineType === "part" && (
-                      <FormItem className="w-[220px]">
-                        <Select
-                          value={linkedInvId ? String(linkedInvId) : "__none__"}
-                          onValueChange={(val) => {
-                            if (val === "__none__") {
-                              form.setValue(`lineItems.${index}.inventoryItemId`, undefined);
-                              form.setValue(`lineItems.${index}.unitCost`, undefined);
-                              return;
-                            }
-                            const item = inventory.find(i => String(i.id) === val);
-                            if (!item) return;
-                            form.setValue(`lineItems.${index}.inventoryItemId`, item.id);
-                            form.setValue(`lineItems.${index}.unitCost`, Number(item.costPrice));
-                            form.setValue(`lineItems.${index}.description`, item.name);
-                            form.setValue(`lineItems.${index}.unitPrice`, Number(item.sellPrice));
-                            form.setValue(`lineItems.${index}.warrantyMonths`, item.defaultWarrantyMonths ?? null);
-                            form.setValue(`lineItems.${index}.warrantyMiles`, item.defaultWarrantyMiles ?? null);
-                          }}
-                        >
-                          <SelectTrigger><SelectValue placeholder="Link inventory part…" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— manual / not linked —</SelectItem>
-                            {inventory.map(it => (
-                              <SelectItem key={it.id} value={String(it.id)}>
-                                {it.name} {it.partNumber ? `(${it.partNumber})` : ""} · {it.quantity} in stock
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FormItem>
-                    )}
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.description`}
-                      render={({ field }) => (
-                        <FormItem className="flex-1 min-w-[200px]">
-                          <FormControl><Input placeholder="Description" {...field} /></FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.quantity`}
-                      render={({ field }) => (
-                        <FormItem className="w-[100px]">
-                          <FormControl><Input type="number" placeholder="Qty" {...field} /></FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.unitPrice`}
-                      render={({ field }) => (
-                        <FormItem className="w-[120px]">
-                          <FormControl><Input type="number" placeholder="Price" {...field} /></FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.warrantyMonths`}
-                      render={({ field }) => (
-                        <FormItem className="w-[110px]">
-                          <FormControl>
-                            <Input type="number" min={0} placeholder="Warr. mo"
-                              value={field.value ?? ""}
-                              onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.warrantyMiles`}
-                      render={({ field }) => (
-                        <FormItem className="w-[110px]">
-                          <FormControl>
-                            <Input type="number" min={0} placeholder="Warr. mi"
-                              value={field.value ?? ""}
-                              onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  );
-                })}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="taxRate" render={({ field }) => (
-                  <FormItem><FormLabel>Tax Rate (%)</FormLabel><FormControl><Input type="number" step="0.1" {...field} /></FormControl></FormItem>
-                )} />
-                <FormField control={form.control} name="discountAmount" render={({ field }) => (
-                  <FormItem><FormLabel>Discount Amount ($)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>
-                )} />
-              </div>
-
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={createInvoice.isPending}>Save Invoice</Button>
-              </div>
-            </form>
-          </Form>
+    <div className="p-8 max-w-2xl mx-auto mt-12">
+      <Card className="border-dashed">
+        <CardContent className="py-12 flex flex-col items-center text-center">
+          <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Create Invoices from a Repair Order</h2>
+          <p className="text-muted-foreground mb-6 max-w-md">
+            Final invoices are now automatically generated from authorized estimates
+            when the repair order is completed. Open a Repair Order to manage its workflow.
+          </p>
+          <Button onClick={() => setLocation("/repair-orders")}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Go to Repair Orders
+          </Button>
         </CardContent>
       </Card>
     </div>

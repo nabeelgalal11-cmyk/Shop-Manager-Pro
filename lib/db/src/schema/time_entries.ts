@@ -3,11 +3,13 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { employeesTable } from "./employees";
 import { repairOrdersTable } from "./repair_orders";
+import { repairOrderWorkItemsTable } from "./repair_order_work_items";
 
 export const timeEntriesTable = pgTable("time_entries", {
   id: serial("id").primaryKey(),
   employeeId: integer("employee_id").notNull().references(() => employeesTable.id),
   repairOrderId: integer("repair_order_id").references(() => repairOrdersTable.id),
+  workItemId: integer("work_item_id").references(() => repairOrderWorkItemsTable.id),
   clockIn: timestamp("clock_in").notNull(),
   clockOut: timestamp("clock_out"),
   totalHours: numeric("total_hours", { precision: 10, scale: 2 }),

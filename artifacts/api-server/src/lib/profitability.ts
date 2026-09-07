@@ -17,7 +17,7 @@ export interface RoProfitability {
   totalRevenue: number;
   totalCost: number;
   laborRate: number;
-  laborSource: "time_entries" | "ro_hours_fallback";
+  laborSource: "time_entries" | "no_time_entries";
 }
 
 export async function getShopLaborRate(): Promise<number> {
@@ -35,8 +35,8 @@ export interface RoProfitRow {
   hours_worked_unrated: string | number | null;
   labor_cost_entries: string | number | null;
   entry_count: string | number | null;
-  actual_hours: string | number | null;
-  estimated_hours: string | number | null;
+  labor_revenue: string | number | null;
+  labor_hours_billed: string | number | null;
 }
 
 // Shared SQL fragment that produces one row per repair order with the raw
@@ -55,27 +55,28 @@ export function roProfitabilitySql(extraWhere?: SQL): SQL {
       COALESCE(labor.hours_worked_unrated, 0)::numeric AS hours_worked_unrated,
       COALESCE(labor.labor_cost, 0)::numeric AS labor_cost_entries,
       COALESCE(labor.entry_count, 0)::int AS entry_count,
-      ro.actual_hours::numeric AS actual_hours,
-      ro.estimated_hours::numeric AS estimated_hours
+       COALESCE(commercial.labor_revenue, 0)::numeric AS labor_revenue,
+       COALESCE(commercial.labor_hours_billed, 0)::numeric AS labor_hours_billed
     FROM repair_orders ro
     LEFT JOIN LATERAL (
       SELECT
-        SUM((p->>'quantity')::numeric * (p->>'unitPrice')::numeric) AS parts_revenue,
-        SUM(
-          (p->>'quantity')::numeric * COALESCE(
-            inv.cost_price::numeric,
-            NULLIF(p->>'unitCost','')::numeric,
-            0
-          )
-        ) AS parts_cost,
+        SUM(ii.line_total::numeric) AS parts_revenue,
+        SUM(ii.quantity::numeric * COALESCE(ii.unit_cost, 0)::numeric) AS parts_cost,
         COUNT(*) AS parts_count,
-        COUNT(*) FILTER (
-          WHERE NULLIF(p->>'unitCost','') IS NOT NULL
-             OR inv.cost_price IS NOT NULL
-        ) AS parts_cost_known_count
-      FROM jsonb_array_elements(COALESCE(ro.parts, '[]'::jsonb)) p
-      LEFT JOIN inventory inv ON inv.id = NULLIF(p->>'inventoryId','')::int
+        COUNT(*) FILTER (WHERE ii.unit_cost IS NOT NULL) AS parts_cost_known_count
+       FROM invoice_items ii
+       JOIN invoices i ON i.id = ii.invoice_id AND i.repair_order_id = ro.id AND i.status <> 'void'
+       WHERE ii.kind = 'part'
     ) parts ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        SUM(ii.line_total::numeric) AS labor_revenue,
+        SUM(COALESCE(w.estimated_hours, ii.quantity)::numeric) AS labor_hours_billed
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoice_id AND i.repair_order_id = ro.id AND i.status <> 'void'
+      JOIN repair_order_work_items w ON w.id = ii.source_work_item_id
+      WHERE ii.kind = 'labor'
+    ) commercial ON TRUE
     LEFT JOIN (
       SELECT
         t.repair_order_id,
@@ -109,19 +110,14 @@ export function computeProfitability(row: RoProfitRow, laborRate: number): RoPro
   const hoursWorkedEntries = Number(row.hours_worked_entries ?? 0);
   const hoursWorkedUnrated = Number(row.hours_worked_unrated ?? 0);
   const laborCostEntries = Number(row.labor_cost_entries ?? 0);
-  const actualHours = row.actual_hours == null ? null : Number(row.actual_hours);
-  const estimatedHours = row.estimated_hours == null ? null : Number(row.estimated_hours);
+  const laborRevenue = Number(row.labor_revenue ?? 0);
+  const hoursBilled = Number(row.labor_hours_billed ?? 0);
 
-  const hoursBilled = actualHours ?? estimatedHours ?? hoursWorkedEntries ?? 0;
-  const hoursWorked = hasTimeEntries ? hoursWorkedEntries : (actualHours ?? estimatedHours ?? 0);
-
-  const laborRevenue = hoursBilled * laborRate;
-  // Per spec: cost from time entries (hours × employee rate), with a fallback
-  // to RO estimated/actual hours × shop rate when there are no entries.
-  // For entries with NULL employee rate the inner sum already used 0 — fall
-  // back to shop rate for those hours so cost is never silently understated.
+  const hoursWorked = hasTimeEntries ? hoursWorkedEntries : 0;
+  // Revenue is the immutable invoiced labor amount; costs come only from
+  // actual time entries, never removed repair-order summary columns.
   let laborCost: number;
-  let laborSource: "time_entries" | "ro_hours_fallback";
+  let laborSource: "time_entries" | "no_time_entries";
   if (hasTimeEntries) {
     laborSource = "time_entries";
     // Entries with NULL hourly_rate contribute 0 to laborCostEntries; top up
@@ -129,8 +125,8 @@ export function computeProfitability(row: RoProfitRow, laborRate: number): RoPro
     // silently understated.
     laborCost = laborCostEntries + hoursWorkedUnrated * laborRate;
   } else {
-    laborSource = "ro_hours_fallback";
-    laborCost = (actualHours ?? estimatedHours ?? 0) * laborRate;
+    laborSource = "no_time_entries";
+    laborCost = 0;
   }
 
   const totalRevenue = partsRevenue + laborRevenue;

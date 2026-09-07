@@ -1,13 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
 import {
-  type Invoice,
+  type WorkflowInvoiceDetail,
   type SquarePosPrepareResult,
+  getGetInvoicesQueryKey,
   useCompleteSquarePosPayment,
   useGetInvoice,
   useGetInvoices,
   usePrepareSquarePosPayment,
 } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -183,7 +185,7 @@ function PaymentPanel({
   invoice,
   onFinished,
 }: {
-  invoice: Invoice;
+  invoice: WorkflowInvoiceDetail;
   onFinished: () => Promise<void>;
 }) {
   const colors = useColors();
@@ -192,6 +194,7 @@ function PaymentPanel({
   const handledCallbackUrls = useRef<Set<string>>(new Set());
   const prepare = usePrepareSquarePosPayment();
   const complete = useCompleteSquarePosPayment();
+  const queryClient = useQueryClient();
 
   const reconcileCallback = useCallback(
     async (url: string) => {
@@ -240,12 +243,13 @@ function PaymentPanel({
         });
         await AsyncStorage.removeItem(PENDING_PAYMENT_KEY);
         setNotice({
-          kind: result.status === 'COMPLETED' ? 'success' : 'pending',
+          kind: result.status === 'COMPLETED' || result.status === 'succeeded' ? 'success' : 'pending',
           message:
-            result.status === 'COMPLETED'
+            result.status === 'COMPLETED' || result.status === 'succeeded'
               ? 'Payment verified and applied.'
               : `Square payment status: ${result.status}.`,
         });
+        queryClient.invalidateQueries({ queryKey: getGetInvoicesQueryKey() });
         await onFinished();
       } catch (cause) {
         setNotice({
@@ -393,22 +397,27 @@ function InvoiceDetail({ invoiceId, onBack }: { invoiceId: number; onBack: () =>
               Total {formatMoney(invoice.total)} · Paid {formatMoney(invoice.amountPaid)}
             </Text>
           </View>
-          <PaymentPanel key={invoice.id} invoice={invoice} onFinished={refresh} />
+          {(invoice.status === 'issued' || invoice.status === 'partially_paid') && Number(invoice.balance) > 0 ? (
+            <PaymentPanel key={invoice.id} invoice={invoice} onFinished={refresh} />
+          ) : null}
           <Text style={[styles.sectionTitle, styles.historyTitle, { color: colors.foreground }]}>Payment history</Text>
         </>
       }
-      renderItem={({ item }) => (
-        <View style={[styles.historyRow, { borderBottomColor: colors.border }]}>
-          <View style={[styles.historyIcon, { backgroundColor: colors.muted }]}>
-            <Feather name="credit-card" size={17} color={colors.foreground} />
+      renderItem={({ item }) => {
+        const isFailed = item.status === 'failed';
+        return (
+          <View style={[styles.historyRow, { borderBottomColor: colors.border }]}>
+            <View style={[styles.historyIcon, { backgroundColor: colors.muted }]}>
+              <Feather name="credit-card" size={17} color={colors.foreground} />
+            </View>
+            <View style={styles.historyCopy}>
+              <Text style={[styles.historyMethod, { color: colors.foreground }]}>{item.method?.replaceAll('_', ' ') ?? 'unknown'}</Text>
+              <Text style={[styles.historyStatus, { color: isFailed ? colors.destructive : colors.mutedForeground }]}>{item.status ?? 'succeeded'}</Text>
+            </View>
+            <Text style={[styles.historyAmount, { color: isFailed ? colors.mutedForeground : colors.foreground, textDecorationLine: isFailed ? 'line-through' : 'none' }]}>{formatMoney(item.amount)}</Text>
           </View>
-          <View style={styles.historyCopy}>
-            <Text style={[styles.historyMethod, { color: colors.foreground }]}>{item.method.replaceAll('_', ' ')}</Text>
-            <Text style={[styles.historyStatus, { color: colors.mutedForeground }]}>{item.status ?? 'succeeded'}</Text>
-          </View>
-          <Text style={[styles.historyAmount, { color: colors.foreground }]}>{formatMoney(item.amount)}</Text>
-        </View>
-      )}
+        );
+      }}
       ListEmptyComponent={
         <Text style={[styles.emptyHistory, { color: colors.mutedForeground }]}>No payments recorded.</Text>
       }
@@ -438,12 +447,13 @@ function InvoiceHome() {
   }, []);
   const invoices = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return (query.data?.data ?? []).filter((invoice) => {
-      const open = Number(invoice.balance) > 0 && invoice.status !== 'void' && invoice.status !== 'paid';
+    return (query.data ?? []).filter((invoice) => {
+      const open = Number(invoice.balance) > 0 && (invoice.status === 'issued' || invoice.status === 'partially_paid');
       if (!open) return false;
       if (!term) return true;
-      const customer = invoice.customer
-        ? `${invoice.customer.firstName} ${invoice.customer.lastName}`.toLowerCase()
+      const snap = invoice.customerSnapshot as Record<string, unknown> | null;
+      const customer = snap
+        ? `${snap.firstName ?? ''} ${snap.lastName ?? ''}`.toLowerCase()
         : '';
       return invoice.invoiceNumber.toLowerCase().includes(term) || customer.includes(term);
     });
@@ -515,8 +525,8 @@ function InvoiceHome() {
                 <View style={styles.invoiceCopy}>
                   <Text style={[styles.invoiceNumber, { color: colors.foreground }]}>#{item.invoiceNumber}</Text>
                   <Text style={[styles.customerName, { color: colors.mutedForeground }]} numberOfLines={1}>
-                    {item.customer
-                      ? `${item.customer.firstName} ${item.customer.lastName}`
+                    {item.customerSnapshot
+                      ? `${(item.customerSnapshot as Record<string, unknown>).firstName ?? ''} ${(item.customerSnapshot as Record<string, unknown>).lastName ?? ''}`.trim() || 'Customer unavailable'
                       : 'Customer unavailable'}
                   </Text>
                 </View>

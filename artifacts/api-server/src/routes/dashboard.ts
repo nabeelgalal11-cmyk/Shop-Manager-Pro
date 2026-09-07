@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   customersTable, vehiclesTable, repairOrdersTable, invoicesTable, inventoryTable,
-  appointmentsTable, estimatesTable, expensesTable, paymentsTable,
+  appointmentsTable, estimateRevisionsTable, expensesTable, paymentsTable, invoiceItemsTable,
 } from "@workspace/db";
 import { eq, sql, desc, gte, and, lte } from "drizzle-orm";
 
@@ -29,14 +29,14 @@ router.get("/summary", async (req, res) => {
   ] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(customersTable),
     db.select({ count: sql<number>`count(*)` }).from(vehiclesTable),
-    db.select({ count: sql<number>`count(*)` }).from(repairOrdersTable).where(sql`status NOT IN ('completed','delivered','cancelled')`),
+    db.select({ count: sql<number>`count(*)` }).from(repairOrdersTable).where(sql`status NOT IN ('completed','cancelled')`),
     db.select({ count: sql<number>`count(*)` }).from(repairOrdersTable).where(and(eq(repairOrdersTable.status, "completed"), gte(repairOrdersTable.completedAt, startOfMonth))),
     db.select({ count: sql<number>`count(*)`, total: sql<number>`sum(balance)` }).from(invoicesTable).where(sql`status NOT IN ('paid','void')`),
     db.select({ count: sql<number>`count(*)` }).from(appointmentsTable).where(and(gte(appointmentsTable.scheduledAt, now), lte(appointmentsTable.scheduledAt, endOfToday))),
     db.select({ count: sql<number>`count(*)` }).from(inventoryTable).where(sql`quantity <= min_quantity`),
-    db.select({ count: sql<number>`count(*)` }).from(estimatesTable).where(sql`status IN ('draft','sent')`),
-    db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(gte(paymentsTable.paidAt, startOfMonth)),
-    db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(and(gte(paymentsTable.paidAt, startOfLastMonth), lte(paymentsTable.paidAt, endOfLastMonth))),
+    db.select({ count: sql<number>`count(*)` }).from(estimateRevisionsTable).where(sql`status IN ('draft','sent')`),
+    db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(and(eq(paymentsTable.status, "succeeded"), gte(paymentsTable.processedAt, startOfMonth))),
+    db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(and(eq(paymentsTable.status, "succeeded"), gte(paymentsTable.processedAt, startOfLastMonth), lte(paymentsTable.processedAt, endOfLastMonth))),
   ]);
 
   res.json({
@@ -78,7 +78,7 @@ router.get("/revenue-chart", async (req, res) => {
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-    const [rev] = await db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(and(gte(paymentsTable.paidAt, d), lte(paymentsTable.paidAt, end)));
+    const [rev] = await db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(and(eq(paymentsTable.status, "succeeded"), gte(paymentsTable.processedAt, d), lte(paymentsTable.processedAt, end)));
     const [exp] = await db.select({ total: sql<number>`sum(amount)` }).from(expensesTable).where(and(gte(expensesTable.expenseDate, d.toISOString().split("T")[0]), lte(expensesTable.expenseDate, end.toISOString().split("T")[0])));
     const revenue = Number(rev.total) || 0;
     const expenses = Number(exp.total) || 0;
@@ -93,10 +93,10 @@ router.get("/revenue-chart", async (req, res) => {
 });
 
 router.get("/job-status-breakdown", async (req, res) => {
-  const statuses = ["pending", "in_progress", "waiting_parts", "completed", "delivered", "cancelled"];
-  const labels: Record<string, string> = {
-    pending: "Pending", in_progress: "In Progress", waiting_parts: "Waiting Parts",
-    completed: "Completed", delivered: "Delivered", cancelled: "Cancelled",
+  const statuses = ["open", "diagnosing", "awaiting_approval", "authorized", "in_progress", "completed", "cancelled"] as const;
+  const labels: Record<(typeof statuses)[number], string> = {
+    open: "Open", diagnosing: "Diagnosing", awaiting_approval: "Awaiting Approval",
+    authorized: "Authorized", in_progress: "In Progress", completed: "Completed", cancelled: "Cancelled",
   };
   const results = await Promise.all(statuses.map(async (status) => {
     const [r] = await db.select({ count: sql<number>`count(*)` }).from(repairOrdersTable).where(eq(repairOrdersTable.status, status));
@@ -107,21 +107,15 @@ router.get("/job-status-breakdown", async (req, res) => {
 
 router.get("/top-services", async (req, res) => {
   const limit = Number(req.query.limit) || 5;
-  const orders = await db.select({ complaint: repairOrdersTable.complaint }).from(repairOrdersTable);
-  const counts: Record<string, number> = {};
-  for (const o of orders) {
-    const service = o.complaint || "General Service";
-    counts[service] = (counts[service] || 0) + 1;
-  }
-  const top = Object.entries(counts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, limit)
-    .map(([service, count]) => ({ service, count, revenue: count * 150 }));
-  res.json(top.length ? top : [
-    { service: "Oil Change", count: 0, revenue: 0 },
-    { service: "Brake Service", count: 0, revenue: 0 },
-    { service: "Tire Rotation", count: 0, revenue: 0 },
-  ]);
+  const top = await db.select({
+    service: invoiceItemsTable.description,
+    count: sql<number>`count(*)`,
+    revenue: sql<number>`sum(${invoiceItemsTable.lineTotal})`,
+  }).from(invoiceItemsTable)
+    .groupBy(invoiceItemsTable.description)
+    .orderBy(desc(sql`sum(${invoiceItemsTable.lineTotal})`))
+    .limit(limit);
+  res.json(top.map((row) => ({ ...row, count: Number(row.count), revenue: Number(row.revenue) })));
 });
 
 export default router;

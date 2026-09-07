@@ -35,7 +35,7 @@ export type Resource = (typeof RESOURCES)[number];
 export const ACTIONS = ["view", "create", "edit", "delete", "print"] as const;
 export type Action = (typeof ACTIONS)[number];
 
-export const ROLES = ["admin", "manager", "technician", "inspector", "viewer"] as const;
+export const ROLES = ["admin", "manager", "advisor", "finance", "technician", "inspector", "viewer"] as const;
 export type Role = (typeof ROLES)[number];
 
 const ALL: Action[] = ["view", "create", "edit", "delete", "print"];
@@ -76,6 +76,17 @@ const DEFAULTS: RoleMatrix = {
     canned_jobs: ALL,
     users: VIEW_ONLY,
     permissions: VIEW_ONLY,
+  },
+  advisor: {
+    dashboard: VIEW_ONLY, repair_orders: VIEW_EDIT_CREATE, estimates: VIEW_EDIT_CREATE_PRINT,
+    invoices: VIEW_ONLY, customers: VIEW_EDIT_CREATE, vehicles: VIEW_EDIT_CREATE,
+    appointments: VIEW_EDIT_CREATE, inspections: VIEW_ONLY, inventory: VIEW_ONLY,
+    payments: NONE, reminders: VIEW_EDIT_CREATE, canned_jobs: VIEW_ONLY,
+  },
+  finance: {
+    dashboard: VIEW_ONLY, repair_orders: VIEW_ONLY, estimates: VIEW_ONLY,
+    invoices: VIEW_EDIT_CREATE_PRINT, payments: VIEW_EDIT_CREATE, customers: VIEW_ONLY,
+    vehicles: VIEW_ONLY, reports: VIEW_PRINT, expenses: VIEW_EDIT_CREATE,
   },
 
   technician: {

@@ -10,7 +10,7 @@ export default function Expenses() {
   const [, setLocation] = useLocation();
   const { data, isLoading } = useGetExpenses({ limit: 50 }, { query: { queryKey: getGetExpensesQueryKey({ limit: 50 }) } });
   const items = Array.isArray(data) ? data : data?.data || [];
-  
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">

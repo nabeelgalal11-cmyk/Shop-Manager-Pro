@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import multer from "multer";
 import {
   db, attachmentsTable, employeesTable,
-  repairOrdersTable, invoicesTable, estimatesTable, inspectionsTable, vehiclesTable,
+  repairOrdersTable, invoicesTable, estimateRevisionsTable, inspectionsTable, vehiclesTable,
 } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import {
@@ -82,11 +82,13 @@ async function resolveCustomerIdForOwner(
       return r?.customerId ?? null;
     }
     if (ownerType === "invoice") {
-      const [r] = await db.select({ customerId: invoicesTable.customerId }).from(invoicesTable).where(eq(invoicesTable.id, ownerId));
+      const [r] = await db.select({ customerId: repairOrdersTable.customerId }).from(invoicesTable)
+        .innerJoin(repairOrdersTable, eq(repairOrdersTable.id, invoicesTable.repairOrderId)).where(eq(invoicesTable.id, ownerId));
       return r?.customerId ?? null;
     }
     if (ownerType === "estimate") {
-      const [r] = await db.select({ customerId: estimatesTable.customerId }).from(estimatesTable).where(eq(estimatesTable.id, ownerId));
+      const [r] = await db.select({ customerId: repairOrdersTable.customerId }).from(estimateRevisionsTable)
+        .innerJoin(repairOrdersTable, eq(repairOrdersTable.id, estimateRevisionsTable.repairOrderId)).where(eq(estimateRevisionsTable.id, ownerId));
       return r?.customerId ?? null;
     }
     if (ownerType === "inspection") {

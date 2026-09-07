@@ -22,6 +22,7 @@ import type {
   Appointment,
   AppointmentListResponse,
   BoardPreference,
+  CheckoutRedirect,
   ConvertEstimateToRepairOrder201,
   CreateAppointmentInput,
   CreateCustomerInput,
@@ -31,10 +32,8 @@ import type {
   CreateInspectionInput,
   CreateInventoryItemInput,
   CreateInvoiceInput,
-  CreatePaymentInput,
   CreatePurchaseFromReorder201,
   CreateReminderInput,
-  CreateRepairOrderInput,
   CreateSupplierInput,
   CreateVehicleInput,
   CurrentUserResponse,
@@ -44,7 +43,12 @@ import type {
   DashboardSummary,
   Employee,
   Estimate,
-  EstimateListResponse,
+  EstimateDecisionInput,
+  EstimateDecisionResult,
+  EstimateRevision,
+  EstimateRevisionCreateInput,
+  EstimateRevisionDetail,
+  EstimateRevisionItemsUpdate,
   Expense,
   ExpenseListResponse,
   ExportBookkeepingZipParams,
@@ -80,21 +84,28 @@ import type {
   InventoryItem,
   InventoryListResponse,
   Invoice,
-  InvoiceListResponse,
+  IssuedInvoiceResult,
   LoginInput,
   MobileLoginResponse,
-  Payment,
-  PaymentListResponse,
+  NotFoundErrorResponse,
+  PaymentInput,
+  PaymentInvoiceResult,
+  PaymentReversalInput,
+  PublicEstimateRevision,
+  PublicWorkflowInvoice,
+  ReasonInput,
   Reminder,
   ReminderListResponse,
   ReorderReport,
   RepairOrder,
-  RepairOrderListResponse,
+  RepairOrderInput,
+  RepairOrderIntakeUpdate,
   RepairOrderProfitabilityReport,
+  RepairOrderWorkItem,
+  RepairOrderWorkflow,
   ResetPasswordInput,
   ResetPasswordResponse,
   RevenueChartPoint,
-  SendEstimate200,
   ServiceCount,
   ServiceHistoryEntry,
   SquareInvoicePaymentInput,
@@ -128,6 +139,11 @@ import type {
   Vehicle,
   VehicleListResponse,
   VehicleWarrantyEntry,
+  WorkflowConflictResponse,
+  WorkflowInvoice,
+  WorkflowInvoiceDetail,
+  WorkflowPayment,
+  WorkflowRepairOrder,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -2294,8 +2310,8 @@ export const getGetEstimatesUrl = (params?: GetEstimatesParams) => {
 export const getEstimates = async (
   params?: GetEstimatesParams,
   options?: RequestInit,
-): Promise<EstimateListResponse> => {
-  return customFetch<EstimateListResponse>(getGetEstimatesUrl(params), {
+): Promise<EstimateRevision[]> => {
+  return customFetch<EstimateRevision[]>(getGetEstimatesUrl(params), {
     ...options,
     method: "GET",
   });
@@ -2462,8 +2478,8 @@ export const getGetEstimateUrl = (id: number) => {
 export const getEstimate = async (
   id: number,
   options?: RequestInit,
-): Promise<Estimate> => {
-  return customFetch<Estimate>(getGetEstimateUrl(id), {
+): Promise<EstimateRevisionDetail> => {
+  return customFetch<EstimateRevisionDetail>(getGetEstimateUrl(id), {
     ...options,
     method: "GET",
   });
@@ -2795,90 +2811,6 @@ export const useConvertEstimateToInvoice = <
 };
 
 /**
- * @summary Send estimate to customer for approval (email/SMS)
- */
-export const getSendEstimateUrl = (id: number) => {
-  return `/api/estimates/${id}/send`;
-};
-
-export const sendEstimate = async (
-  id: number,
-  options?: RequestInit,
-): Promise<SendEstimate200> => {
-  return customFetch<SendEstimate200>(getSendEstimateUrl(id), {
-    ...options,
-    method: "POST",
-  });
-};
-
-export const getSendEstimateMutationOptions = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof sendEstimate>>,
-    TError,
-    { id: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof sendEstimate>>,
-  TError,
-  { id: number },
-  TContext
-> => {
-  const mutationKey = ["sendEstimate"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof sendEstimate>>,
-    { id: number }
-  > = (props) => {
-    const { id } = props ?? {};
-
-    return sendEstimate(id, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SendEstimateMutationResult = NonNullable<
-  Awaited<ReturnType<typeof sendEstimate>>
->;
-
-export type SendEstimateMutationError = ErrorType<unknown>;
-
-/**
- * @summary Send estimate to customer for approval (email/SMS)
- */
-export const useSendEstimate = <
-  TError = ErrorType<unknown>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof sendEstimate>>,
-    TError,
-    { id: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof sendEstimate>>,
-  TError,
-  { id: number },
-  TContext
-> => {
-  return useMutation(getSendEstimateMutationOptions(options));
-};
-
-/**
  * @summary Convert approved estimate lines into a Repair Order
  */
 export const getConvertEstimateToRepairOrderUrl = (id: number) => {
@@ -2987,8 +2919,8 @@ export const getGetInvoicesUrl = (params?: GetInvoicesParams) => {
 export const getInvoices = async (
   params?: GetInvoicesParams,
   options?: RequestInit,
-): Promise<InvoiceListResponse> => {
-  return customFetch<InvoiceListResponse>(getGetInvoicesUrl(params), {
+): Promise<WorkflowInvoice[]> => {
+  return customFetch<WorkflowInvoice[]>(getGetInvoicesUrl(params), {
     ...options,
     method: "GET",
   });
@@ -3155,8 +3087,8 @@ export const getGetInvoiceUrl = (id: number) => {
 export const getInvoice = async (
   id: number,
   options?: RequestInit,
-): Promise<Invoice> => {
-  return customFetch<Invoice>(getGetInvoiceUrl(id), {
+): Promise<WorkflowInvoiceDetail> => {
+  return customFetch<WorkflowInvoiceDetail>(getGetInvoiceUrl(id), {
     ...options,
     method: "GET",
   });
@@ -3425,8 +3357,8 @@ export const getGetRepairOrdersUrl = (params?: GetRepairOrdersParams) => {
 export const getRepairOrders = async (
   params?: GetRepairOrdersParams,
   options?: RequestInit,
-): Promise<RepairOrderListResponse> => {
-  return customFetch<RepairOrderListResponse>(getGetRepairOrdersUrl(params), {
+): Promise<WorkflowRepairOrder[]> => {
+  return customFetch<WorkflowRepairOrder[]>(getGetRepairOrdersUrl(params), {
     ...options,
     method: "GET",
   });
@@ -3505,14 +3437,14 @@ export const getCreateRepairOrderUrl = () => {
 };
 
 export const createRepairOrder = async (
-  createRepairOrderInput: CreateRepairOrderInput,
+  repairOrderInput: RepairOrderInput,
   options?: RequestInit,
-): Promise<RepairOrder> => {
-  return customFetch<RepairOrder>(getCreateRepairOrderUrl(), {
+): Promise<WorkflowRepairOrder> => {
+  return customFetch<WorkflowRepairOrder>(getCreateRepairOrderUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createRepairOrderInput),
+    body: JSON.stringify(repairOrderInput),
   });
 };
 
@@ -3523,14 +3455,14 @@ export const getCreateRepairOrderMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createRepairOrder>>,
     TError,
-    { data: BodyType<CreateRepairOrderInput> },
+    { data: BodyType<RepairOrderInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createRepairOrder>>,
   TError,
-  { data: BodyType<CreateRepairOrderInput> },
+  { data: BodyType<RepairOrderInput> },
   TContext
 > => {
   const mutationKey = ["createRepairOrder"];
@@ -3544,7 +3476,7 @@ export const getCreateRepairOrderMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createRepairOrder>>,
-    { data: BodyType<CreateRepairOrderInput> }
+    { data: BodyType<RepairOrderInput> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -3557,7 +3489,7 @@ export const getCreateRepairOrderMutationOptions = <
 export type CreateRepairOrderMutationResult = NonNullable<
   Awaited<ReturnType<typeof createRepairOrder>>
 >;
-export type CreateRepairOrderMutationBody = BodyType<CreateRepairOrderInput>;
+export type CreateRepairOrderMutationBody = BodyType<RepairOrderInput>;
 export type CreateRepairOrderMutationError = ErrorType<unknown>;
 
 /**
@@ -3570,14 +3502,14 @@ export const useCreateRepairOrder = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createRepairOrder>>,
     TError,
-    { data: BodyType<CreateRepairOrderInput> },
+    { data: BodyType<RepairOrderInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof createRepairOrder>>,
   TError,
-  { data: BodyType<CreateRepairOrderInput> },
+  { data: BodyType<RepairOrderInput> },
   TContext
 > => {
   return useMutation(getCreateRepairOrderMutationOptions(options));
@@ -3593,8 +3525,8 @@ export const getGetRepairOrderUrl = (id: number) => {
 export const getRepairOrder = async (
   id: number,
   options?: RequestInit,
-): Promise<RepairOrder> => {
-  return customFetch<RepairOrder>(getGetRepairOrderUrl(id), {
+): Promise<RepairOrderWorkflow> => {
+  return customFetch<RepairOrderWorkflow>(getGetRepairOrderUrl(id), {
     ...options,
     method: "GET",
   });
@@ -3839,6 +3771,1501 @@ export const useDeleteRepairOrder = <
   TContext
 > => {
   return useMutation(getDeleteRepairOrderMutationOptions(options));
+};
+
+/**
+ * @summary Edit repair-order intake fields with optimistic concurrency
+ */
+export const getUpdateRepairOrderIntakeUrl = (id: number) => {
+  return `/api/repair-orders/${id}/intake`;
+};
+
+export const updateRepairOrderIntake = async (
+  id: number,
+  repairOrderIntakeUpdate: RepairOrderIntakeUpdate,
+  options?: RequestInit,
+): Promise<WorkflowRepairOrder> => {
+  return customFetch<WorkflowRepairOrder>(getUpdateRepairOrderIntakeUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(repairOrderIntakeUpdate),
+  });
+};
+
+export const getUpdateRepairOrderIntakeMutationOptions = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRepairOrderIntake>>,
+    TError,
+    { id: number; data: BodyType<RepairOrderIntakeUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRepairOrderIntake>>,
+  TError,
+  { id: number; data: BodyType<RepairOrderIntakeUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateRepairOrderIntake"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRepairOrderIntake>>,
+    { id: number; data: BodyType<RepairOrderIntakeUpdate> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateRepairOrderIntake(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRepairOrderIntakeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRepairOrderIntake>>
+>;
+export type UpdateRepairOrderIntakeMutationBody =
+  BodyType<RepairOrderIntakeUpdate>;
+export type UpdateRepairOrderIntakeMutationError =
+  ErrorType<WorkflowConflictResponse>;
+
+/**
+ * @summary Edit repair-order intake fields with optimistic concurrency
+ */
+export const useUpdateRepairOrderIntake = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRepairOrderIntake>>,
+    TError,
+    { id: number; data: BodyType<RepairOrderIntakeUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRepairOrderIntake>>,
+  TError,
+  { id: number; data: BodyType<RepairOrderIntakeUpdate> },
+  TContext
+> => {
+  return useMutation(getUpdateRepairOrderIntakeMutationOptions(options));
+};
+
+/**
+ * @summary Create a draft estimate or supplement revision
+ */
+export const getCreateRepairOrderRevisionUrl = (id: number) => {
+  return `/api/repair-orders/${id}/revisions`;
+};
+
+export const createRepairOrderRevision = async (
+  id: number,
+  estimateRevisionCreateInput: EstimateRevisionCreateInput,
+  options?: RequestInit,
+): Promise<EstimateRevision> => {
+  return customFetch<EstimateRevision>(getCreateRepairOrderRevisionUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(estimateRevisionCreateInput),
+  });
+};
+
+export const getCreateRepairOrderRevisionMutationOptions = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRepairOrderRevision>>,
+    TError,
+    { id: number; data: BodyType<EstimateRevisionCreateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRepairOrderRevision>>,
+  TError,
+  { id: number; data: BodyType<EstimateRevisionCreateInput> },
+  TContext
+> => {
+  const mutationKey = ["createRepairOrderRevision"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRepairOrderRevision>>,
+    { id: number; data: BodyType<EstimateRevisionCreateInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createRepairOrderRevision(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRepairOrderRevisionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRepairOrderRevision>>
+>;
+export type CreateRepairOrderRevisionMutationBody =
+  BodyType<EstimateRevisionCreateInput>;
+export type CreateRepairOrderRevisionMutationError =
+  ErrorType<WorkflowConflictResponse>;
+
+/**
+ * @summary Create a draft estimate or supplement revision
+ */
+export const useCreateRepairOrderRevision = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRepairOrderRevision>>,
+    TError,
+    { id: number; data: BodyType<EstimateRevisionCreateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRepairOrderRevision>>,
+  TError,
+  { id: number; data: BodyType<EstimateRevisionCreateInput> },
+  TContext
+> => {
+  return useMutation(getCreateRepairOrderRevisionMutationOptions(options));
+};
+
+/**
+ * @summary Replace every item on a draft revision
+ */
+export const getReplaceEstimateRevisionDraftItemsUrl = (revisionId: number) => {
+  return `/api/repair-orders/revisions/${revisionId}/items`;
+};
+
+export const replaceEstimateRevisionDraftItems = async (
+  revisionId: number,
+  estimateRevisionItemsUpdate: EstimateRevisionItemsUpdate,
+  options?: RequestInit,
+): Promise<EstimateRevision> => {
+  return customFetch<EstimateRevision>(
+    getReplaceEstimateRevisionDraftItemsUrl(revisionId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(estimateRevisionItemsUpdate),
+    },
+  );
+};
+
+export const getReplaceEstimateRevisionDraftItemsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceEstimateRevisionDraftItems>>,
+    TError,
+    { revisionId: number; data: BodyType<EstimateRevisionItemsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof replaceEstimateRevisionDraftItems>>,
+  TError,
+  { revisionId: number; data: BodyType<EstimateRevisionItemsUpdate> },
+  TContext
+> => {
+  const mutationKey = ["replaceEstimateRevisionDraftItems"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof replaceEstimateRevisionDraftItems>>,
+    { revisionId: number; data: BodyType<EstimateRevisionItemsUpdate> }
+  > = (props) => {
+    const { revisionId, data } = props ?? {};
+
+    return replaceEstimateRevisionDraftItems(revisionId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReplaceEstimateRevisionDraftItemsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof replaceEstimateRevisionDraftItems>>
+>;
+export type ReplaceEstimateRevisionDraftItemsMutationBody =
+  BodyType<EstimateRevisionItemsUpdate>;
+export type ReplaceEstimateRevisionDraftItemsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Replace every item on a draft revision
+ */
+export const useReplaceEstimateRevisionDraftItems = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof replaceEstimateRevisionDraftItems>>,
+    TError,
+    { revisionId: number; data: BodyType<EstimateRevisionItemsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof replaceEstimateRevisionDraftItems>>,
+  TError,
+  { revisionId: number; data: BodyType<EstimateRevisionItemsUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getReplaceEstimateRevisionDraftItemsMutationOptions(options),
+  );
+};
+
+/**
+ * @summary Send a draft revision for customer decision
+ */
+export const getSendEstimateRevisionUrl = (revisionId: number) => {
+  return `/api/repair-orders/revisions/${revisionId}/send`;
+};
+
+export const sendEstimateRevision = async (
+  revisionId: number,
+  options?: RequestInit,
+): Promise<EstimateRevision> => {
+  return customFetch<EstimateRevision>(getSendEstimateRevisionUrl(revisionId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSendEstimateRevisionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEstimateRevision>>,
+    TError,
+    { revisionId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendEstimateRevision>>,
+  TError,
+  { revisionId: number },
+  TContext
+> => {
+  const mutationKey = ["sendEstimateRevision"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendEstimateRevision>>,
+    { revisionId: number }
+  > = (props) => {
+    const { revisionId } = props ?? {};
+
+    return sendEstimateRevision(revisionId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendEstimateRevisionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendEstimateRevision>>
+>;
+
+export type SendEstimateRevisionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a draft revision for customer decision
+ */
+export const useSendEstimateRevision = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendEstimateRevision>>,
+    TError,
+    { revisionId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendEstimateRevision>>,
+  TError,
+  { revisionId: number },
+  TContext
+> => {
+  return useMutation(getSendEstimateRevisionMutationOptions(options));
+};
+
+/**
+ * @summary Mark an authorized work item performed
+ */
+export const getPerformRepairOrderWorkItemUrl = (workItemId: number) => {
+  return `/api/repair-orders/work-items/${workItemId}/perform`;
+};
+
+export const performRepairOrderWorkItem = async (
+  workItemId: number,
+  options?: RequestInit,
+): Promise<RepairOrderWorkItem> => {
+  return customFetch<RepairOrderWorkItem>(
+    getPerformRepairOrderWorkItemUrl(workItemId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getPerformRepairOrderWorkItemMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof performRepairOrderWorkItem>>,
+    TError,
+    { workItemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof performRepairOrderWorkItem>>,
+  TError,
+  { workItemId: number },
+  TContext
+> => {
+  const mutationKey = ["performRepairOrderWorkItem"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof performRepairOrderWorkItem>>,
+    { workItemId: number }
+  > = (props) => {
+    const { workItemId } = props ?? {};
+
+    return performRepairOrderWorkItem(workItemId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PerformRepairOrderWorkItemMutationResult = NonNullable<
+  Awaited<ReturnType<typeof performRepairOrderWorkItem>>
+>;
+
+export type PerformRepairOrderWorkItemMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Mark an authorized work item performed
+ */
+export const usePerformRepairOrderWorkItem = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof performRepairOrderWorkItem>>,
+    TError,
+    { workItemId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof performRepairOrderWorkItem>>,
+  TError,
+  { workItemId: number },
+  TContext
+> => {
+  return useMutation(getPerformRepairOrderWorkItemMutationOptions(options));
+};
+
+/**
+ * @summary Complete a repair order after authorized work is performed
+ */
+export const getCompleteRepairOrderWorkflowUrl = (id: number) => {
+  return `/api/repair-orders/${id}/complete`;
+};
+
+export const completeRepairOrderWorkflow = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WorkflowRepairOrder> => {
+  return customFetch<WorkflowRepairOrder>(
+    getCompleteRepairOrderWorkflowUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCompleteRepairOrderWorkflowMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeRepairOrderWorkflow>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeRepairOrderWorkflow>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["completeRepairOrderWorkflow"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeRepairOrderWorkflow>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return completeRepairOrderWorkflow(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteRepairOrderWorkflowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeRepairOrderWorkflow>>
+>;
+
+export type CompleteRepairOrderWorkflowMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Complete a repair order after authorized work is performed
+ */
+export const useCompleteRepairOrderWorkflow = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeRepairOrderWorkflow>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof completeRepairOrderWorkflow>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCompleteRepairOrderWorkflowMutationOptions(options));
+};
+
+/**
+ * @summary Cancel a repair order
+ */
+export const getCancelRepairOrderWorkflowUrl = (id: number) => {
+  return `/api/repair-orders/${id}/cancel`;
+};
+
+export const cancelRepairOrderWorkflow = async (
+  id: number,
+  reasonInput: ReasonInput,
+  options?: RequestInit,
+): Promise<WorkflowRepairOrder> => {
+  return customFetch<WorkflowRepairOrder>(getCancelRepairOrderWorkflowUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reasonInput),
+  });
+};
+
+export const getCancelRepairOrderWorkflowMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelRepairOrderWorkflow>>,
+    TError,
+    { id: number; data: BodyType<ReasonInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelRepairOrderWorkflow>>,
+  TError,
+  { id: number; data: BodyType<ReasonInput> },
+  TContext
+> => {
+  const mutationKey = ["cancelRepairOrderWorkflow"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelRepairOrderWorkflow>>,
+    { id: number; data: BodyType<ReasonInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return cancelRepairOrderWorkflow(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelRepairOrderWorkflowMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelRepairOrderWorkflow>>
+>;
+export type CancelRepairOrderWorkflowMutationBody = BodyType<ReasonInput>;
+export type CancelRepairOrderWorkflowMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Cancel a repair order
+ */
+export const useCancelRepairOrderWorkflow = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelRepairOrderWorkflow>>,
+    TError,
+    { id: number; data: BodyType<ReasonInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelRepairOrderWorkflow>>,
+  TError,
+  { id: number; data: BodyType<ReasonInput> },
+  TContext
+> => {
+  return useMutation(getCancelRepairOrderWorkflowMutationOptions(options));
+};
+
+/**
+ * @summary Create the immutable final invoice for a completed repair order
+ */
+export const getCreateRepairOrderFinalInvoiceUrl = (id: number) => {
+  return `/api/repair-orders/${id}/invoice`;
+};
+
+export const createRepairOrderFinalInvoice = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WorkflowInvoice> => {
+  return customFetch<WorkflowInvoice>(getCreateRepairOrderFinalInvoiceUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCreateRepairOrderFinalInvoiceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRepairOrderFinalInvoice>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRepairOrderFinalInvoice>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["createRepairOrderFinalInvoice"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRepairOrderFinalInvoice>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return createRepairOrderFinalInvoice(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRepairOrderFinalInvoiceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRepairOrderFinalInvoice>>
+>;
+
+export type CreateRepairOrderFinalInvoiceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create the immutable final invoice for a completed repair order
+ */
+export const useCreateRepairOrderFinalInvoice = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRepairOrderFinalInvoice>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRepairOrderFinalInvoice>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getCreateRepairOrderFinalInvoiceMutationOptions(options));
+};
+
+/**
+ * @summary Get a sent estimate revision through its unguessable token
+ */
+export const getGetPublicEstimateRevisionUrl = (token: string) => {
+  return `/api/public/estimates/${token}`;
+};
+
+export const getPublicEstimateRevision = async (
+  token: string,
+  options?: RequestInit,
+): Promise<PublicEstimateRevision> => {
+  return customFetch<PublicEstimateRevision>(
+    getGetPublicEstimateRevisionUrl(token),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPublicEstimateRevisionQueryKey = (token: string) => {
+  return [`/api/public/estimates/${token}`] as const;
+};
+
+export const getGetPublicEstimateRevisionQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPublicEstimateRevision>>,
+  TError = ErrorType<NotFoundErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicEstimateRevision>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPublicEstimateRevisionQueryKey(token);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPublicEstimateRevision>>
+  > = ({ signal }) =>
+    getPublicEstimateRevision(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPublicEstimateRevision>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPublicEstimateRevisionQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPublicEstimateRevision>>
+>;
+export type GetPublicEstimateRevisionQueryError =
+  ErrorType<NotFoundErrorResponse>;
+
+/**
+ * @summary Get a sent estimate revision through its unguessable token
+ */
+
+export function useGetPublicEstimateRevision<
+  TData = Awaited<ReturnType<typeof getPublicEstimateRevision>>,
+  TError = ErrorType<NotFoundErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicEstimateRevision>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPublicEstimateRevisionQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Submit the customer's complete item decision for a sent revision
+ */
+export const getDecidePublicEstimateRevisionUrl = (token: string) => {
+  return `/api/public/estimates/${token}/decision`;
+};
+
+export const decidePublicEstimateRevision = async (
+  token: string,
+  estimateDecisionInput: EstimateDecisionInput,
+  options?: RequestInit,
+): Promise<EstimateDecisionResult> => {
+  return customFetch<EstimateDecisionResult>(
+    getDecidePublicEstimateRevisionUrl(token),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(estimateDecisionInput),
+    },
+  );
+};
+
+export const getDecidePublicEstimateRevisionMutationOptions = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof decidePublicEstimateRevision>>,
+    TError,
+    { token: string; data: BodyType<EstimateDecisionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof decidePublicEstimateRevision>>,
+  TError,
+  { token: string; data: BodyType<EstimateDecisionInput> },
+  TContext
+> => {
+  const mutationKey = ["decidePublicEstimateRevision"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof decidePublicEstimateRevision>>,
+    { token: string; data: BodyType<EstimateDecisionInput> }
+  > = (props) => {
+    const { token, data } = props ?? {};
+
+    return decidePublicEstimateRevision(token, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DecidePublicEstimateRevisionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof decidePublicEstimateRevision>>
+>;
+export type DecidePublicEstimateRevisionMutationBody =
+  BodyType<EstimateDecisionInput>;
+export type DecidePublicEstimateRevisionMutationError =
+  ErrorType<WorkflowConflictResponse>;
+
+/**
+ * @summary Submit the customer's complete item decision for a sent revision
+ */
+export const useDecidePublicEstimateRevision = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof decidePublicEstimateRevision>>,
+    TError,
+    { token: string; data: BodyType<EstimateDecisionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof decidePublicEstimateRevision>>,
+  TError,
+  { token: string; data: BodyType<EstimateDecisionInput> },
+  TContext
+> => {
+  return useMutation(getDecidePublicEstimateRevisionMutationOptions(options));
+};
+
+/**
+ * @summary Get an issued invoice through its bearer payment token
+ */
+export const getGetPublicWorkflowInvoiceUrl = (token: string) => {
+  return `/api/public/invoices/${token}`;
+};
+
+export const getPublicWorkflowInvoice = async (
+  token: string,
+  options?: RequestInit,
+): Promise<PublicWorkflowInvoice> => {
+  return customFetch<PublicWorkflowInvoice>(
+    getGetPublicWorkflowInvoiceUrl(token),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetPublicWorkflowInvoiceQueryKey = (token: string) => {
+  return [`/api/public/invoices/${token}`] as const;
+};
+
+export const getGetPublicWorkflowInvoiceQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPublicWorkflowInvoice>>,
+  TError = ErrorType<NotFoundErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicWorkflowInvoice>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPublicWorkflowInvoiceQueryKey(token);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPublicWorkflowInvoice>>
+  > = ({ signal }) =>
+    getPublicWorkflowInvoice(token, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!token,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPublicWorkflowInvoice>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPublicWorkflowInvoiceQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPublicWorkflowInvoice>>
+>;
+export type GetPublicWorkflowInvoiceQueryError =
+  ErrorType<NotFoundErrorResponse>;
+
+/**
+ * @summary Get an issued invoice through its bearer payment token
+ */
+
+export function useGetPublicWorkflowInvoice<
+  TData = Awaited<ReturnType<typeof getPublicWorkflowInvoice>>,
+  TError = ErrorType<NotFoundErrorResponse>,
+>(
+  token: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPublicWorkflowInvoice>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPublicWorkflowInvoiceQueryOptions(token, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Start Stripe checkout for the exact current invoice balance
+ */
+export const getCreatePublicInvoiceCheckoutUrl = (token: string) => {
+  return `/api/public/invoices/${token}/checkout-session`;
+};
+
+export const createPublicInvoiceCheckout = async (
+  token: string,
+  options?: RequestInit,
+): Promise<CheckoutRedirect> => {
+  return customFetch<CheckoutRedirect>(
+    getCreatePublicInvoiceCheckoutUrl(token),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getCreatePublicInvoiceCheckoutMutationOptions = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPublicInvoiceCheckout>>,
+    TError,
+    { token: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPublicInvoiceCheckout>>,
+  TError,
+  { token: string },
+  TContext
+> => {
+  const mutationKey = ["createPublicInvoiceCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPublicInvoiceCheckout>>,
+    { token: string }
+  > = (props) => {
+    const { token } = props ?? {};
+
+    return createPublicInvoiceCheckout(token, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePublicInvoiceCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPublicInvoiceCheckout>>
+>;
+
+export type CreatePublicInvoiceCheckoutMutationError =
+  ErrorType<WorkflowConflictResponse>;
+
+/**
+ * @summary Start Stripe checkout for the exact current invoice balance
+ */
+export const useCreatePublicInvoiceCheckout = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPublicInvoiceCheckout>>,
+    TError,
+    { token: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createPublicInvoiceCheckout>>,
+  TError,
+  { token: string },
+  TContext
+> => {
+  return useMutation(getCreatePublicInvoiceCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Record a customer return from a cancelled checkout
+ */
+export const getCancelPublicInvoiceCheckoutUrl = (token: string) => {
+  return `/api/public/invoices/${token}/cancel`;
+};
+
+export const cancelPublicInvoiceCheckout = async (
+  token: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getCancelPublicInvoiceCheckoutUrl(token), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getCancelPublicInvoiceCheckoutMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelPublicInvoiceCheckout>>,
+    TError,
+    { token: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof cancelPublicInvoiceCheckout>>,
+  TError,
+  { token: string },
+  TContext
+> => {
+  const mutationKey = ["cancelPublicInvoiceCheckout"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof cancelPublicInvoiceCheckout>>,
+    { token: string }
+  > = (props) => {
+    const { token } = props ?? {};
+
+    return cancelPublicInvoiceCheckout(token, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CancelPublicInvoiceCheckoutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof cancelPublicInvoiceCheckout>>
+>;
+
+export type CancelPublicInvoiceCheckoutMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record a customer return from a cancelled checkout
+ */
+export const useCancelPublicInvoiceCheckout = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof cancelPublicInvoiceCheckout>>,
+    TError,
+    { token: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof cancelPublicInvoiceCheckout>>,
+  TError,
+  { token: string },
+  TContext
+> => {
+  return useMutation(getCancelPublicInvoiceCheckoutMutationOptions(options));
+};
+
+/**
+ * @summary Issue a draft workflow invoice
+ */
+export const getIssueWorkflowInvoiceUrl = (id: number) => {
+  return `/api/invoices/${id}/issue`;
+};
+
+export const issueWorkflowInvoice = async (
+  id: number,
+  options?: RequestInit,
+): Promise<IssuedInvoiceResult> => {
+  return customFetch<IssuedInvoiceResult>(getIssueWorkflowInvoiceUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getIssueWorkflowInvoiceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof issueWorkflowInvoice>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof issueWorkflowInvoice>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["issueWorkflowInvoice"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof issueWorkflowInvoice>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return issueWorkflowInvoice(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IssueWorkflowInvoiceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof issueWorkflowInvoice>>
+>;
+
+export type IssueWorkflowInvoiceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Issue a draft workflow invoice
+ */
+export const useIssueWorkflowInvoice = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof issueWorkflowInvoice>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof issueWorkflowInvoice>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getIssueWorkflowInvoiceMutationOptions(options));
+};
+
+/**
+ * @summary Void an invoice with no unreversed payments
+ */
+export const getVoidWorkflowInvoiceUrl = (id: number) => {
+  return `/api/invoices/${id}/void`;
+};
+
+export const voidWorkflowInvoice = async (
+  id: number,
+  reasonInput: ReasonInput,
+  options?: RequestInit,
+): Promise<WorkflowInvoice> => {
+  return customFetch<WorkflowInvoice>(getVoidWorkflowInvoiceUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(reasonInput),
+  });
+};
+
+export const getVoidWorkflowInvoiceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof voidWorkflowInvoice>>,
+    TError,
+    { id: number; data: BodyType<ReasonInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof voidWorkflowInvoice>>,
+  TError,
+  { id: number; data: BodyType<ReasonInput> },
+  TContext
+> => {
+  const mutationKey = ["voidWorkflowInvoice"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof voidWorkflowInvoice>>,
+    { id: number; data: BodyType<ReasonInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return voidWorkflowInvoice(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VoidWorkflowInvoiceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof voidWorkflowInvoice>>
+>;
+export type VoidWorkflowInvoiceMutationBody = BodyType<ReasonInput>;
+export type VoidWorkflowInvoiceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Void an invoice with no unreversed payments
+ */
+export const useVoidWorkflowInvoice = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof voidWorkflowInvoice>>,
+    TError,
+    { id: number; data: BodyType<ReasonInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof voidWorkflowInvoice>>,
+  TError,
+  { id: number; data: BodyType<ReasonInput> },
+  TContext
+> => {
+  return useMutation(getVoidWorkflowInvoiceMutationOptions(options));
+};
+
+/**
+ * @summary Record a refund reversal against a succeeded payment
+ */
+export const getRefundWorkflowPaymentUrl = (id: number) => {
+  return `/api/payments/${id}/refund`;
+};
+
+export const refundWorkflowPayment = async (
+  id: number,
+  paymentReversalInput: PaymentReversalInput,
+  options?: RequestInit,
+): Promise<PaymentInvoiceResult> => {
+  return customFetch<PaymentInvoiceResult>(getRefundWorkflowPaymentUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(paymentReversalInput),
+  });
+};
+
+export const getRefundWorkflowPaymentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refundWorkflowPayment>>,
+    TError,
+    { id: number; data: BodyType<PaymentReversalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refundWorkflowPayment>>,
+  TError,
+  { id: number; data: BodyType<PaymentReversalInput> },
+  TContext
+> => {
+  const mutationKey = ["refundWorkflowPayment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refundWorkflowPayment>>,
+    { id: number; data: BodyType<PaymentReversalInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return refundWorkflowPayment(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefundWorkflowPaymentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refundWorkflowPayment>>
+>;
+export type RefundWorkflowPaymentMutationBody = BodyType<PaymentReversalInput>;
+export type RefundWorkflowPaymentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record a refund reversal against a succeeded payment
+ */
+export const useRefundWorkflowPayment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refundWorkflowPayment>>,
+    TError,
+    { id: number; data: BodyType<PaymentReversalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refundWorkflowPayment>>,
+  TError,
+  { id: number; data: BodyType<PaymentReversalInput> },
+  TContext
+> => {
+  return useMutation(getRefundWorkflowPaymentMutationOptions(options));
+};
+
+/**
+ * @summary Record a void reversal against a succeeded payment
+ */
+export const getVoidWorkflowPaymentUrl = (id: number) => {
+  return `/api/payments/${id}/void`;
+};
+
+export const voidWorkflowPayment = async (
+  id: number,
+  paymentReversalInput: PaymentReversalInput,
+  options?: RequestInit,
+): Promise<PaymentInvoiceResult> => {
+  return customFetch<PaymentInvoiceResult>(getVoidWorkflowPaymentUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(paymentReversalInput),
+  });
+};
+
+export const getVoidWorkflowPaymentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof voidWorkflowPayment>>,
+    TError,
+    { id: number; data: BodyType<PaymentReversalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof voidWorkflowPayment>>,
+  TError,
+  { id: number; data: BodyType<PaymentReversalInput> },
+  TContext
+> => {
+  const mutationKey = ["voidWorkflowPayment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof voidWorkflowPayment>>,
+    { id: number; data: BodyType<PaymentReversalInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return voidWorkflowPayment(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VoidWorkflowPaymentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof voidWorkflowPayment>>
+>;
+export type VoidWorkflowPaymentMutationBody = BodyType<PaymentReversalInput>;
+export type VoidWorkflowPaymentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Record a void reversal against a succeeded payment
+ */
+export const useVoidWorkflowPayment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof voidWorkflowPayment>>,
+    TError,
+    { id: number; data: BodyType<PaymentReversalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof voidWorkflowPayment>>,
+  TError,
+  { id: number; data: BodyType<PaymentReversalInput> },
+  TContext
+> => {
+  return useMutation(getVoidWorkflowPaymentMutationOptions(options));
 };
 
 /**
@@ -6094,8 +7521,8 @@ export const getGetPaymentsUrl = (params?: GetPaymentsParams) => {
 export const getPayments = async (
   params?: GetPaymentsParams,
   options?: RequestInit,
-): Promise<PaymentListResponse> => {
-  return customFetch<PaymentListResponse>(getGetPaymentsUrl(params), {
+): Promise<WorkflowPayment[]> => {
+  return customFetch<WorkflowPayment[]>(getGetPaymentsUrl(params), {
     ...options,
     method: "GET",
   });
@@ -6174,14 +7601,14 @@ export const getCreatePaymentUrl = () => {
 };
 
 export const createPayment = async (
-  createPaymentInput: CreatePaymentInput,
+  paymentInput: PaymentInput,
   options?: RequestInit,
-): Promise<Payment> => {
-  return customFetch<Payment>(getCreatePaymentUrl(), {
+): Promise<PaymentInvoiceResult> => {
+  return customFetch<PaymentInvoiceResult>(getCreatePaymentUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createPaymentInput),
+    body: JSON.stringify(paymentInput),
   });
 };
 
@@ -6192,14 +7619,14 @@ export const getCreatePaymentMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createPayment>>,
     TError,
-    { data: BodyType<CreatePaymentInput> },
+    { data: BodyType<PaymentInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof createPayment>>,
   TError,
-  { data: BodyType<CreatePaymentInput> },
+  { data: BodyType<PaymentInput> },
   TContext
 > => {
   const mutationKey = ["createPayment"];
@@ -6213,7 +7640,7 @@ export const getCreatePaymentMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof createPayment>>,
-    { data: BodyType<CreatePaymentInput> }
+    { data: BodyType<PaymentInput> }
   > = (props) => {
     const { data } = props ?? {};
 
@@ -6226,7 +7653,7 @@ export const getCreatePaymentMutationOptions = <
 export type CreatePaymentMutationResult = NonNullable<
   Awaited<ReturnType<typeof createPayment>>
 >;
-export type CreatePaymentMutationBody = BodyType<CreatePaymentInput>;
+export type CreatePaymentMutationBody = BodyType<PaymentInput>;
 export type CreatePaymentMutationError = ErrorType<unknown>;
 
 /**
@@ -6239,14 +7666,14 @@ export const useCreatePayment = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof createPayment>>,
     TError,
-    { data: BodyType<CreatePaymentInput> },
+    { data: BodyType<PaymentInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof createPayment>>,
   TError,
-  { data: BodyType<CreatePaymentInput> },
+  { data: BodyType<PaymentInput> },
   TContext
 > => {
   return useMutation(getCreatePaymentMutationOptions(options));
@@ -6262,8 +7689,8 @@ export const getGetPaymentUrl = (id: number) => {
 export const getPayment = async (
   id: number,
   options?: RequestInit,
-): Promise<Payment> => {
-  return customFetch<Payment>(getGetPaymentUrl(id), {
+): Promise<WorkflowPayment> => {
+  return customFetch<WorkflowPayment>(getGetPaymentUrl(id), {
     ...options,
     method: "GET",
   });

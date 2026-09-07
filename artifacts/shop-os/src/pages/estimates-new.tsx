@@ -1,288 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useLocation, useSearch } from "wouter";
-import { useCreateEstimate, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetRepairOrder, getGetRepairOrderQueryKey } from "@workspace/api-client-react";
-import { useForm, useFieldArray } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Save, Plus, Trash2, Bot, Wrench } from "lucide-react";
-import { AIEstimateModal } from "@/components/ai-estimate-modal";
-import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
-
-const lineItemSchema = z.object({
-  type: z.enum(["labor", "part", "fee", "discount"]),
-  description: z.string().min(1, "Required"),
-  quantity: z.coerce.number().min(1),
-  unitPrice: z.coerce.number().min(0),
-});
-
-const formSchema = z.object({
-  customerId: z.coerce.number().min(1, "Customer is required"),
-  vehicleId: z.coerce.number().optional(),
-  repairOrderId: z.coerce.number().optional(),
-  status: z.enum(["draft", "sent", "approved", "declined", "converted"]).default("draft"),
-  notes: z.string().optional(),
-  taxRate: z.coerce.number().min(0).default(0),
-  discountAmount: z.coerce.number().min(0).default(0),
-  lineItems: z.array(lineItemSchema).min(1, "At least one line item is required"),
-});
+import { AlertCircle, ArrowLeft } from "lucide-react";
 
 export default function EstimatesNew() {
   const [, setLocation] = useLocation();
   const search = useSearch();
-  const repairOrderId = Number(new URLSearchParams(search).get("repairOrderId")) || 0;
-  const { toast } = useToast();
-  const [aiModalOpen, setAiModalOpen] = useState(false);
-  const [cannedOpen, setCannedOpen] = useState(false);
-  
-  const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
-  const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
-  const { data: repairOrder } = useGetRepairOrder(repairOrderId, {
-    query: { enabled: repairOrderId > 0, queryKey: getGetRepairOrderQueryKey(repairOrderId) },
-  });
-  
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      customerId: 0,
-      status: "draft",
-      taxRate: 8.5,
-      discountAmount: 0,
-      lineItems: [{ type: "labor", description: "", quantity: 1, unitPrice: 0 }],
-    },
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "lineItems",
-  });
-
-  const createEstimate = useCreateEstimate();
+  const repairOrderId = new URLSearchParams(search).get("repairOrderId");
 
   useEffect(() => {
-    if (!repairOrder) return;
-    form.setValue("repairOrderId", repairOrder.id);
-    form.setValue("customerId", repairOrder.customerId);
-    form.setValue("vehicleId", repairOrder.vehicleId);
-    const existing = form.getValues("lineItems");
-    const isBlank = existing.length === 1 && !existing[0].description && existing[0].unitPrice === 0;
-    if (isBlank && repairOrder.parts?.length) {
-      form.setValue("lineItems", repairOrder.parts.map((part: any) => ({
-        type: part.name?.startsWith("[Labor]") ? "labor" : "part",
-        description: part.name?.replace(/^\[Labor\]\s*/, "") || "Repair item",
-        quantity: Number(part.quantity) || 1,
-        unitPrice: Number(part.unitPrice) || 0,
-      })));
+    if (repairOrderId) {
+      setLocation(`/repair-orders/${repairOrderId}`);
     }
-    if (!form.getValues("notes")) {
-      form.setValue("notes", `Estimate for repair order ${repairOrder.orderNumber}`);
-    }
-  }, [repairOrder, form]);
-
-  function handleAIApply(items: { type: "labor" | "part" | "fee" | "discount"; description: string; quantity: number; unitPrice: number }[], notes: string) {
-    const existing = form.getValues("lineItems");
-    const nonEmpty = existing.filter(i => i.description.trim() !== "" || i.unitPrice > 0);
-    const merged = [...nonEmpty, ...items];
-    form.setValue("lineItems", merged.length > 0 ? merged : items);
-    if (notes) {
-      const currentNotes = form.getValues("notes") ?? "";
-      form.setValue("notes", currentNotes ? `${currentNotes}\n${notes}` : notes);
-    }
-  }
-
-  function handleCannedJob(job: CannedJob) {
-    const existing = form.getValues("lineItems");
-    const nonEmpty = existing.filter(i => i.description.trim() !== "" || i.unitPrice > 0);
-    const newItems = (job.items || []).map(it => ({
-      type: it.type,
-      description: it.description,
-      quantity: Number(it.quantity) || 1,
-      unitPrice: Number(it.unitPrice) || 0,
-    }));
-    const merged = [...nonEmpty, ...newItems];
-    form.setValue("lineItems", merged.length > 0 ? merged : newItems);
-    if (job.description) {
-      const cur = form.getValues("notes") ?? "";
-      form.setValue("notes", cur ? `${cur}\n${job.description}` : job.description);
-    }
-    toast({ title: `Added "${job.name}"`, description: `${newItems.length} line item${newItems.length === 1 ? "" : "s"} added.` });
-  }
-
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    createEstimate.mutate(
-      { data: values as any },
-      {
-        onSuccess: (data) => {
-          toast({ title: "Estimate created" });
-          setLocation(`/estimates/${data.id}`);
-        },
-        onError: () => {
-          toast({ title: "Error", variant: "destructive" });
-        }
-      }
-    );
-  }
+  }, [setLocation, repairOrderId]);
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation(repairOrderId ? `/repair-orders/${repairOrderId}` : "/estimates")}><ArrowLeft className="h-5 w-5" /></Button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">New Estimate</h1>
-          {repairOrder && <p className="text-sm text-muted-foreground">Linked to repair order {repairOrder.orderNumber}</p>}
-        </div>
-        <Button type="button" variant="outline" onClick={() => setCannedOpen(true)}>
-          <Wrench className="h-4 w-4 mr-2" /> Canned Job
-        </Button>
-        <Button type="button" variant="outline" onClick={() => setAiModalOpen(true)}>
-          <Bot className="h-4 w-4 mr-2 text-blue-600" /> AI Assistant
-        </Button>
-      </div>
-      <Card className="shadow-sm border-border">
-        <CardContent className="pt-6">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="customerId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Customer</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers?.data?.map(c => (
-                            <SelectItem key={c.id} value={String(c.id)}>{c.firstName} {c.lastName}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="vehicleId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehicle (Optional)</FormLabel>
-                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                        <FormControl>
-                          <SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {vehicles?.data?.map(v => (
-                            <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Line Items</h3>
-                  <Button type="button" variant="outline" size="sm" onClick={() => append({ type: "part", description: "", quantity: 1, unitPrice: 0 })}>
-                    <Plus className="h-4 w-4 mr-2" /> Add Item
-                  </Button>
-                </div>
-                <div className="flex items-center gap-4 px-4 pb-1">
-                  <span className="w-[150px] text-xs font-medium text-muted-foreground uppercase tracking-wide">Type</span>
-                  <span className="flex-1 text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</span>
-                  <span className="w-[100px] text-xs font-medium text-muted-foreground uppercase tracking-wide">Qty / Hrs</span>
-                  <span className="w-[120px] text-xs font-medium text-muted-foreground uppercase tracking-wide">Unit Price</span>
-                  <span className="w-[36px]" />
-                </div>
-                {fields.map((field, index) => (
-                  <div key={field.id} className="flex items-start gap-4 p-4 border rounded-md bg-muted/20">
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.type`}
-                      render={({ field }) => (
-                        <FormItem className="w-[150px]">
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                              <SelectItem value="labor">Labor</SelectItem>
-                              <SelectItem value="part">Part</SelectItem>
-                              <SelectItem value="fee">Fee</SelectItem>
-                              <SelectItem value="discount">Discount</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.description`}
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormControl><Input placeholder="e.g. Oil change, brake pads…" {...field} /></FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.quantity`}
-                      render={({ field }) => (
-                        <FormItem className="w-[100px]">
-                          <FormControl><Input type="number" placeholder="1" {...field} /></FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`lineItems.${index}.unitPrice`}
-                      render={({ field }) => (
-                        <FormItem className="w-[120px]">
-                          <FormControl><Input type="number" placeholder="0.00" {...field} /></FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField control={form.control} name="taxRate" render={({ field }) => (
-                  <FormItem><FormLabel>Tax Rate (%)</FormLabel><FormControl><Input type="number" step="0.1" {...field} /></FormControl></FormItem>
-                )} />
-                <FormField control={form.control} name="discountAmount" render={({ field }) => (
-                  <FormItem><FormLabel>Discount Amount ($)</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>
-                )} />
-              </div>
-
-              <div className="flex justify-end pt-4">
-                <Button type="submit" disabled={createEstimate.isPending}>Save Estimate</Button>
-              </div>
-            </form>
-          </Form>
+    <div className="p-8 max-w-2xl mx-auto mt-12">
+      <Card className="border-dashed">
+        <CardContent className="py-12 flex flex-col items-center text-center">
+          <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Create Estimates from a Repair Order</h2>
+          <p className="text-muted-foreground mb-6 max-w-md">
+            Estimates are now directly attached to Repair Order workflows.
+            To create an estimate, open an existing Repair Order and click
+            "Create Estimate Revision".
+          </p>
+          <Button onClick={() => setLocation("/repair-orders")}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Go to Repair Orders
+          </Button>
         </CardContent>
       </Card>
-
-      <CannedJobPicker open={cannedOpen} onClose={() => setCannedOpen(false)} onPick={handleCannedJob} />
-
-      <AIEstimateModal
-        open={aiModalOpen}
-        onClose={() => setAiModalOpen(false)}
-        vehicles={vehicles?.data ?? []}
-        selectedVehicleId={form.watch("vehicleId")}
-        onApply={handleAIApply}
-      />
     </div>
   );
 }

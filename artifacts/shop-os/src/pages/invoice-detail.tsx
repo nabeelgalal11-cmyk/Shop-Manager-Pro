@@ -2,9 +2,12 @@ import { useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useGetInvoice, getGetInvoiceQueryKey,
+  useGetInvoice, getGetInvoiceQueryKey, getGetRepairOrderQueryKey,
   useCreatePayment,
-  useGetPayments, getGetPaymentsQueryKey,
+  useIssueWorkflowInvoice,
+  useVoidWorkflowInvoice,
+  useRefundWorkflowPayment,
+  useVoidWorkflowPayment,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,8 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, CreditCard, Link as LinkIcon, ExternalLink, MessageSquare } from "lucide-react";
-import { CustomerMessageThread } from "@/components/customer-message-thread";
+import { ArrowLeft, Printer, CreditCard, CheckCircle, XCircle, Link } from "lucide-react";
 import { ActivityTimeline } from "@/components/activity-timeline";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function InvoiceDetail() {
   const [match, params] = useRoute("/invoices/:id");
@@ -34,49 +37,26 @@ export default function InvoiceDetail() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
-  const [payLinkLoading, setPayLinkLoading] = useState(false);
-  const [smsLoading, setSmsLoading] = useState(false);
+  const [paymentAttemptKey, setPaymentAttemptKey] = useState(() => crypto.randomUUID());
 
-  const handleSendPayLink = async () => {
-    setPayLinkLoading(true);
-    try {
-      const r = await fetch(`/api/invoices/${id}/pay-link`, { method: "POST" });
-      if (!r.ok) throw new Error("Failed to generate pay link");
-      const { url } = await r.json();
-      await navigator.clipboard.writeText(url).catch(() => {});
-      toast({ title: "Pay link copied to clipboard", description: url });
-    } catch (err: any) {
-      toast({ title: err.message ?? "Failed to generate pay link", variant: "destructive" });
-    } finally {
-      setPayLinkLoading(false);
-    }
-  };
+  const [voidInvoiceOpen, setVoidInvoiceOpen] = useState(false);
+  const [voidInvoiceReason, setVoidInvoiceReason] = useState("");
 
-  const handleTextPayLink = async () => {
-    setSmsLoading(true);
-    try {
-      const r = await fetch(`/api/invoices/${id}/pay-link-sms`, { method: "POST" });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data?.error || "Failed to send pay link SMS");
-      toast({ title: "Pay link sent via SMS", description: data.url });
-    } catch (err: any) {
-      toast({ title: err.message ?? "Failed to send SMS", variant: "destructive" });
-    } finally {
-      setSmsLoading(false);
-    }
-  };
+  const [reversalOpen, setReversalOpen] = useState<{ id: number; action: "refund" | "void"; amount: string } | null>(null);
+  const [reversalAmount, setReversalAmount] = useState("");
+  const [reversalReason, setReversalReason] = useState("");
 
   const { data: invoice, isLoading } = useGetInvoice(id, {
     query: { enabled: !!id, queryKey: getGetInvoiceQueryKey(id) },
   });
 
-  const { data: paymentsResponse } = useGetPayments(
-    { invoiceId: id },
-    { query: { enabled: !!id, queryKey: getGetPaymentsQueryKey({ invoiceId: id }) } },
-  );
-  const paymentsList = paymentsResponse?.data ?? [];
-
-  const createPayment = useCreatePayment();
+  const issueInvoice = useIssueWorkflowInvoice();
+  const voidInvoice = useVoidWorkflowInvoice();
+  const createPayment = useCreatePayment({
+    request: { headers: { "Idempotency-Key": paymentAttemptKey } }
+  });
+  const refundPayment = useRefundWorkflowPayment();
+  const voidPayment = useVoidWorkflowPayment();
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
@@ -111,6 +91,41 @@ export default function InvoiceDetail() {
     setTimeout(() => win.print(), 300);
   };
 
+  const handleIssue = () => {
+    issueInvoice.mutate(
+      { id },
+      {
+        onSuccess: async (result) => {
+          queryClient.invalidateQueries({ queryKey: getGetInvoiceQueryKey(id) });
+          if (invoice?.repairOrderId) queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(invoice.repairOrderId) });
+          if (result.paymentUrl) {
+            await navigator.clipboard.writeText(result.paymentUrl);
+            toast({ title: "Invoice issued", description: "Secure payment link copied to clipboard." });
+          } else {
+            toast({ title: "Invoice issued", description: "PUBLIC_BASE_URL is not configured, so no payment link was created." });
+          }
+        },
+        onError: (err: any) => toast({ title: "Failed to issue invoice", description: err.message, variant: "destructive" }),
+      }
+    );
+  };
+
+  const handleVoidInvoice = () => {
+    if (!voidInvoiceReason.trim()) return toast({ title: "Reason required", variant: "destructive" });
+    voidInvoice.mutate(
+      { id, data: { reason: voidInvoiceReason } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetInvoiceQueryKey(id) });
+          if (invoice?.repairOrderId) queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(invoice.repairOrderId) });
+          toast({ title: "Invoice voided" });
+          setVoidInvoiceOpen(false);
+        },
+        onError: (err: any) => toast({ title: "Failed to void invoice", description: err.message, variant: "destructive" }),
+      }
+    );
+  };
+
   const handleRecordPayment = () => {
     const amount = parseFloat(payAmount);
     if (!amount || amount <= 0) {
@@ -118,25 +133,65 @@ export default function InvoiceDetail() {
       return;
     }
     createPayment.mutate(
-      { data: { invoiceId: id, amount: String(amount), method: payMethod, paidAt: new Date().toISOString() } as any },
+      {
+        data: {
+          invoiceId: id,
+          amount: String(amount),
+          method: payMethod,
+          attemptKey: paymentAttemptKey,
+        },
+      },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetInvoiceQueryKey(id) });
-          queryClient.invalidateQueries({ queryKey: getGetPaymentsQueryKey({ invoiceId: id }) });
+          if (invoice?.repairOrderId) queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(invoice.repairOrderId) });
           toast({ title: "Payment recorded successfully" });
           setPaymentOpen(false);
           setPayAmount("");
           setPayMethod("cash");
+          setPaymentAttemptKey(crypto.randomUUID());
         },
-        onError: () => toast({ title: "Failed to record payment", variant: "destructive" }),
+        onError: (err: any) => toast({ title: "Failed to record payment", description: err.message, variant: "destructive" }),
       }
     );
+  };
+
+  const handleReversal = () => {
+    if (!reversalOpen) return;
+    const amount = parseFloat(reversalAmount);
+    if (!amount || amount <= 0) {
+      return toast({ title: "Enter a valid amount", variant: "destructive" });
+    }
+    if (!reversalReason.trim()) {
+      return toast({ title: "Reason required", variant: "destructive" });
+    }
+
+    const payload = {
+      id: reversalOpen.id,
+      data: { amount: String(amount), reason: reversalReason },
+    };
+
+    const mutation = reversalOpen.action === "refund" ? refundPayment : voidPayment;
+
+    mutation.mutate(payload as any, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetInvoiceQueryKey(id) });
+        if (invoice?.repairOrderId) queryClient.invalidateQueries({ queryKey: getGetRepairOrderQueryKey(invoice.repairOrderId) });
+        toast({ title: `Payment ${reversalOpen.action === 'refund' ? 'refunded' : 'voided'}` });
+        setReversalOpen(null);
+        setReversalAmount("");
+        setReversalReason("");
+      },
+      onError: (err: any) => toast({ title: `Failed to ${reversalOpen.action}`, description: err.message, variant: "destructive" }),
+    });
   };
 
   if (isLoading) return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
   if (!invoice) return <div className="p-8 text-center">Invoice not found</div>;
 
   const balance = Number(invoice.balance ?? 0);
+  const isDraft = invoice.status === "draft";
+  const isVoid = invoice.status === "void";
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -148,35 +203,40 @@ export default function InvoiceDetail() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Invoice {invoice.invoiceNumber}</h1>
             <Badge
-              variant={invoice.status === "paid" ? "default" : invoice.status === "overdue" ? "destructive" : "secondary"}
+              variant={invoice.status === "paid" ? "default" : isVoid ? "destructive" : "secondary"}
               className="mt-1 capitalize"
             >
-              {invoice.status}
+              {invoice.status.replace("_", " ")}
             </Badge>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" /> Print
           </Button>
-          {invoice.status !== "paid" && balance > 0 && (
-            <>
-              {/* Backend only allows pay-link generation for `sent` invoices,
-                  so hide it for drafts to avoid avoidable error toasts. */}
-              {invoice.status === "sent" && (
-                <>
-                  <Button variant="outline" onClick={handleSendPayLink} disabled={payLinkLoading}>
-                    <LinkIcon className="h-4 w-4 mr-2" /> {payLinkLoading ? "Generating…" : "Copy pay link"}
-                  </Button>
-                  <Button variant="outline" onClick={handleTextPayLink} disabled={smsLoading}>
-                    <MessageSquare className="h-4 w-4 mr-2" /> {smsLoading ? "Sending…" : "Text pay link"}
-                  </Button>
-                </>
-              )}
-              <Button onClick={() => setPaymentOpen(true)}>
-                <CreditCard className="h-4 w-4 mr-2" /> Record Payment
-              </Button>
-            </>
+          {isDraft && (
+            <Button onClick={handleIssue} disabled={issueInvoice.isPending} className="bg-blue-600 hover:bg-blue-700">
+              <CheckCircle className="h-4 w-4 mr-2" /> Issue Invoice
+            </Button>
+          )}
+          {!isDraft && !isVoid && invoice.publicToken && (
+            <Button variant="outline" onClick={async () => {
+              const paymentUrl = `${window.location.origin}/pay/${invoice.publicToken}`;
+              await navigator.clipboard.writeText(paymentUrl);
+              toast({ title: "Payment link copied" });
+            }}>
+              <Link className="h-4 w-4 mr-2" /> Copy Pay Link
+            </Button>
+          )}
+          {!isDraft && !isVoid && invoice.status !== 'paid' && balance > 0 && (
+            <Button onClick={() => setPaymentOpen(true)}>
+              <CreditCard className="h-4 w-4 mr-2" /> Record Payment
+            </Button>
+          )}
+          {!isVoid && (
+            <Button variant="destructive" onClick={() => setVoidInvoiceOpen(true)} disabled={voidInvoice.isPending}>
+              <XCircle className="h-4 w-4 mr-2" /> Void
+            </Button>
           )}
         </div>
       </div>
@@ -186,20 +246,14 @@ export default function InvoiceDetail() {
           <div className="flex justify-between items-start mb-8">
             <div>
               <h2 className="text-lg font-bold mb-2">915motors</h2>
-              <p className="text-sm text-muted-foreground">123 Mechanic St.<br />Auto City, ST 12345<br />(555) 555-5555</p>
+              <p className="text-sm text-muted-foreground">123 Mechanic St.<br />Auto City, ST 12345</p>
             </div>
             <div className="text-right">
               <h3 className="font-semibold text-lg mb-2">Bill To</h3>
-              <p className="text-sm font-medium">{invoice.customer?.firstName} {invoice.customer?.lastName}</p>
-              {invoice.customer?.address && <p className="text-sm text-muted-foreground">{invoice.customer.address}</p>}
+              <p className="text-sm font-medium">{(invoice.customerSnapshot as any)?.firstName} {(invoice.customerSnapshot as any)?.lastName}</p>
               <p className="text-xs text-muted-foreground mt-2">
-                Invoice Date: {new Date(invoice.createdAt).toLocaleDateString()}
+                Date: {new Date(invoice.createdAt || Date.now()).toLocaleDateString()}
               </p>
-              {invoice.dueDate && (
-                <p className="text-xs text-muted-foreground">
-                  Due: {new Date(invoice.dueDate).toLocaleDateString()}
-                </p>
-              )}
             </div>
           </div>
 
@@ -216,74 +270,15 @@ export default function InvoiceDetail() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoice.lineItems?.map(item => {
-                const wm = item.warrantyMonths;
-                const wmi = item.warrantyMiles;
-                const hasWarranty = (wm != null && wm > 0) || (wmi != null && wmi > 0);
-                const warrantyText = [
-                  wm != null && wm > 0 ? `${wm} mo` : null,
-                  wmi != null && wmi > 0 ? `${wmi.toLocaleString()} mi` : null,
-                ].filter(Boolean).join(" / ");
-                // Compute current status against time + mileage. Prefer
-                // the linked RO's completedAt + mileageOut/In as the
-                // warranty start point; fall back to invoice.createdAt
-                // when no RO is linked.
-                const startSrc = invoice.repairOrder?.completedAt ?? invoice.createdAt ?? null;
-                const startMs = startSrc ? new Date(startSrc).getTime() : null;
-                const expiresMs = (wm != null && wm > 0 && startMs != null)
-                  ? new Date(new Date(startMs).setMonth(new Date(startMs).getMonth() + wm)).getTime()
-                  : null;
-                const startMileage = invoice.repairOrder?.mileageOut ?? invoice.repairOrder?.mileageIn ?? null;
-                const vehicleMileage = invoice.vehicle?.mileage ?? null;
-                const mileageCap = (wmi != null && wmi > 0 && startMileage != null)
-                  ? startMileage + wmi
-                  : null;
-                const timeKnown = expiresMs != null;
-                const mileageKnown = mileageCap != null && vehicleMileage != null;
-                const timeExpired = timeKnown && expiresMs! <= Date.now();
-                const mileageExpired = mileageKnown && vehicleMileage! > mileageCap!;
-                // Active means: at least one window is known AND no known
-                // window has been crossed. If no windows are known, label
-                // it Unknown rather than asserting Active.
-                const anyKnown = timeKnown || mileageKnown;
-                let statusLabel: string | null = null;
-                let statusClass = "";
-                if (hasWarranty) {
-                  if (!anyKnown) {
-                    statusLabel = "Status unknown";
-                    statusClass = "border-zinc-300 bg-zinc-50 text-zinc-600";
-                  } else if (timeExpired || mileageExpired) {
-                    statusLabel = "Expired";
-                    statusClass = "border-zinc-300 bg-zinc-50 text-zinc-600";
-                  } else {
-                    statusLabel = expiresMs != null
-                      ? `Active · expires ${new Date(expiresMs).toLocaleDateString()}`
-                      : "Active";
-                    statusClass = "border-emerald-200 bg-emerald-50 text-emerald-700";
-                  }
-                }
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {item.description}
-                      {warrantyText && (
-                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded border border-blue-200 bg-blue-50 text-[10px] font-medium text-blue-700 align-middle">
-                          Warranty {warrantyText}
-                        </span>
-                      )}
-                      {statusLabel && (
-                        <span className={`ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium align-middle ${statusClass}`}>
-                          {statusLabel}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="capitalize">{item.type}</TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(Number(item.unitPrice))}</TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(Number(item.total))}</TableCell>
-                  </TableRow>
-                );
-              })}
+              {invoice.items?.map(item => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium">{item.description}</TableCell>
+                  <TableCell className="capitalize">{item.kind}</TableCell>
+                  <TableCell className="text-right">{item.quantity}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(Number(item.unitPrice))}</TableCell>
+                  <TableCell className="text-right font-medium">{formatCurrency(Number(item.lineTotal))}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
 
@@ -293,28 +288,10 @@ export default function InvoiceDetail() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>{formatCurrency(Number(invoice.subtotal))}</span>
               </div>
-              {Number(invoice.discountAmount) > 0 && (
-                <div className="flex justify-between text-sm text-destructive">
-                  <span>Discount</span>
-                  <span>-{formatCurrency(Number(invoice.discountAmount))}</span>
-                </div>
-              )}
-              {(invoice as any).taxExempt ? (
-                <div className="flex justify-between text-sm">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-muted-foreground">Tax</span>
-                    <span className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">
-                      Exempt{(invoice as any).taxExemptNumber ? ` · ${(invoice as any).taxExemptNumber}` : ""}
-                    </span>
-                  </span>
-                  <span className="text-muted-foreground">$0.00</span>
-                </div>
-              ) : (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Tax ({invoice.taxRate}%)</span>
-                  <span>{formatCurrency(Number(invoice.taxAmount))}</span>
-                </div>
-              )}
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Tax</span>
+                <span>{formatCurrency(Number(invoice.taxAmount))}</span>
+              </div>
               <Separator />
               <div className="flex justify-between font-bold text-lg">
                 <span>Total</span>
@@ -333,7 +310,7 @@ export default function InvoiceDetail() {
         </CardContent>
       </Card>
 
-      {paymentsList.length > 0 && (
+      {invoice.payments && invoice.payments.length > 0 && (
         <Card className="shadow-sm border-border">
           <CardContent className="p-6">
             <h3 className="font-semibold mb-3">Payment history</h3>
@@ -343,38 +320,38 @@ export default function InvoiceDetail() {
                   <TableHead>Date</TableHead>
                   <TableHead>Method</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Reference</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paymentsList.map((p) => {
-                  const status = (p as { status?: string }).status ?? "succeeded";
-                  const failureReason = (p as { failureReason?: string | null }).failureReason;
-                  const failed = status === "failed" || status === "cancelled";
+                {invoice.payments.map((p) => {
+                  const isSucceeded = p.status === "succeeded";
                   return (
                     <TableRow key={p.id}>
-                      <TableCell>{new Date(p.paidAt).toLocaleString()}</TableCell>
-                      <TableCell className="capitalize">
-                        {p.method}
-                        {p.method === "stripe" && (
-                          <Badge variant="secondary" className="ml-2 text-xs">Online</Badge>
-                        )}
-                      </TableCell>
+                      <TableCell>{new Date(p.createdAt).toLocaleString()}</TableCell>
+                      <TableCell className="capitalize">{p.method}</TableCell>
                       <TableCell>
-                        {failed ? (
-                          <Badge variant="destructive" className="text-xs" title={failureReason ?? undefined}>
-                            {status === "cancelled" ? "Cancelled" : "Failed"}
-                          </Badge>
-                        ) : (
-                          <Badge variant="default" className="text-xs">Paid</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {p.referenceNumber ?? "—"}
+                        <Badge variant={isSucceeded ? "default" : "destructive"} className="text-xs">
+                          {p.status}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {failed ? "—" : formatCurrency(Number(p.amount))}
+                        {formatCurrency(Number(p.amount))}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isSucceeded && (
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => {
+                              setReversalAmount(String(p.amount));
+                              setReversalOpen({ id: p.id, action: "refund", amount: String(p.amount) });
+                            }}>Refund</Button>
+                            <Button variant="outline" size="sm" onClick={() => {
+                              setReversalAmount(String(p.amount));
+                              setReversalOpen({ id: p.id, action: "void", amount: String(p.amount) });
+                            }}>Void</Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
@@ -385,6 +362,7 @@ export default function InvoiceDetail() {
         </Card>
       )}
 
+      {/* Record Payment Dialog */}
       <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -416,9 +394,6 @@ export default function InvoiceDetail() {
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="card">Credit / Debit Card</SelectItem>
                   <SelectItem value="check">Check</SelectItem>
-                  <SelectItem value="paypal">PayPal</SelectItem>
-                  <SelectItem value="square">Square</SelectItem>
-                  <SelectItem value="stripe">Stripe</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
@@ -433,55 +408,77 @@ export default function InvoiceDetail() {
         </DialogContent>
       </Dialog>
 
-      {invoice.customerId ? (
-        <CustomerMessageThread
-          customerId={invoice.customerId}
-          invoiceId={invoice.id}
-          title="Messages on this Invoice"
-        />
-      ) : null}
+      {/* Void Invoice Dialog */}
+      <Dialog open={voidInvoiceOpen} onOpenChange={setVoidInvoiceOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Void Invoice</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to void this invoice? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Reason</Label>
+              <Textarea
+                placeholder="Enter void reason"
+                value={voidInvoiceReason}
+                onChange={(e) => setVoidInvoiceReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVoidInvoiceOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleVoidInvoice} disabled={voidInvoice.isPending}>
+              {voidInvoice.isPending ? "Voiding..." : "Confirm Void"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reversal Dialog */}
+      <Dialog open={!!reversalOpen} onOpenChange={(open) => !open && setReversalOpen(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="capitalize">{reversalOpen?.action} Payment</DialogTitle>
+            <DialogDescription>
+              Enter the {reversalOpen?.action} details below.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Amount</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={reversalAmount}
+                onChange={(e) => setReversalAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Reason</Label>
+              <Textarea
+                placeholder={`Reason for ${reversalOpen?.action}`}
+                value={reversalReason}
+                onChange={(e) => setReversalReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReversalOpen(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleReversal} disabled={refundPayment.isPending || voidPayment.isPending}>
+              Confirm {reversalOpen?.action}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ActivityTimeline
         entityType="invoice"
         entityId={invoice.id}
         description="Status changes, payments, and communications for this invoice."
       />
-
-      <div ref={printRef} style={{ display: "none" }}>
-        <h1>Invoice: {invoice.invoiceNumber}</h1>
-        <div className="meta">
-          Customer: {invoice.customer?.firstName} {invoice.customer?.lastName} &bull;
-          Date: {new Date(invoice.createdAt).toLocaleDateString()} &bull;
-          Status: {invoice.status}
-        </div>
-        <table>
-          <thead><tr><th>Description</th><th>Type</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead>
-          <tbody>
-            {invoice.lineItems?.map(item => (
-              <tr key={item.id}>
-                <td>{item.description}</td>
-                <td style={{ textTransform: "capitalize" }}>{item.type}</td>
-                <td>{item.quantity}</td>
-                <td>{formatCurrency(Number(item.unitPrice))}</td>
-                <td>{formatCurrency(Number(item.total))}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div className="totals">
-          <div><span>Subtotal</span><span>{formatCurrency(Number(invoice.subtotal))}</span></div>
-          {(invoice as any).taxExempt ? (
-            <div>
-              <span>Tax — EXEMPT{(invoice as any).taxExemptNumber ? ` (${(invoice as any).taxExemptNumber})` : ""}</span>
-              <span>$0.00</span>
-            </div>
-          ) : (
-            <div><span>Tax ({invoice.taxRate}%)</span><span>{formatCurrency(Number(invoice.taxAmount))}</span></div>
-          )}
-          <div><span>Amount Paid</span><span>{formatCurrency(Number(invoice.amountPaid))}</span></div>
-          <div className="grand"><span>Balance Due</span><span>{formatCurrency(balance)}</span></div>
-        </div>
-      </div>
     </div>
   );
 }

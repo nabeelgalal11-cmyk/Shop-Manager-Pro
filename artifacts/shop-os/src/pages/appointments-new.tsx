@@ -23,10 +23,10 @@ const formSchema = z.object({
 export default function AppointmentsNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
+
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
   const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {

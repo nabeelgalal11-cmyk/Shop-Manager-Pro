@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { vehiclesTable, customersTable, repairOrdersTable, invoicesTable, estimatesTable, appointmentsTable, remindersTable } from "@workspace/db";
+import { vehiclesTable, customersTable, repairOrdersTable, appointmentsTable, remindersTable } from "@workspace/db";
 import { eq, ilike, or, sql, desc } from "drizzle-orm";
 import { findActiveWarrantiesForVehicle } from "../lib/warranty.js";
 
@@ -64,10 +64,10 @@ router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
   try {
     await db.transaction(async (tx) => {
-      // Null out all nullable vehicle_id FKs so linked records stay intact
-      await tx.update(repairOrdersTable).set({ vehicleId: null }).where(eq(repairOrdersTable.vehicleId, id));
-      await tx.update(estimatesTable).set({ vehicleId: null }).where(eq(estimatesTable.vehicleId, id));
-      await tx.update(invoicesTable).set({ vehicleId: null }).where(eq(invoicesTable.vehicleId, id));
+      // Repair orders retain an immutable vehicle relationship; do not delete
+      // a vehicle that has repair history.
+      const [repairOrder] = await tx.select({ id: repairOrdersTable.id }).from(repairOrdersTable).where(eq(repairOrdersTable.vehicleId, id)).limit(1);
+      if (repairOrder) throw Object.assign(new Error("Cannot delete a vehicle with repair-order history"), { status: 409 });
       await tx.update(appointmentsTable).set({ vehicleId: null }).where(eq(appointmentsTable.vehicleId, id));
       await tx.update(remindersTable).set({ vehicleId: null }).where(eq(remindersTable.vehicleId, id));
       await tx.delete(vehiclesTable).where(eq(vehiclesTable.id, id));

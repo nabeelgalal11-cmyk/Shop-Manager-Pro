@@ -5,7 +5,7 @@ import {
   vehiclesTable,
   repairOrdersTable,
   invoicesTable,
-  estimatesTable,
+  estimateRevisionsTable,
   appointmentsTable,
 } from "@workspace/db";
 import { or, ilike, sql, eq, desc } from "drizzle-orm";
@@ -106,20 +106,19 @@ router.get("/", async (req, res) => {
 
     db
       .select({
-        id: estimatesTable.id,
-        estimateNumber: estimatesTable.estimateNumber,
-        status: estimatesTable.status,
-        total: estimatesTable.total,
+        id: estimateRevisionsTable.id,
+        estimateNumber: sql<string>`'RO-' || ${estimateRevisionsTable.repairOrderId} || '-REV-' || ${estimateRevisionsTable.revisionNo}`,
+        status: estimateRevisionsTable.status,
+        total: estimateRevisionsTable.total,
       })
-      .from(estimatesTable)
+      .from(estimateRevisionsTable)
       .where(
         or(
-          ilike(estimatesTable.estimateNumber, q),
-          ilike(estimatesTable.notes, q),
-          ...(numeric != null ? [eq(estimatesTable.id, numeric)] : []),
+          ilike(sql`'RO-' || ${estimateRevisionsTable.repairOrderId} || '-REV-' || ${estimateRevisionsTable.revisionNo}`, q),
+          ...(numeric != null ? [eq(estimateRevisionsTable.id, numeric)] : []),
         ),
       )
-      .orderBy(desc(estimatesTable.createdAt))
+      .orderBy(desc(estimateRevisionsTable.createdAt))
       .limit(LIMIT),
 
     db

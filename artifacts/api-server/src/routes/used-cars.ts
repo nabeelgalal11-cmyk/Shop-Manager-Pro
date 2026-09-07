@@ -7,6 +7,7 @@ import {
   purchaseLineItemsTable,
   purchasesTable,
   repairOrdersTable,
+  repairOrderWorkItemsTable,
   shopSettingsTable,
   timeEntriesTable,
   employeesTable,
@@ -70,7 +71,7 @@ async function computeRecon(carId: number, defaultLaborRate: number) {
         .where(inArray(timeEntriesTable.repairOrderId, orderIds))
     : [];
 
-  // Aggregate labor cost per RO from time entries; fallback to RO actual/estimated hours × shop rate when no entries
+  // Aggregate actual labor cost per RO from time entries.
   const laborByOrder = new Map<number, { hours: number; cost: number; entries: typeof timeRows }>();
   for (const t of timeRows) {
     const id = t.repairOrderId!;
@@ -86,24 +87,31 @@ async function computeRecon(carId: number, defaultLaborRate: number) {
   let roPartsTotal = 0;
   let laborHours = 0;
   let laborTotal = 0;
+  const workItems = orderIds.length ? await db.select({
+    repairOrderId: repairOrderWorkItemsTable.repairOrderId,
+    kind: repairOrderWorkItemsTable.kind,
+    quantity: repairOrderWorkItemsTable.quantity,
+    unitCost: repairOrderWorkItemsTable.unitCost,
+  }).from(repairOrderWorkItemsTable).where(inArray(repairOrderWorkItemsTable.repairOrderId, orderIds)) : [];
+  const partsByOrder = new Map<number, number>();
+  for (const item of workItems) {
+    if (item.kind !== "part") continue;
+    partsByOrder.set(item.repairOrderId, (partsByOrder.get(item.repairOrderId) ?? 0) + Number(item.quantity) * Number(item.unitCost ?? 0));
+  }
   const orderSummaries = orders.map(o => {
-    const partList = Array.isArray(o.parts) ? o.parts : [];
-    const partsCost = partList.reduce(
-      (s: number, p: any) => s + Number(p.quantity ?? 0) * Number(p.unitPrice ?? 0),
-      0
-    );
+    const partsCost = partsByOrder.get(o.id) ?? 0;
     const labor = laborByOrder.get(o.id);
     let hours: number;
     let laborCost: number;
-    let laborSource: "time_entries" | "ro_hours_fallback";
+    let laborSource: "time_entries" | "no_time_entries";
     if (labor && labor.hours > 0) {
       hours = labor.hours;
       laborCost = labor.cost;
       laborSource = "time_entries";
     } else {
-      hours = Number(o.actualHours ?? o.estimatedHours ?? 0);
-      laborCost = hours * defaultLaborRate;
-      laborSource = "ro_hours_fallback";
+      hours = 0;
+      laborCost = 0;
+      laborSource = "no_time_entries";
     }
     roPartsTotal += partsCost;
     laborHours += hours;
@@ -191,7 +199,7 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
 
   const laborRate = await getLaborRate();
 
-  // Per-car recon totals (purchase parts + RO parts + labor from time_entries; fallback to RO hours × shop rate when no entries)
+  // Per-car recon totals from purchase/work-item costs and recorded labor.
   const reconRows = await db.execute(sql`
     SELECT
       c.id AS car_id,
@@ -205,20 +213,18 @@ router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
       GROUP BY used_car_id
     ) pli ON pli.used_car_id = c.id
     LEFT JOIN (
-      SELECT ro.used_car_id, SUM(COALESCE((
-        SELECT SUM((p->>'quantity')::numeric * (p->>'unitPrice')::numeric)
-        FROM jsonb_array_elements(COALESCE(ro.parts, '[]'::jsonb)) p
-      ), 0)) AS total
-      FROM repair_orders ro
-      WHERE ro.internal = true AND ro.used_car_id IS NOT NULL
-      GROUP BY ro.used_car_id
+        SELECT ro.used_car_id, SUM(w.quantity::numeric * COALESCE(w.unit_cost, 0)::numeric) AS total
+        FROM repair_orders ro
+        JOIN repair_order_work_items w ON w.repair_order_id = ro.id AND w.kind = 'part'
+        WHERE ro.internal = true AND ro.used_car_id IS NOT NULL
+        GROUP BY ro.used_car_id
     ) ro_parts ON ro_parts.used_car_id = c.id
     LEFT JOIN (
       SELECT ro.used_car_id,
         SUM(
           CASE
             WHEN te.has_entries THEN te.cost
-            ELSE COALESCE(ro.actual_hours, ro.estimated_hours, 0)::numeric * ${laborRate}
+            ELSE 0
           END
         ) AS total
       FROM repair_orders ro

@@ -1,5 +1,7 @@
-import { pgTable, serial, integer, text, numeric, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { inventoryTable } from "./inventory";
+import { repairOrderWorkItemsTable } from "./repair_order_work_items";
 
 export const stockMovementReasons = [
   "purchase_received",
@@ -21,6 +23,7 @@ export const stockMovementsTable = pgTable("stock_movements", {
   referenceTable: text("reference_table"),
   referenceId: integer("reference_id"),
   referenceLineId: integer("reference_line_id"),
+  workItemId: integer("work_item_id").references(() => repairOrderWorkItemsTable.id),
   unitCost: numeric("unit_cost", { precision: 10, scale: 2 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -42,6 +45,9 @@ export const stockMovementsTable = pgTable("stock_movements", {
     t.referenceLineId,
     t.reason,
   ),
+  workItemConsumptionUnique: uniqueIndex("stock_movements_work_item_consumption_unique")
+    .on(t.workItemId)
+    .where(sql`${t.reason} = 'ro_consumed' AND ${t.workItemId} IS NOT NULL`),
 }));
 
 export type StockMovement = typeof stockMovementsTable.$inferSelect;

@@ -518,7 +518,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/ServiceHistoryEntry"
 
-  # ---- ESTIMATES ----
+  # ---- ESTIMATES / REPAIR WORKFLOW ----
   /estimates:
     get:
       operationId: getEstimates
@@ -550,7 +550,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EstimateListResponse"
+                type: array
+                items: { $ref: "#/components/schemas/EstimateRevision" }
     post:
       operationId: createEstimate
       tags: [estimates]
@@ -586,7 +587,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Estimate"
+                $ref: "#/components/schemas/EstimateRevisionDetail"
     put:
       operationId: updateEstimate
       tags: [estimates]
@@ -643,34 +644,6 @@ paths:
               schema:
                 $ref: "#/components/schemas/Invoice"
 
-  /estimates/{id}/send:
-    post:
-      operationId: sendEstimate
-      tags: [estimates]
-      summary: Send estimate to customer for approval (email/SMS)
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        "200":
-          description: Send result
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  emailed: { type: boolean }
-                  smsed: { type: boolean }
-                  channel: { type: string }
-                  estimateUrl: { type: string }
-                  publicToken: { type: string }
-                  errors:
-                    type: array
-                    items: { type: string }
-
   /estimates/{id}/convert-to-ro:
     post:
       operationId: convertEstimateToRepairOrder
@@ -723,7 +696,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/InvoiceListResponse"
+                type: array
+                items: { $ref: "#/components/schemas/WorkflowInvoice" }
     post:
       operationId: createInvoice
       tags: [invoices]
@@ -759,7 +733,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Invoice"
+                $ref: "#/components/schemas/WorkflowInvoiceDetail"
     put:
       operationId: updateInvoice
       tags: [invoices]
@@ -829,7 +803,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RepairOrderListResponse"
+                type: array
+                items: { $ref: "#/components/schemas/WorkflowRepairOrder" }
     post:
       operationId: createRepairOrder
       tags: [repair-orders]
@@ -839,14 +814,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateRepairOrderInput"
+                $ref: "#/components/schemas/RepairOrderInput"
       responses:
         "201":
           description: Repair order created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RepairOrder"
+                $ref: "#/components/schemas/WorkflowRepairOrder"
 
   /repair-orders/{id}:
     get:
@@ -865,7 +840,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RepairOrder"
+                $ref: "#/components/schemas/RepairOrderWorkflow"
     put:
       operationId: updateRepairOrder
       tags: [repair-orders]
@@ -902,6 +877,240 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /repair-orders/{id}/intake:
+    patch:
+      operationId: updateRepairOrderIntake
+      tags: [repair-orders]
+      summary: Edit repair-order intake fields with optimistic concurrency
+      parameters:
+        - $ref: "#/components/parameters/RepairOrderId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RepairOrderIntakeUpdate" }
+      responses:
+        "200": { description: Updated repair order, content: { application/json: { schema: { $ref: "#/components/schemas/WorkflowRepairOrder" } } } }
+        "409": { $ref: "#/components/responses/WorkflowConflict" }
+
+  /repair-orders/{id}/revisions:
+    post:
+      operationId: createRepairOrderRevision
+      tags: [repair-orders, estimates]
+      summary: Create a draft estimate or supplement revision
+      parameters:
+        - $ref: "#/components/parameters/RepairOrderId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EstimateRevisionCreateInput" }
+      responses:
+        "201": { description: Draft revision, content: { application/json: { schema: { $ref: "#/components/schemas/EstimateRevision" } } } }
+        "409": { $ref: "#/components/responses/WorkflowConflict" }
+
+  /repair-orders/revisions/{revisionId}/items:
+    put:
+      operationId: replaceEstimateRevisionDraftItems
+      tags: [repair-orders, estimates]
+      summary: Replace every item on a draft revision
+      parameters:
+        - $ref: "#/components/parameters/RevisionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EstimateRevisionItemsUpdate" }
+      responses:
+        "200": { description: Updated revision, content: { application/json: { schema: { $ref: "#/components/schemas/EstimateRevision" } } } }
+
+  /repair-orders/revisions/{revisionId}/send:
+    post:
+      operationId: sendEstimateRevision
+      tags: [repair-orders, estimates]
+      summary: Send a draft revision for customer decision
+      parameters:
+        - $ref: "#/components/parameters/RevisionId"
+      responses:
+        "200": { description: Sent revision, content: { application/json: { schema: { $ref: "#/components/schemas/EstimateRevision" } } } }
+
+  /repair-orders/work-items/{workItemId}/perform:
+    post:
+      operationId: performRepairOrderWorkItem
+      tags: [repair-orders]
+      summary: Mark an authorized work item performed
+      parameters:
+        - $ref: "#/components/parameters/WorkItemId"
+      responses:
+        "200": { description: Performed work item, content: { application/json: { schema: { $ref: "#/components/schemas/RepairOrderWorkItem" } } } }
+
+  /repair-orders/{id}/complete:
+    post:
+      operationId: completeRepairOrderWorkflow
+      tags: [repair-orders]
+      summary: Complete a repair order after authorized work is performed
+      parameters:
+        - $ref: "#/components/parameters/RepairOrderId"
+      responses:
+        "200": { description: Completed repair order, content: { application/json: { schema: { $ref: "#/components/schemas/WorkflowRepairOrder" } } } }
+
+  /repair-orders/{id}/cancel:
+    post:
+      operationId: cancelRepairOrderWorkflow
+      tags: [repair-orders]
+      summary: Cancel a repair order
+      parameters:
+        - $ref: "#/components/parameters/RepairOrderId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonInput" }
+      responses:
+        "200": { description: Cancelled repair order, content: { application/json: { schema: { $ref: "#/components/schemas/WorkflowRepairOrder" } } } }
+
+  /repair-orders/{id}/invoice:
+    post:
+      operationId: createRepairOrderFinalInvoice
+      tags: [repair-orders, invoices]
+      summary: Create the immutable final invoice for a completed repair order
+      parameters:
+        - $ref: "#/components/parameters/RepairOrderId"
+      responses:
+        "201": { description: Draft invoice, content: { application/json: { schema: { $ref: "#/components/schemas/WorkflowInvoice" } } } }
+
+  /public/estimates/{token}:
+    get:
+      operationId: getPublicEstimateRevision
+      tags: [estimates]
+      security: []
+      summary: Get a sent estimate revision through its unguessable token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Token-scoped revision, content: { application/json: { schema: { $ref: "#/components/schemas/PublicEstimateRevision" } } } }
+        "404": { $ref: "#/components/responses/NotFoundError" }
+
+  /public/estimates/{token}/decision:
+    post:
+      operationId: decidePublicEstimateRevision
+      tags: [estimates]
+      security: []
+      summary: Submit the customer's complete item decision for a sent revision
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EstimateDecisionInput" }
+      responses:
+        "200": { description: Recorded approval, content: { application/json: { schema: { $ref: "#/components/schemas/EstimateDecisionResult" } } } }
+        "409": { $ref: "#/components/responses/WorkflowConflict" }
+
+  /public/invoices/{token}:
+    get:
+      operationId: getPublicWorkflowInvoice
+      tags: [invoices]
+      security: []
+      summary: Get an issued invoice through its bearer payment token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Public invoice, content: { application/json: { schema: { $ref: "#/components/schemas/PublicWorkflowInvoice" } } } }
+        "404": { $ref: "#/components/responses/NotFoundError" }
+  /public/invoices/{token}/checkout-session:
+    post:
+      operationId: createPublicInvoiceCheckout
+      tags: [invoices, payments]
+      security: []
+      summary: Start Stripe checkout for the exact current invoice balance
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Checkout redirect, content: { application/json: { schema: { $ref: "#/components/schemas/CheckoutRedirect" } } } }
+        "503": { $ref: "#/components/responses/WorkflowConflict" }
+  /public/invoices/{token}/cancel:
+    post:
+      operationId: cancelPublicInvoiceCheckout
+      tags: [invoices, payments]
+      security: []
+      summary: Record a customer return from a cancelled checkout
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Acknowledged }
+
+  /invoices/{id}/issue:
+    post:
+      operationId: issueWorkflowInvoice
+      tags: [invoices]
+      summary: Issue a draft workflow invoice
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+      responses:
+        "200": { description: Issued invoice and canonical payment URL, content: { application/json: { schema: { $ref: "#/components/schemas/IssuedInvoiceResult" } } } }
+
+  /invoices/{id}/void:
+    post:
+      operationId: voidWorkflowInvoice
+      tags: [invoices]
+      summary: Void an invoice with no unreversed payments
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonInput" }
+      responses:
+        "200": { description: Voided invoice, content: { application/json: { schema: { $ref: "#/components/schemas/WorkflowInvoice" } } } }
+
+  /payments/{id}/refund:
+    post:
+      operationId: refundWorkflowPayment
+      tags: [payments]
+      summary: Record a refund reversal against a succeeded payment
+      parameters:
+        - $ref: "#/components/parameters/PaymentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentReversalInput" }
+      responses:
+        "201": { description: Reversal and recomputed invoice, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentInvoiceResult" } } } }
+
+  /payments/{id}/void:
+    post:
+      operationId: voidWorkflowPayment
+      tags: [payments]
+      summary: Record a void reversal against a succeeded payment
+      parameters:
+        - $ref: "#/components/parameters/PaymentId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PaymentReversalInput" }
+      responses:
+        "201": { description: Reversal and recomputed invoice, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentInvoiceResult" } } } }
 
   # ---- USED CARS ----
   /used-cars/{id}/recon:
@@ -1454,24 +1663,30 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PaymentListResponse"
+                type: array
+                items: { $ref: "#/components/schemas/WorkflowPayment" }
     post:
       operationId: createPayment
       tags: [payments]
       summary: Record a payment
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 1 }
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreatePaymentInput"
+                $ref: "#/components/schemas/PaymentInput"
       responses:
         "201":
           description: Payment recorded
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Payment"
+                $ref: "#/components/schemas/PaymentInvoiceResult"
 
   /payments/{id}:
     get:
@@ -1490,7 +1705,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Payment"
+                $ref: "#/components/schemas/WorkflowPayment"
     delete:
       operationId: deletePayment
       tags: [payments]
@@ -2196,6 +2411,31 @@ paths:
 
 components:
   parameters:
+    RepairOrderId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    RevisionId:
+      name: revisionId
+      in: path
+      required: true
+      schema: { type: integer }
+    WorkItemId:
+      name: workItemId
+      in: path
+      required: true
+      schema: { type: integer }
+    InvoiceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    PaymentId:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
     SquareId:
       name: id
       in: path
@@ -2206,6 +2446,13 @@ components:
       in: path
       required: true
       schema: { type: string, enum: [customers, catalog, inventory] }
+  responses:
+    NotFoundError:
+      description: Requested resource was not found
+      content: { application/json: { schema: { $ref: "#/components/schemas/WorkflowError" } } }
+    WorkflowConflict:
+      description: The requested state transition is invalid
+      content: { application/json: { schema: { $ref: "#/components/schemas/WorkflowError" } } }
   schemas:
     AuthUser:
       type: object
@@ -4605,3 +4852,356 @@ components:
       properties:
         event_id: { type: string }
         type: { type: string }
+    WorkflowError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    WorkflowRepairOrder:
+      type: object
+      required: [id, orderNumber, customerId, vehicleId, createdById, status, priority, openedAt, version, createdAt, updatedAt]
+      properties:
+        id: { type: integer, readOnly: true }
+        orderNumber: { type: string, readOnly: true }
+        customerId: { type: integer, readOnly: true }
+        vehicleId: { type: integer, readOnly: true }
+        usedCarId: { type: [integer, "null"], readOnly: true }
+        internal: { type: boolean, readOnly: true }
+        assignedToId: { type: [integer, "null"] }
+        createdById: { type: integer, readOnly: true }
+        status: { type: string, enum: [open, diagnosing, awaiting_approval, authorized, in_progress, completed, cancelled], readOnly: true }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        complaint: { type: [string, "null"] }
+        diagnosis: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+        mileageIn: { type: [integer, "null"] }
+        mileageOut: { type: [integer, "null"] }
+        promisedAt: { type: [string, "null"], format: date-time }
+        openedAt: { type: string, format: date-time, readOnly: true }
+        completedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        cancelledAt: { type: [string, "null"], format: date-time, readOnly: true }
+        cancellationReason: { type: [string, "null"], readOnly: true }
+        version: { type: integer, readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        updatedAt: { type: string, format: date-time, readOnly: true }
+    RepairOrderInput:
+      type: object
+      additionalProperties: false
+      required: [customerId, vehicleId]
+      properties:
+        customerId: { type: integer }
+        vehicleId: { type: integer }
+        assignedToId: { type: [integer, "null"] }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        complaint: { type: [string, "null"] }
+        diagnosis: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+        mileageIn: { type: [integer, "null"] }
+        promisedAt: { type: [string, "null"], format: date-time }
+    RepairOrderIntakeUpdate:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+        assignedToId: { type: [integer, "null"] }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        complaint: { type: [string, "null"] }
+        diagnosis: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+        mileageIn: { type: [integer, "null"] }
+        mileageOut: { type: [integer, "null"] }
+        promisedAt: { type: [string, "null"], format: date-time }
+    EstimateItem:
+      type: object
+      required: [id, estimateRevisionId, position, kind, description, quantity, unitPrice]
+      properties:
+        id: { type: integer, readOnly: true }
+        estimateRevisionId: { type: integer, readOnly: true }
+        position: { type: integer, minimum: 1 }
+        kind: { type: string, enum: [part, labor, fee, discount] }
+        description: { type: string }
+        quantity: { type: string, pattern: '^\d+(\.\d{1,3})?$', example: "1.000" }
+        unitPrice: { type: string, pattern: '^\d+(\.\d{1,2})?$', example: "0.00" }
+        unitCost: { type: [string, "null"], readOnly: true }
+        inventoryItemId: { type: [integer, "null"] }
+        estimatedHours: { type: [string, "null"] }
+        warrantyMonths: { type: [integer, "null"] }
+        warrantyMiles: { type: [integer, "null"] }
+    EstimateItemInput:
+      type: object
+      additionalProperties: false
+      required: [position, kind, description, quantity, unitPrice]
+      properties:
+        position: { type: integer, minimum: 1 }
+        kind: { type: string, enum: [part, labor, fee, discount] }
+        description: { type: string, minLength: 1 }
+        quantity: { oneOf: [{ type: string }, { type: number }] }
+        unitPrice: { oneOf: [{ type: string }, { type: number }] }
+        unitCost: { oneOf: [{ type: string }, { type: number }, { type: "null" }] }
+        inventoryItemId: { type: [integer, "null"] }
+        estimatedHours: { oneOf: [{ type: string }, { type: number }, { type: "null" }] }
+        warrantyMonths: { type: [integer, "null"], minimum: 0 }
+        warrantyMiles: { type: [integer, "null"], minimum: 0 }
+    EstimateApproval:
+      type: object
+      required: [id, estimateRevisionId, decision, documentHash, decidedAt, metadata, createdAt]
+      properties:
+        id: { type: integer, readOnly: true }
+        estimateRevisionId: { type: integer, readOnly: true }
+        decision: { type: string, enum: [approved, partially_approved, declined], readOnly: true }
+        signerName: { type: [string, "null"], readOnly: true }
+        signerEmail: { type: [string, "null"], readOnly: true }
+        signatureUrl: { type: [string, "null"], readOnly: true }
+        documentHash: { type: string, readOnly: true }
+        requestIp: { type: [string, "null"], readOnly: true }
+        requestUserAgent: { type: [string, "null"], readOnly: true }
+        decidedAt: { type: string, format: date-time, readOnly: true }
+        metadata: { type: object, additionalProperties: true, readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+    EstimateRevision:
+      type: object
+      required: [id, repairOrderId, revisionNo, kind, status, customerSnapshot, vehicleSnapshot, subtotal, taxRateBps, taxAmount, total, createdById, createdAt, updatedAt]
+      properties:
+        id: { type: integer, readOnly: true }
+        repairOrderId: { type: integer, readOnly: true }
+        revisionNo: { type: integer, readOnly: true }
+        kind: { type: string, enum: [estimate, supplement], readOnly: true }
+        status: { type: string, enum: [draft, sent, approved, partially_approved, declined, superseded], readOnly: true }
+        notes: { type: [string, "null"] }
+        customerSnapshot: { type: object, additionalProperties: true, readOnly: true }
+        vehicleSnapshot: { type: object, additionalProperties: true, readOnly: true }
+        subtotal: { type: string, readOnly: true }
+        taxRateBps: { type: integer, minimum: 0, maximum: 10000, readOnly: true }
+        taxAmount: { type: string, readOnly: true }
+        total: { type: string, readOnly: true }
+        publicToken: { type: [string, "null"], readOnly: true }
+        sentAt: { type: [string, "null"], format: date-time, readOnly: true }
+        createdById: { type: integer, readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        updatedAt: { type: string, format: date-time, readOnly: true }
+    EstimateRevisionDetail:
+      allOf:
+        - $ref: "#/components/schemas/EstimateRevision"
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: "#/components/schemas/EstimateItem" } }
+    EstimateRevisionCreateInput:
+      type: object
+      additionalProperties: false
+      properties:
+        kind: { type: string, enum: [estimate, supplement], default: estimate }
+        taxRateBps: { type: integer, minimum: 0, maximum: 10000, default: 0 }
+    EstimateRevisionItemsUpdate:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/EstimateItemInput" } }
+    EstimateDecisionInput:
+      type: object
+      additionalProperties: false
+      required: [signerName, decision, approvedItemIds, declinedItemIds]
+      properties:
+        signerName: { type: string, minLength: 1 }
+        signerEmail: { type: [string, "null"], format: email }
+        decision: { type: string, enum: [approved, declined] }
+        approvedItemIds: { type: array, items: { type: integer } }
+        declinedItemIds: { type: array, items: { type: integer } }
+    EstimateDecisionResult:
+      type: object
+      required: [revisionId, approvalId, decision]
+      properties:
+        revisionId: { type: integer, readOnly: true }
+        approvalId: { type: integer, readOnly: true }
+        decision: { type: string, enum: [approved, partially_approved, declined], readOnly: true }
+    EstimateApprovalItem:
+      type: object
+      required: [id, approvalId, estimateItemId, decision]
+      properties:
+        id: { type: integer, readOnly: true }
+        approvalId: { type: integer, readOnly: true }
+        estimateItemId: { type: integer, readOnly: true }
+        decision: { type: string, enum: [approved, declined], readOnly: true }
+    RepairOrderWorkItem:
+      type: object
+      required: [id, repairOrderId, sourceEstimateItemId, position, kind, description, quantity, unitPrice, status, authorizedAt, createdAt]
+      properties:
+        id: { type: integer, readOnly: true }
+        repairOrderId: { type: integer, readOnly: true }
+        sourceEstimateItemId: { type: integer, readOnly: true }
+        position: { type: integer, readOnly: true }
+        kind: { type: string, enum: [part, labor, fee, discount], readOnly: true }
+        description: { type: string, readOnly: true }
+        quantity: { type: string, readOnly: true }
+        unitPrice: { type: string, readOnly: true }
+        unitCost: { type: [string, "null"], readOnly: true }
+        estimatedHours: { type: [string, "null"], readOnly: true }
+        status: { type: string, enum: [authorized, performed, void], readOnly: true }
+        authorizedAt: { type: string, format: date-time, readOnly: true }
+        performedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        performedById: { type: [integer, "null"], readOnly: true }
+        voidedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        voidReason: { type: [string, "null"], readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+    WorkflowInvoiceItem:
+      type: object
+      required: [id, invoiceId, sourceWorkItemId, position, kind, description, quantity, unitPrice, lineTotal]
+      properties:
+        id: { type: integer, readOnly: true }
+        invoiceId: { type: integer, readOnly: true }
+        sourceWorkItemId: { type: integer, readOnly: true }
+        position: { type: integer, readOnly: true }
+        kind: { type: string, enum: [part, labor, fee, discount], readOnly: true }
+        description: { type: string, readOnly: true }
+        quantity: { type: string, readOnly: true }
+        unitPrice: { type: string, readOnly: true }
+        unitCost: { type: [string, "null"], readOnly: true }
+        lineTotal: { type: string, readOnly: true }
+    WorkflowPayment:
+      type: object
+      required: [id, invoiceId, amount, status, method, attemptKey, createdAt]
+      properties:
+        id: { type: integer, readOnly: true }
+        invoiceId: { type: integer, readOnly: true }
+        amount: { type: string, readOnly: true }
+        status: { type: string, enum: [pending, succeeded, failed, refunded, void], readOnly: true }
+        method: { type: string, readOnly: true }
+        processor: { type: [string, "null"], readOnly: true }
+        processorPaymentId: { type: [string, "null"], readOnly: true }
+        processorEventId: { type: [string, "null"], readOnly: true }
+        attemptKey: { type: string, readOnly: true }
+        idempotencyKey: { type: [string, "null"], readOnly: true }
+        parentPaymentId: { type: [integer, "null"], readOnly: true }
+        referenceNumber: { type: [string, "null"], readOnly: true }
+        failureReason: { type: [string, "null"], readOnly: true }
+        refundedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        voidedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        processedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+    WorkflowInvoice:
+      type: object
+      required: [id, invoiceNumber, repairOrderId, customerSnapshot, vehicleSnapshot, status, subtotal, taxRateBps, taxAmount, total, amountPaid, balance, taxExempt, version, createdAt, updatedAt]
+      properties:
+        id: { type: integer, readOnly: true }
+        invoiceNumber: { type: string, readOnly: true }
+        repairOrderId: { type: integer, readOnly: true }
+        customerSnapshot: { type: object, additionalProperties: true, readOnly: true }
+        vehicleSnapshot: { type: object, additionalProperties: true, readOnly: true }
+        status: { type: string, enum: [draft, issued, partially_paid, paid, void], readOnly: true }
+        notes: { type: [string, "null"], readOnly: true }
+        subtotal: { type: string, readOnly: true }
+        taxRateBps: { type: integer, readOnly: true }
+        taxAmount: { type: string, readOnly: true }
+        total: { type: string, readOnly: true }
+        amountPaid: { type: string, readOnly: true }
+        balance: { type: string, readOnly: true }
+        taxExempt: { type: boolean, readOnly: true }
+        taxExemptNumber: { type: [string, "null"], readOnly: true }
+        publicToken: { type: [string, "null"], readOnly: true }
+        issuedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        issuedById: { type: [integer, "null"], readOnly: true }
+        voidedAt: { type: [string, "null"], format: date-time, readOnly: true }
+        voidedById: { type: [integer, "null"], readOnly: true }
+        voidReason: { type: [string, "null"], readOnly: true }
+        version: { type: integer, readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        updatedAt: { type: string, format: date-time, readOnly: true }
+    WorkflowInvoiceDetail:
+      allOf:
+        - $ref: "#/components/schemas/WorkflowInvoice"
+        - type: object
+          required: [items, payments]
+          properties:
+            items: { type: array, items: { $ref: "#/components/schemas/WorkflowInvoiceItem" } }
+            payments: { type: array, items: { $ref: "#/components/schemas/WorkflowPayment" } }
+    IssuedInvoiceResult:
+      type: object
+      required: [invoice, paymentUrl]
+      properties:
+        invoice: { $ref: "#/components/schemas/WorkflowInvoice" }
+        paymentUrl: { type: [string, "null"], format: uri }
+    CheckoutRedirect:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+    PublicWorkflowInvoice:
+      type: object
+      additionalProperties: true
+      required: [invoiceNumber, status, subtotal, taxAmount, total, amountPaid, balance, lineItems, payments]
+      properties:
+        invoiceNumber: { type: string }
+        status: { type: string, enum: [issued, partially_paid] }
+        subtotal: { type: string }
+        taxAmount: { type: string }
+        total: { type: string }
+        amountPaid: { type: string }
+        balance: { type: string }
+        lineItems: { type: array, items: { type: object, additionalProperties: true } }
+        payments: { type: array, items: { type: object, additionalProperties: true } }
+    PaymentInput:
+      type: object
+      additionalProperties: false
+      required: [invoiceId, amount, method, attemptKey]
+      properties:
+        invoiceId: { type: integer }
+        amount: { oneOf: [{ type: string }, { type: number }] }
+        method: { type: string, minLength: 1 }
+        attemptKey: { type: string, minLength: 1 }
+        processor: { type: [string, "null"] }
+        processorPaymentId: { type: [string, "null"] }
+        referenceNumber: { type: [string, "null"] }
+    PaymentReversalInput:
+      type: object
+      additionalProperties: false
+      required: [amount, reason]
+      properties:
+        amount: { oneOf: [{ type: string }, { type: number }] }
+        reason: { type: string, minLength: 1 }
+    PaymentInvoiceResult:
+      type: object
+      required: [payment, invoice]
+      properties:
+        payment: { $ref: "#/components/schemas/WorkflowPayment" }
+        invoice: { $ref: "#/components/schemas/WorkflowInvoice" }
+    ReasonInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1 }
+    PublicEstimateRevision:
+      type: object
+      required: [revision, items]
+      properties:
+        revision:
+          type: object
+          required: [id, revisionNo, kind, customerSnapshot, vehicleSnapshot, subtotal, taxRateBps, taxAmount, total]
+          properties:
+            id: { type: integer, readOnly: true }
+            revisionNo: { type: integer, readOnly: true }
+            kind: { type: string, enum: [estimate, supplement], readOnly: true }
+            notes: { type: [string, "null"], readOnly: true }
+            customerSnapshot: { type: object, additionalProperties: true, readOnly: true }
+            vehicleSnapshot: { type: object, additionalProperties: true, readOnly: true }
+            subtotal: { type: string, readOnly: true }
+            taxRateBps: { type: integer, minimum: 0, maximum: 10000, readOnly: true }
+            taxAmount: { type: string, readOnly: true }
+            total: { type: string, readOnly: true }
+        items: { type: array, items: { $ref: "#/components/schemas/EstimateItem" } }
+    RepairOrderEvent:
+      type: object
+      additionalProperties: true
+      description: Immutable workflow event returned by the repair-order aggregate.
+    RepairOrderWorkflow:
+      type: object
+      required: [repairOrder, revisions, approvalItems, workItems, invoice, events]
+      properties:
+        repairOrder: { $ref: "#/components/schemas/WorkflowRepairOrder" }
+        revisions: { type: array, items: { allOf: [{ $ref: "#/components/schemas/EstimateRevisionDetail" }, { type: object, required: [approval], properties: { approval: { oneOf: [{ $ref: "#/components/schemas/EstimateApproval" }, { type: "null" }] } } }] } }
+        approvalItems: { type: array, items: { $ref: "#/components/schemas/EstimateApprovalItem" } }
+        workItems: { type: array, items: { $ref: "#/components/schemas/RepairOrderWorkItem" } }
+        invoice: { oneOf: [{ $ref: "#/components/schemas/WorkflowInvoiceDetail" }, { type: "null" }] }
+        events: { type: array, items: { $ref: "#/components/schemas/RepairOrderEvent" } }

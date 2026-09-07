@@ -81,8 +81,8 @@ export default function Vehicles() {
               ))
             ) : filtered.length > 0 ? (
               filtered.map((vehicle) => (
-                <TableRow 
-                  key={vehicle.id} 
+                <TableRow
+                  key={vehicle.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => setLocation(`/vehicles/${vehicle.id}`)}
                 >

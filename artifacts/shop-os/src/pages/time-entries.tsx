@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export default function TimeEntries() {
   const { data, isLoading } = useGetTimeEntries({ limit: 50 }, { query: { queryKey: getGetTimeEntriesQueryKey({ limit: 50 }) } });
   const items = Array.isArray(data) ? data : data?.data || [];
-  
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">

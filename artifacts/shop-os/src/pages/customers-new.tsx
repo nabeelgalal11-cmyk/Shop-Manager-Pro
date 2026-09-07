@@ -36,7 +36,7 @@ export default function CustomersNew() {
     queryKey: ["/api/customer-categories"],
     queryFn: () => fetch("/api/customer-categories").then(r => r.json()),
   });
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -96,7 +96,7 @@ export default function CustomersNew() {
         <CardContent className="pt-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -124,7 +124,7 @@ export default function CustomersNew() {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="email"
@@ -168,7 +168,7 @@ export default function CustomersNew() {
                     </FormItem>
                   )}
                 />
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <FormField
                     control={form.control}
@@ -263,10 +263,10 @@ export default function CustomersNew() {
                     <FormItem>
                       <FormLabel>Notes</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          placeholder="Special instructions, preferences, or internal notes..." 
+                        <Textarea
+                          placeholder="Special instructions, preferences, or internal notes..."
                           className="min-h-[100px]"
-                          {...field} 
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage />
@@ -276,9 +276,9 @@ export default function CustomersNew() {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setLocation("/customers")}
                   className="mr-2"
                 >

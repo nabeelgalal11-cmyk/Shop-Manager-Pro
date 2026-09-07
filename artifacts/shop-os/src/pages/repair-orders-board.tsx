@@ -3,14 +3,11 @@ import { useLocation } from "wouter";
 import {
   useGetRepairOrders,
   getGetRepairOrdersQueryKey,
-  useUpdateRepairOrder,
   useGetEmployees,
   getGetEmployeesQueryKey,
   useGetBoardPreference,
   useUpdateBoardPreference,
   getGetBoardPreferenceQueryKey,
-  type UpdateRepairOrderInput,
-  type UpdateRepairOrderInputStatus,
   type RepairOrder,
   type Employee,
 } from "@workspace/api-client-react";
@@ -25,21 +22,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Plus, AlertTriangle, Clock, Wrench, CheckCircle2, ThumbsUp, List, LayoutGrid, Users, UserX, Settings2, GripVertical } from "lucide-react";
+import { Plus, AlertTriangle, Clock, Wrench, CheckCircle2, ThumbsUp, List, LayoutGrid, Users, UserX, Settings2, GripVertical, FileSearch, ShieldCheck, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
-type Status = "pending" | "in_progress" | "waiting_parts" | "awaiting_approval" | "completed";
+type Status = "open" | "diagnosing" | "awaiting_approval" | "authorized" | "in_progress" | "completed" | "cancelled";
 type GroupMode = "status" | "technician";
 
-// View-model for board cards: a `RepairOrder` overlaid with optimistic
-// status / assignment state so the UI reflects in-flight mutations.
-type BoardOrder = Omit<RepairOrder, "status" | "assignedToId" | "assignedTo"> & {
-  status: Status;
-  assignedToId: number | null;
-  assignedTo: Employee | null;
-};
-
+type BoardOrder = RepairOrder & { status: Status };
 type LaneCells = Record<Status, BoardOrder[]>;
 type Lane = {
   key: string;
@@ -52,11 +42,13 @@ type Lane = {
 type ColumnDef = { key: Status; title: string; icon: React.ReactNode; tone: string };
 
 const ALL_COLUMNS: ColumnDef[] = [
-  { key: "pending",            title: "Pending",            icon: <Clock className="h-3.5 w-3.5" />,         tone: "border-t-muted-foreground/40" },
+  { key: "open",               title: "Open",               icon: <Clock className="h-3.5 w-3.5" />,         tone: "border-t-muted-foreground/40" },
+  { key: "diagnosing",         title: "Diagnosing",         icon: <FileSearch className="h-3.5 w-3.5" />,    tone: "border-t-blue-500" },
+  { key: "awaiting_approval",  title: "Awaiting Approval",  icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: "border-t-orange-500" },
+  { key: "authorized",         title: "Authorized",         icon: <ShieldCheck className="h-3.5 w-3.5" />,   tone: "border-t-purple-500" },
   { key: "in_progress",        title: "In Progress",        icon: <Wrench className="h-3.5 w-3.5" />,        tone: "border-t-primary" },
-  { key: "waiting_parts",      title: "Awaiting Parts",     icon: <AlertTriangle className="h-3.5 w-3.5" />, tone: "border-t-orange-500" },
-  { key: "awaiting_approval",  title: "Awaiting Approval",  icon: <ThumbsUp className="h-3.5 w-3.5" />,      tone: "border-t-purple-500" },
   { key: "completed",          title: "Completed",          icon: <CheckCircle2 className="h-3.5 w-3.5" />,  tone: "border-t-green-600" },
+  { key: "cancelled",          title: "Cancelled",          icon: <XCircle className="h-3.5 w-3.5" />,       tone: "border-t-destructive" },
 ];
 
 const ALL_KEYS = ALL_COLUMNS.map(c => c.key);
@@ -64,7 +56,7 @@ const COLUMN_BY_KEY: Record<Status, ColumnDef> = ALL_COLUMNS.reduce(
   (acc, c) => { acc[c.key] = c; return acc; },
   {} as Record<Status, ColumnDef>,
 );
-const BOARD_KEY = "repair-orders";
+const BOARD_KEY = "repair-orders-v2";
 
 const UNASSIGNED_KEY = "unassigned";
 
@@ -72,9 +64,6 @@ function isStatus(s: string): s is Status {
   return (ALL_KEYS as string[]).includes(s);
 }
 
-// Merge a saved order with the canonical key list so newly-added columns
-// always appear (at the end) even if a user saved a preference before they
-// existed. Filters out any unknown keys defensively.
 function reconcileOrder(saved: string[]): Status[] {
   const seen = new Set<Status>();
   const out: Status[] = [];
@@ -110,23 +99,16 @@ export default function RepairOrdersBoard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const { can } = useAuth();
-  const canEdit = can("repair_orders", "edit");
   const [groupMode, setGroupMode] = useState<GroupMode>(() => {
     try {
       const v = localStorage.getItem("repairOrdersBoardGroup");
       return v === "technician" ? "technician" : "status";
     } catch { return "status"; }
   });
-  const [dragOver, setDragOver] = useState<{ status: Status; tech: string | null } | null>(null);
-  // Optimistic overrides keyed by RO id (cleared once the server response refetches).
-  const [optimistic, setOptimistic] = useState<Record<number, { status?: Status; assignedToId?: number | null }>>({});
 
-  // Column drag-reorder state (header drags only).
   const [columnDragOverKey, setColumnDragOverKey] = useState<Status | null>(null);
   const draggingColumnRef = useRef<Status | null>(null);
 
-  // ---- Per-user column preferences (order + hidden) ----
   const { data: prefData } = useGetBoardPreference(BOARD_KEY, {
     query: { queryKey: getGetBoardPreferenceQueryKey(BOARD_KEY) },
   });
@@ -134,10 +116,6 @@ export default function RepairOrdersBoard() {
 
   const [columnOrder, setColumnOrder] = useState<Status[]>(ALL_KEYS);
   const [hiddenColumns, setHiddenColumns] = useState<Set<Status>>(new Set());
-  // Hydrate from server only until the user makes a local edit; otherwise a
-  // late-arriving GET could clobber an in-flight reorder/toggle. After the
-  // first local edit (or first successful save) we treat local state as the
-  // source of truth.
   const prefHydratedRef = useRef(false);
   const userEditedRef = useRef(false);
 
@@ -218,7 +196,6 @@ export default function RepairOrdersBoard() {
     });
   }
 
-  // Pull a generous page so the board is useful for typical shops; not a full virtualized board.
   const { data, isLoading } = useGetRepairOrders(
     { limit: 200, page: 1 },
     { query: { queryKey: getGetRepairOrdersQueryKey({ limit: 200, page: 1 }) } }
@@ -228,12 +205,11 @@ export default function RepairOrdersBoard() {
     { role: "technician" },
     { query: { queryKey: getGetEmployeesQueryKey({ role: "technician" }) } }
   );
+
   const allTechs = useMemo<Employee[]>(() => {
     const list: Employee[] = Array.isArray(techData) ? techData : [];
     return list.filter(t => t.active !== false);
   }, [techData]);
-
-  const updateRO = useUpdateRepairOrder();
 
   const setGroup = (mode: GroupMode) => {
     setGroupMode(mode);
@@ -242,37 +218,22 @@ export default function RepairOrdersBoard() {
 
   const orders = useMemo<BoardOrder[]>(() => {
     return (data?.data ?? []).map((ro): BoardOrder => {
-      const o = optimistic[ro.id];
-      const status = (o?.status ?? ro.status) as Status;
-      const assignedToId =
-        o?.assignedToId !== undefined ? o.assignedToId : ro.assignedToId ?? null;
-      // Recompute assignedTo display when the optimistic override changes the id.
-      let assignedTo: Employee | null = ro.assignedTo ?? null;
-      if (o?.assignedToId !== undefined) {
-        assignedTo =
-          o.assignedToId === null
-            ? null
-            : allTechs.find(t => t.id === o.assignedToId) ?? ro.assignedTo ?? null;
-      }
-      return { ...ro, status, assignedToId, assignedTo };
+      // Coerce unknown statuses
+      const status = isStatus(ro.status) ? ro.status as Status : "open";
+      return { ...ro, status };
     });
-  }, [data, optimistic, allTechs]);
+  }, [data]);
 
-  // Status mode grouping.
   const groupedByStatus = useMemo(() => {
     const groups: Record<Status, BoardOrder[]> = {
-      pending: [], in_progress: [], waiting_parts: [], awaiting_approval: [], completed: [],
+      open: [], diagnosing: [], awaiting_approval: [], authorized: [], in_progress: [], completed: [], cancelled: [],
     };
     for (const ro of orders) {
-      if (ro.status in groups) groups[ro.status].push(ro);
+      groups[ro.status].push(ro);
     }
     return groups;
   }, [orders]);
 
-  // Technician swimlanes: rows = unassigned + each active technician that
-  // either is in the active-tech list OR currently has an RO assigned. We
-  // include lanes for techs with orders even if they aren't returned as
-  // active so no RO becomes invisible.
   const swimlanes = useMemo<Lane[]>(() => {
     const techMap = new Map<number, Employee>();
     for (const t of allTechs) techMap.set(t.id, t);
@@ -286,7 +247,7 @@ export default function RepairOrdersBoard() {
     );
 
     const emptyCells = (): LaneCells => ({
-      pending: [], in_progress: [], waiting_parts: [], awaiting_approval: [], completed: [],
+      open: [], diagnosing: [], awaiting_approval: [], authorized: [], in_progress: [], completed: [], cancelled: [],
     });
 
     const lanes: Lane[] = [
@@ -299,97 +260,18 @@ export default function RepairOrdersBoard() {
       const key = ro.assignedToId != null ? `t-${ro.assignedToId}` : UNASSIGNED_KEY;
       const lane = byKey.get(key);
       if (!lane) continue;
-      if (ro.status in lane.cells) {
-        lane.cells[ro.status].push(ro);
-        lane.total += 1;
-      }
+      lane.cells[ro.status].push(ro);
+      lane.total += 1;
     }
     return lanes;
   }, [orders, allTechs]);
-
-  function onDragStart(e: React.DragEvent, ro: BoardOrder) {
-    if (!canEdit) {
-      e.preventDefault();
-      return;
-    }
-    e.dataTransfer.setData("text/ro-id", String(ro.id));
-    e.dataTransfer.setData("text/ro-status", String(ro.status));
-    e.dataTransfer.setData("text/ro-assigned", ro.assignedToId == null ? "" : String(ro.assignedToId));
-    e.dataTransfer.effectAllowed = "move";
-  }
-
-  function onDragOverCell(e: React.DragEvent, status: Status, tech: string | null) {
-    if (!canEdit) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (!dragOver || dragOver.status !== status || dragOver.tech !== tech) {
-      setDragOver({ status, tech });
-    }
-  }
-
-  function onDrop(e: React.DragEvent, status: Status, laneKey: string | null) {
-    e.preventDefault();
-    setDragOver(null);
-    if (!canEdit) return;
-    const idStr = e.dataTransfer.getData("text/ro-id");
-    const fromStatus = e.dataTransfer.getData("text/ro-status") as Status;
-    const fromAssignedRaw = e.dataTransfer.getData("text/ro-assigned");
-    const fromAssigned = fromAssignedRaw === "" ? null : Number(fromAssignedRaw);
-    const id = Number(idStr);
-    if (!id) return;
-
-    // Resolve target technician id from the lane key (only set when in tech mode).
-    let targetAssigned: number | null | undefined = undefined;
-    if (laneKey !== null) {
-      targetAssigned = laneKey === UNASSIGNED_KEY ? null : Number(laneKey.replace(/^t-/, ""));
-    }
-
-    const statusChanged = fromStatus !== status;
-    const assignChanged = targetAssigned !== undefined && targetAssigned !== fromAssigned;
-    if (!statusChanged && !assignChanged) return;
-
-    const patch: { status?: Status; assignedToId?: number | null } = {};
-    if (statusChanged) patch.status = status;
-    if (assignChanged) patch.assignedToId = targetAssigned as number | null;
-
-    setOptimistic(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }));
-
-    const body: UpdateRepairOrderInput = {};
-    if (patch.status) body.status = patch.status as UpdateRepairOrderInputStatus;
-    if ("assignedToId" in patch) body.assignedToId = patch.assignedToId ?? null;
-
-    updateRO.mutate(
-      { id, data: body },
-      {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: ["/api/repair-orders"] });
-          qc.invalidateQueries({ queryKey: getGetRepairOrdersQueryKey({ limit: 200, page: 1 }) });
-          setOptimistic(prev => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-          });
-        },
-        onError: () => {
-          setOptimistic(prev => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-          });
-          toast({ title: "Failed to update repair order", variant: "destructive" });
-        },
-      }
-    );
-  }
 
   function renderCard(ro: BoardOrder) {
     return (
       <Card
         key={ro.id}
-        draggable={canEdit}
-        onDragStart={(e) => onDragStart(e, ro)}
         onClick={() => setLocation(`/repair-orders/${ro.id}`)}
-        className={`p-3 shadow-sm hover:shadow-md transition-all cursor-pointer ${canEdit ? "active:cursor-grabbing" : ""} ${optimistic[ro.id] ? "opacity-70" : ""}`}
+        className="p-3 shadow-sm hover:shadow-md transition-all cursor-pointer"
       >
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="font-mono text-xs font-semibold">{ro.orderNumber}</span>
@@ -410,7 +292,7 @@ export default function RepairOrdersBoard() {
           <span>{formatDate(ro.createdAt)}</span>
           {ro.assignedTo ? (
             <div className="flex items-center gap-1.5">
-              <div className="h-5 w-5 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-[10px] font-bold border border-border">
+               <div className="h-5 w-5 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-[10px] font-bold border border-border">
                 {ro.assignedTo.firstName[0]}{ro.assignedTo.lastName[0]}
               </div>
             </div>
@@ -428,9 +310,7 @@ export default function RepairOrdersBoard() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Repair Orders</h1>
           <p className="text-muted-foreground mt-1">
-            {groupMode === "technician"
-              ? "Drag a card across columns to change status, across rows to reassign."
-              : "Drag a card to change its status."}
+            Status board is read-only. Click a card to advance its workflow.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -518,15 +398,11 @@ export default function RepairOrdersBoard() {
         >
           {visibleColumns.map(col => {
             const items = groupedByStatus[col.key];
-            const isOver = dragOver?.status === col.key && dragOver?.tech === null;
             const isColDragOver = columnDragOverKey === col.key;
             return (
               <div
                 key={col.key}
-                onDragOver={(e) => onDragOverCell(e, col.key, null)}
-                onDragLeave={() => setDragOver(prev => (prev && prev.status === col.key && prev.tech === null ? null : prev))}
-                onDrop={(e) => onDrop(e, col.key, null)}
-                className={`rounded-lg border-t-4 ${col.tone} bg-muted/20 flex flex-col min-h-[200px] transition-colors ${isOver ? "bg-primary/5 ring-2 ring-primary/30" : ""} ${isColDragOver ? "ring-2 ring-primary" : ""}`}
+                className={`rounded-lg border-t-4 ${col.tone} bg-muted/20 flex flex-col min-h-[200px] transition-colors ${isColDragOver ? "ring-2 ring-primary" : ""}`}
                 data-testid={`board-column-${col.key}`}
               >
                 <div
@@ -563,7 +439,6 @@ export default function RepairOrdersBoard() {
       ) : (
         <div className="overflow-x-auto">
           <div className="min-w-[1100px] space-y-3">
-            {/* Column header strip */}
             <div className="grid gap-3" style={{ gridTemplateColumns: `180px repeat(${visibleColumns.length}, minmax(0, 1fr))` }}>
               <div />
               {visibleColumns.map(col => {
@@ -603,7 +478,6 @@ export default function RepairOrdersBoard() {
                   style={{ gridTemplateColumns: `180px repeat(${visibleColumns.length}, minmax(0, 1fr))` }}
                   data-testid={`lane-${lane.key}`}
                 >
-                  {/* Lane label */}
                   <div className="rounded-md border bg-background/60 p-3 flex flex-col justify-between min-h-[120px]">
                     <div className="flex items-center gap-2">
                       {lane.tech ? (
@@ -622,14 +496,10 @@ export default function RepairOrdersBoard() {
 
                   {visibleColumns.map(col => {
                     const items = lane.cells[col.key];
-                    const isOver = dragOver?.status === col.key && dragOver?.tech === lane.key;
                     return (
                       <div
                         key={col.key}
-                        onDragOver={(e) => onDragOverCell(e, col.key, lane.key)}
-                        onDragLeave={() => setDragOver(prev => (prev && prev.status === col.key && prev.tech === lane.key ? null : prev))}
-                        onDrop={(e) => onDrop(e, col.key, lane.key)}
-                        className={`rounded-md border bg-muted/20 p-2 space-y-2 min-h-[120px] transition-colors ${isOver ? "bg-primary/5 ring-2 ring-primary/30" : ""}`}
+                        className="rounded-md border bg-muted/20 p-2 space-y-2 min-h-[120px] transition-colors"
                         data-testid={`cell-${lane.key}-${col.key}`}
                       >
                         {items.length === 0 ? (

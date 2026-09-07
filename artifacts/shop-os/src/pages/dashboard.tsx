@@ -90,9 +90,9 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
                   <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val/1000}k`} tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number) => [formatCurrency(value), undefined]}
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))', boxShadow: 'var(--shadow-md)' }} 
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))', boxShadow: 'var(--shadow-md)' }}
                   />
                   <Line type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(var(--primary))" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
                   <Line type="monotone" dataKey="profit" name="Profit" stroke="hsl(var(--chart-3))" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
@@ -129,7 +129,7 @@ export default function Dashboard() {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
                     itemStyle={{ color: 'hsl(var(--foreground))' }}
                   />
@@ -141,7 +141,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-      
+
       <div className="grid gap-8 md:grid-cols-2">
         <Card className="shadow-sm border-border">
           <CardHeader>

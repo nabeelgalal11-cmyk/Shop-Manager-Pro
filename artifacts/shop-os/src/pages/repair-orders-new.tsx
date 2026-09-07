@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import { useLocation, useSearch, Link } from "wouter";
-import { useQuery } from "@tanstack/react-query";
-import { useCreateRepairOrder, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetEmployees, getGetEmployeesQueryKey, type CreateRepairOrderInput } from "@workspace/api-client-react";
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { useCreateRepairOrder, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetEmployees, getGetEmployeesQueryKey, type RepairOrderInput } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,176 +9,60 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Wrench, Package, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
-
-type ROPart = { name: string; partNumber?: string; quantity: number; unitPrice: number; warrantyMonths?: number | null; warrantyMiles?: number | null };
-
-type WarrantyEntry = {
-  source: "repair_order" | "invoice"; sourceId: number; sourceNumber?: string | null;
-  itemType: "part" | "labor"; description: string; partNumber?: string | null;
-  warrantyMonths?: number | null; warrantyMiles?: number | null;
-  startDate: string; expiresOn?: string | null; expiresAtMileage?: number | null;
-  active?: boolean;
-};
 
 const formSchema = z.object({
-  internal: z.boolean().default(false),
-  customerId: z.coerce.number().optional(),
-  vehicleId: z.coerce.number().optional(),
-  usedCarId: z.coerce.number().optional(),
+  customerId: z.coerce.number().min(1, "Customer is required"),
+  vehicleId: z.coerce.number().min(1, "Vehicle is required"),
   assignedToId: z.coerce.number().optional(),
-  status: z.enum(["pending", "in_progress", "waiting_parts", "awaiting_approval", "completed", "delivered", "cancelled"]).default("pending"),
   priority: z.enum(["low", "normal", "high", "urgent"]).default("normal"),
   complaint: z.string().optional(),
-  estimatedHours: z.coerce.number().optional(),
   mileageIn: z.coerce.number().min(0).optional(),
-  promisedDate: z.string().optional(),
-}).refine(v => v.internal ? !!v.usedCarId : (!!v.customerId && !!v.vehicleId), {
-  message: "Pick a customer + vehicle, or check internal and pick a used car",
-  path: ["customerId"],
+  promisedAt: z.string().optional(),
 });
 
 export default function RepairOrdersNew() {
   const [, setLocation] = useLocation();
-  const search = useSearch();
   const { toast } = useToast();
-  const [cannedOpen, setCannedOpen] = useState(false);
-  const [parts, setParts] = useState<ROPart[]>([]);
 
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
   const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
   const { data: employees } = useGetEmployees({ role: "technician" }, { query: { queryKey: getGetEmployeesQueryKey({ role: "technician" }) } });
-  const { data: usedCarsData } = useQuery<{ data: any[] }>({
-    queryKey: ["/api/used-cars"],
-    queryFn: async () => {
-      const r = await fetch("/api/used-cars");
-      if (!r.ok) throw new Error(await r.text());
-      return r.json();
-    },
-  });
-  const usedCars = (usedCarsData?.data ?? []).filter((c: any) => c.status !== "sold");
-
-  // Read query params for prefill (used by "New Recon Job" deep link from used-car detail page).
-  const params = new URLSearchParams(search);
-  const qsUsedCarId = params.get("usedCarId");
-  const qsInternal = params.get("internal") === "true";
-  const initialInternal = qsInternal || (!!qsUsedCarId);
-  const initialUsedCarId = qsUsedCarId ? Number(qsUsedCarId) : undefined;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      internal: initialInternal,
-      customerId: undefined,
-      vehicleId: undefined,
-      usedCarId: initialUsedCarId,
-      status: "pending",
       priority: "normal",
       complaint: "",
-      mileageIn: undefined,
-      promisedDate: "",
     },
   });
 
-  // Re-apply prefill if the query string changes after mount.
-  useEffect(() => {
-    if (qsInternal || qsUsedCarId) form.setValue("internal", true);
-    if (qsUsedCarId) form.setValue("usedCarId", Number(qsUsedCarId));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
-
-  const internal = form.watch("internal");
-  const watchedVehicleId = form.watch("vehicleId");
   const createRepairOrder = useCreateRepairOrder();
 
-  const { data: activeWarranties } = useQuery<WarrantyEntry[]>({
-    queryKey: ["/api/vehicles", watchedVehicleId, "warranties"],
-    enabled: !internal && !!watchedVehicleId,
-    queryFn: async () => {
-      const r = await fetch(`/api/vehicles/${watchedVehicleId}/warranties`);
-      if (!r.ok) return [];
-      return r.json();
-    },
-  });
-
-  function handleCannedJob(job: CannedJob) {
-    const items = job.items || [];
-    const laborHours = items
-      .filter(it => it.type === "labor")
-      .reduce((s, it) => s + (Number(it.quantity) || 0), 0);
-    const newParts: ROPart[] = items
-      .filter(it => it.type === "part")
-      .map(it => ({
-        name: it.description,
-        quantity: Number(it.quantity) || 1,
-        unitPrice: Number(it.unitPrice) || 0,
-        warrantyMonths: it.warrantyMonths ?? null,
-        warrantyMiles: it.warrantyMiles ?? null,
-      }));
-
-    if (newParts.length > 0) {
-      setParts(prev => [...prev, ...newParts]);
-    }
-
-    if (laborHours > 0) {
-      const cur = Number(form.getValues("estimatedHours") || 0);
-      form.setValue("estimatedHours", Number((cur + laborHours).toFixed(2)));
-    }
-
-    if (job.description) {
-      const cur = form.getValues("complaint") ?? "";
-      form.setValue("complaint", cur ? `${cur}\n${job.description}` : job.description);
-    }
-
-    toast({
-      title: `Added "${job.name}"`,
-      description: `${newParts.length} part${newParts.length === 1 ? "" : "s"}${laborHours > 0 ? ` · ${laborHours} labor hr${laborHours === 1 ? "" : "s"}` : ""}.`,
-    });
-  }
-
-  function removePart(index: number) {
-    setParts(prev => prev.filter((_, i) => i !== index));
-  }
-
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const payload: CreateRepairOrderInput = {
-      internal: values.internal,
-      assignedToId: values.assignedToId,
-      status: values.status,
-      priority: values.priority,
-      complaint: values.complaint,
-      estimatedHours: values.estimatedHours,
-      mileageIn: values.mileageIn,
+    const payload: RepairOrderInput = {
+      customerId: values.customerId,
+      vehicleId: values.vehicleId,
+      assignedToId: values.assignedToId || null,
+      priority: values.priority as any,
+      complaint: values.complaint || null,
+      mileageIn: values.mileageIn || null,
     };
-    if (parts.length > 0) {
-      payload.parts = parts;
+    if (values.promisedAt) {
+      payload.promisedAt = new Date(values.promisedAt).toISOString();
     }
-    if (values.internal) {
-      payload.usedCarId = values.usedCarId;
-      // Inherit the used car's customer (e.g. the shop) so recon orders are
-      // filterable by that customer in the repair orders list. Resolve from the
-      // unfiltered list so sold-car deep links still inherit the customer.
-      const car = (usedCarsData?.data ?? []).find((c: any) => c.id === values.usedCarId);
-      if (car?.customerId) payload.customerId = car.customerId;
-    } else {
-      payload.customerId = values.customerId;
-      payload.vehicleId = values.vehicleId;
-    }
-    if (values.promisedDate) payload.promisedDate = new Date(values.promisedDate).toISOString();
+
     createRepairOrder.mutate(
       { data: payload },
       {
-        onSuccess: (data) => {
+        onSuccess: (data: any) => {
           toast({ title: "Repair order created" });
           setLocation(`/repair-orders/${data.id}`);
         },
-        onError: () => {
-          toast({ title: "Error creating repair order", variant: "destructive" });
+        onError: (err: any) => {
+          toast({ title: "Error creating repair order", description: err.message, variant: "destructive" });
         },
       }
     );
@@ -197,9 +80,6 @@ export default function RepairOrdersNew() {
           <h1 className="text-2xl font-bold tracking-tight">New Repair Order</h1>
           <p className="text-sm text-muted-foreground">Create a new job card for the shop floor.</p>
         </div>
-        <Button type="button" variant="outline" onClick={() => setCannedOpen(true)}>
-          <Wrench className="h-4 w-4 mr-2" /> Canned Job
-        </Button>
       </div>
 
       <Card className="shadow-sm">
@@ -209,231 +89,101 @@ export default function RepairOrdersNew() {
         <CardContent className="pt-5">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="internal"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3 bg-muted/20">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel className="flex items-center gap-1.5"><Wrench className="h-3.5 w-3.5" /> Internal job for used-car inventory</FormLabel>
-                      <p className="text-xs text-muted-foreground">Reconditioning work on a vehicle in your used-car inventory. No customer notification.</p>
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              {internal ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <FormField
-                    control={form.control}
-                    name="usedCarId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Used Car <span className="text-destructive">*</span></FormLabel>
-                        <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select inventory vehicle" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {usedCars.length === 0
-                              ? <div className="px-2 py-1.5 text-sm text-muted-foreground">No available used cars.</div>
-                              : usedCars.map((c: any) => (
-                                <SelectItem key={c.id} value={String(c.id)}>
-                                  {c.year} {c.make} {c.model}{c.vin ? ` — ${c.vin.slice(-6)}` : ""}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="assignedToId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Assign To (Technician)</FormLabel>
-                        <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select a technician" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {empList.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <FormField
-                    control={form.control}
-                    name="customerId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Customer <span className="text-destructive">*</span></FormLabel>
-                        <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {customers?.data?.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.firstName} {c.lastName}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="vehicleId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Vehicle <span className="text-destructive">*</span></FormLabel>
-                        <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {vehicles?.data?.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}{v.licensePlate ? ` — ${v.licensePlate}` : ""}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="assignedToId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Assign To (Technician)</FormLabel>
-                        <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select a technician" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            {empList.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="priority"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Priority</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                            <SelectItem value="urgent">Urgent</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              )}
-
-              {!internal && (activeWarranties?.length ?? 0) > 0 && (
-                <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 p-3 text-sm">
-                  <div className="font-semibold mb-1">
-                    ⚠ This vehicle has {activeWarranties!.length} active warrant{activeWarranties!.length === 1 ? "y" : "ies"}
-                  </div>
-                  <ul className="space-y-0.5 text-xs">
-                    {activeWarranties!.slice(0, 5).map((w, i) => {
-                      const href = w.source === "repair_order" ? `/repair-orders/${w.sourceId}` : `/invoices/${w.sourceId}`;
-                      return (
-                        <li key={i}>
-                          •{" "}
-                          <Link href={href} className="font-medium underline hover:no-underline">
-                            {w.description}
-                            {w.sourceNumber ? ` (${w.sourceNumber})` : ""}
-                          </Link>
-                          {w.expiresOn ? ` — expires ${new Date(w.expiresOn).toLocaleDateString()}` : ""}
-                          {w.expiresAtMileage != null ? ` or ${w.expiresAtMileage.toLocaleString()} mi` : ""}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <FormField
+                  control={form.control}
+                  name="customerId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer <span className="text-destructive">*</span></FormLabel>
+                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {customers?.data?.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.firstName} {c.lastName}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="vehicleId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Vehicle <span className="text-destructive">*</span></FormLabel>
+                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {vehicles?.data?.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}{v.licensePlate ? ` — ${v.licensePlate}` : ""}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="assignedToId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Assign To (Technician)</FormLabel>
+                      <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
+                        <FormControl><SelectTrigger><SelectValue placeholder="Select a technician" /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {empList.map(e => <SelectItem key={e.id} value={String(e.id)}>{e.firstName} {e.lastName}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Priority</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="normal">Normal</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}
                 name="complaint"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{internal ? "Work Description" : "Customer Complaint"}</FormLabel>
+                    <FormLabel>Customer Complaint</FormLabel>
                     <FormControl>
-                      <Textarea placeholder={internal ? "Describe the recon work to be done..." : "Describe what the customer reported..."} className="min-h-[90px]" {...field} />
+                      <Textarea placeholder="Describe what the customer reported..." className="min-h-[90px]" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {parts.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <Package className="h-4 w-4" /> Parts ({parts.length})
-                  </div>
-                  <div className="rounded-md border divide-y">
-                    {parts.map((p, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2 text-sm">
-                        <div className="flex-1">
-                          <div className="font-medium">{p.name}</div>
-                          <div className="text-xs text-muted-foreground">Qty {p.quantity} · ${Number(p.unitPrice).toFixed(2)} ea</div>
-                        </div>
-                        <div className="font-semibold tabular-nums">${(Number(p.quantity) * Number(p.unitPrice)).toFixed(2)}</div>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removePart(i)} className="text-destructive h-8 w-8">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <Separator />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {!internal && (
-                  <FormField
-                    control={form.control}
-                    name="mileageIn"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mileage In</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            placeholder="e.g. 62400"
-                            min={0}
-                            {...field}
-                            value={field.value ?? ""}
-                            onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <FormField
                   control={form.control}
-                  name="estimatedHours"
+                  name="mileageIn"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Estimated Hours</FormLabel>
+                      <FormLabel>Mileage In</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
-                          placeholder="e.g. 2.5"
-                          step={0.5}
+                          placeholder="e.g. 62400"
                           min={0}
                           {...field}
                           value={field.value ?? ""}
@@ -446,10 +196,10 @@ export default function RepairOrdersNew() {
                 />
                 <FormField
                   control={form.control}
-                  name="promisedDate"
+                  name="promisedAt"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{internal ? "Target Date" : "Promised Date"}</FormLabel>
+                      <FormLabel>Promised Date</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
                       </FormControl>
@@ -469,8 +219,6 @@ export default function RepairOrdersNew() {
           </Form>
         </CardContent>
       </Card>
-
-      <CannedJobPicker open={cannedOpen} onClose={() => setCannedOpen(false)} onPick={handleCannedJob} />
     </div>
   );
 }

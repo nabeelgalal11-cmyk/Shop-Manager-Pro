@@ -78,8 +78,8 @@ export default function Customers() {
               ))
             ) : filtered.length > 0 ? (
               filtered.map((customer) => (
-                <TableRow 
-                  key={customer.id} 
+                <TableRow
+                  key={customer.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => setLocation(`/customers/${customer.id}`)}
                 >

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { customersTable, vehiclesTable, invoicesTable, customerCategoriesTable } from "@workspace/db";
+import { customersTable, vehiclesTable, invoicesTable, repairOrdersTable, customerCategoriesTable } from "@workspace/db";
 import { eq, ilike, or, sql, desc } from "drizzle-orm";
 
 const router: Router = Router();
@@ -27,7 +27,7 @@ router.get("/", async (req, res) => {
 
   const enriched = await Promise.all(data.map(async (customer) => {
     const [vehicleCount] = await db.select({ count: sql<number>`count(*)` }).from(vehiclesTable).where(eq(vehiclesTable.customerId, customer.id));
-    const invoices = await db.select({ total: invoicesTable.total, amountPaid: invoicesTable.amountPaid }).from(invoicesTable).where(eq(invoicesTable.customerId, customer.id));
+    const invoices = await db.select({ total: invoicesTable.total, amountPaid: invoicesTable.amountPaid }).from(invoicesTable).innerJoin(repairOrdersTable, eq(repairOrdersTable.id, invoicesTable.repairOrderId)).where(eq(repairOrdersTable.customerId, customer.id));
     const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.total), 0);
     const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid), 0);
     return { ...customer, vehicleCount: Number(vehicleCount.count), totalBilled, totalPaid };
@@ -54,7 +54,7 @@ router.get("/:id", async (req, res) => {
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, id));
   if (!customer) return res.status(404).json({ error: "Customer not found" });
   const [vehicleCount] = await db.select({ count: sql<number>`count(*)` }).from(vehiclesTable).where(eq(vehiclesTable.customerId, id));
-  const invoices = await db.select({ total: invoicesTable.total, amountPaid: invoicesTable.amountPaid }).from(invoicesTable).where(eq(invoicesTable.customerId, id));
+  const invoices = await db.select({ total: invoicesTable.total, amountPaid: invoicesTable.amountPaid }).from(invoicesTable).innerJoin(repairOrdersTable, eq(repairOrdersTable.id, invoicesTable.repairOrderId)).where(eq(repairOrdersTable.customerId, id));
   const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.total), 0);
   const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid), 0);
   res.json({ ...customer, vehicleCount: Number(vehicleCount.count), totalBilled, totalPaid });
@@ -74,7 +74,7 @@ router.put("/:id", async (req, res) => {
   }).where(eq(customersTable.id, id)).returning();
   if (!customer) return res.status(404).json({ error: "Customer not found" });
   const [vehicleCount] = await db.select({ count: sql<number>`count(*)` }).from(vehiclesTable).where(eq(vehiclesTable.customerId, id));
-  const invoices = await db.select({ total: invoicesTable.total, amountPaid: invoicesTable.amountPaid }).from(invoicesTable).where(eq(invoicesTable.customerId, id));
+  const invoices = await db.select({ total: invoicesTable.total, amountPaid: invoicesTable.amountPaid }).from(invoicesTable).innerJoin(repairOrdersTable, eq(repairOrdersTable.id, invoicesTable.repairOrderId)).where(eq(repairOrdersTable.customerId, id));
   const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.total), 0);
   const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid), 0);
   res.json({ ...customer, vehicleCount: Number(vehicleCount.count), totalBilled, totalPaid });
@@ -96,14 +96,15 @@ router.get("/:id/statement", async (req, res) => {
   const id = Number(req.params.id);
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, id));
   if (!customer) return res.status(404).json({ error: "Customer not found" });
-  const invoices = await db.select().from(invoicesTable).where(eq(invoicesTable.customerId, id)).orderBy(desc(invoicesTable.createdAt));
-  const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.total), 0);
-  const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid), 0);
+  const invoices = await db.select({ invoice: invoicesTable }).from(invoicesTable).innerJoin(repairOrdersTable, eq(repairOrdersTable.id, invoicesTable.repairOrderId)).where(eq(repairOrdersTable.customerId, id)).orderBy(desc(invoicesTable.createdAt));
+  const statementInvoices = invoices.map(({ invoice }) => invoice);
+  const totalBilled = statementInvoices.reduce((sum, inv) => sum + Number(inv.total), 0);
+  const totalPaid = statementInvoices.reduce((sum, inv) => sum + Number(inv.amountPaid), 0);
   const balance = totalBilled - totalPaid;
   const [vehicleCount] = await db.select({ count: sql<number>`count(*)` }).from(vehiclesTable).where(eq(vehiclesTable.customerId, id));
   res.json({
     customer: { ...customer, vehicleCount: Number(vehicleCount.count), totalBilled, totalPaid },
-    invoices,
+    invoices: statementInvoices,
     totalBilled,
     totalPaid,
     balance,

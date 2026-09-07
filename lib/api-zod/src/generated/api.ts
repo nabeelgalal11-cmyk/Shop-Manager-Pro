@@ -761,125 +761,39 @@ export const GetEstimatesQueryParams = zod.object({
   limit: zod.coerce.number().default(getEstimatesQueryLimitDefault),
 });
 
-export const GetEstimatesResponse = zod.object({
-  data: zod.array(
-    zod.object({
-      id: zod.number(),
-      estimateNumber: zod.string(),
-      customerId: zod.number(),
-      vehicleId: zod.number().optional(),
-      status: zod.enum([
-        "draft",
-        "sent",
-        "approved",
-        "declined",
-        "denied",
-        "converted",
-      ]),
-      notes: zod.string().optional(),
-      subtotal: zod.number(),
-      taxRate: zod.number(),
-      taxAmount: zod.number(),
-      discountAmount: zod.number(),
-      total: zod.number(),
-      publicToken: zod.string().nullish(),
-      sentAt: zod.coerce.date().nullish(),
-      customerSignatureUrl: zod.string().nullish(),
-      customerSignedAt: zod.coerce.date().nullish(),
-      customerSignerName: zod.string().nullish(),
-      declineReason: zod.string().nullish(),
-      lineItems: zod
-        .array(
-          zod.object({
-            id: zod.number().optional(),
-            type: zod.enum(["labor", "part", "fee", "discount"]),
-            description: zod.string(),
-            quantity: zod.number(),
-            unitPrice: zod.number(),
-            total: zod.number(),
-            partNumber: zod.string().optional(),
-            inventoryItemId: zod.number().optional(),
-            unitCost: zod.number().optional(),
-            customerDecision: zod
-              .enum(["pending", "approved", "declined"])
-              .optional(),
-            warrantyMonths: zod.number().nullish(),
-            warrantyMiles: zod.number().nullish(),
-          }),
-        )
-        .optional(),
-      customer: zod
-        .object({
-          id: zod.number(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          email: zod.string().optional(),
-          phone: zod.string().optional(),
-          address: zod.string().optional(),
-          city: zod.string().optional(),
-          state: zod.string().optional(),
-          zip: zod.string().optional(),
-          notes: zod.string().optional(),
-          categoryId: zod.number().nullish(),
-          preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-          smsOptOut: zod.string().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          vehicleCount: zod.number().optional(),
-          totalBilled: zod.number().optional(),
-          totalPaid: zod.number().optional(),
-        })
-        .optional(),
-      vehicle: zod
-        .object({
-          id: zod.number(),
-          customerId: zod.number(),
-          vin: zod.string().optional(),
-          licensePlate: zod.string().optional(),
-          fleetNumber: zod.string().nullish(),
-          year: zod.number(),
-          make: zod.string(),
-          model: zod.string(),
-          trim: zod.string().optional(),
-          color: zod.string().optional(),
-          mileage: zod.number().optional(),
-          engineType: zod.string().optional(),
-          transmissionType: zod.string().optional(),
-          notes: zod.string().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          customer: zod
-            .object({
-              id: zod.number(),
-              firstName: zod.string(),
-              lastName: zod.string(),
-              email: zod.string().optional(),
-              phone: zod.string().optional(),
-              address: zod.string().optional(),
-              city: zod.string().optional(),
-              state: zod.string().optional(),
-              zip: zod.string().optional(),
-              notes: zod.string().optional(),
-              categoryId: zod.number().nullish(),
-              preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-              smsOptOut: zod.string().optional(),
-              createdAt: zod.coerce.date(),
-              updatedAt: zod.coerce.date(),
-              vehicleCount: zod.number().optional(),
-              totalBilled: zod.number().optional(),
-              totalPaid: zod.number().optional(),
-            })
-            .optional(),
-        })
-        .optional(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-    }),
-  ),
-  total: zod.number(),
-  page: zod.number(),
-  limit: zod.number(),
+export const getEstimatesResponseTaxRateBpsMin = 0;
+export const getEstimatesResponseTaxRateBpsMax = 10000;
+
+export const GetEstimatesResponseItem = zod.object({
+  id: zod.number(),
+  repairOrderId: zod.number(),
+  revisionNo: zod.number(),
+  kind: zod.enum(["estimate", "supplement"]),
+  status: zod.enum([
+    "draft",
+    "sent",
+    "approved",
+    "partially_approved",
+    "declined",
+    "superseded",
+  ]),
+  notes: zod.string().nullish(),
+  customerSnapshot: zod.record(zod.string(), zod.unknown()),
+  vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+  subtotal: zod.string(),
+  taxRateBps: zod
+    .number()
+    .min(getEstimatesResponseTaxRateBpsMin)
+    .max(getEstimatesResponseTaxRateBpsMax),
+  taxAmount: zod.string(),
+  total: zod.string(),
+  publicToken: zod.string().nullish(),
+  sentAt: zod.coerce.date().nullish(),
+  createdById: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
 });
+export const GetEstimatesResponse = zod.array(GetEstimatesResponseItem);
 
 /**
  * @summary Create an estimate
@@ -915,118 +829,70 @@ export const GetEstimateParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const GetEstimateResponse = zod.object({
-  id: zod.number(),
-  estimateNumber: zod.string(),
-  customerId: zod.number(),
-  vehicleId: zod.number().optional(),
-  status: zod.enum([
-    "draft",
-    "sent",
-    "approved",
-    "declined",
-    "denied",
-    "converted",
-  ]),
-  notes: zod.string().optional(),
-  subtotal: zod.number(),
-  taxRate: zod.number(),
-  taxAmount: zod.number(),
-  discountAmount: zod.number(),
-  total: zod.number(),
-  publicToken: zod.string().nullish(),
-  sentAt: zod.coerce.date().nullish(),
-  customerSignatureUrl: zod.string().nullish(),
-  customerSignedAt: zod.coerce.date().nullish(),
-  customerSignerName: zod.string().nullish(),
-  declineReason: zod.string().nullish(),
-  lineItems: zod
-    .array(
-      zod.object({
-        id: zod.number().optional(),
-        type: zod.enum(["labor", "part", "fee", "discount"]),
-        description: zod.string(),
-        quantity: zod.number(),
-        unitPrice: zod.number(),
-        total: zod.number(),
-        partNumber: zod.string().optional(),
-        inventoryItemId: zod.number().optional(),
-        unitCost: zod.number().optional(),
-        customerDecision: zod
-          .enum(["pending", "approved", "declined"])
-          .optional(),
-        warrantyMonths: zod.number().nullish(),
-        warrantyMiles: zod.number().nullish(),
-      }),
-    )
-    .optional(),
-  customer: zod
-    .object({
-      id: zod.number(),
-      firstName: zod.string(),
-      lastName: zod.string(),
-      email: zod.string().optional(),
-      phone: zod.string().optional(),
-      address: zod.string().optional(),
-      city: zod.string().optional(),
-      state: zod.string().optional(),
-      zip: zod.string().optional(),
-      notes: zod.string().optional(),
-      categoryId: zod.number().nullish(),
-      preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-      smsOptOut: zod.string().optional(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      vehicleCount: zod.number().optional(),
-      totalBilled: zod.number().optional(),
-      totalPaid: zod.number().optional(),
-    })
-    .optional(),
-  vehicle: zod
-    .object({
-      id: zod.number(),
-      customerId: zod.number(),
-      vin: zod.string().optional(),
-      licensePlate: zod.string().optional(),
-      fleetNumber: zod.string().nullish(),
-      year: zod.number(),
-      make: zod.string(),
-      model: zod.string(),
-      trim: zod.string().optional(),
-      color: zod.string().optional(),
-      mileage: zod.number().optional(),
-      engineType: zod.string().optional(),
-      transmissionType: zod.string().optional(),
-      notes: zod.string().optional(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      customer: zod
-        .object({
+export const getEstimateResponseOneTaxRateBpsMin = 0;
+export const getEstimateResponseOneTaxRateBpsMax = 10000;
+
+export const getEstimateResponseTwoItemsItemQuantityRegExp = new RegExp(
+  "^\\d+(\\.\\d{1,3})?$",
+);
+export const getEstimateResponseTwoItemsItemUnitPriceRegExp = new RegExp(
+  "^\\d+(\\.\\d{1,2})?$",
+);
+
+export const GetEstimateResponse = zod
+  .object({
+    id: zod.number(),
+    repairOrderId: zod.number(),
+    revisionNo: zod.number(),
+    kind: zod.enum(["estimate", "supplement"]),
+    status: zod.enum([
+      "draft",
+      "sent",
+      "approved",
+      "partially_approved",
+      "declined",
+      "superseded",
+    ]),
+    notes: zod.string().nullish(),
+    customerSnapshot: zod.record(zod.string(), zod.unknown()),
+    vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+    subtotal: zod.string(),
+    taxRateBps: zod
+      .number()
+      .min(getEstimateResponseOneTaxRateBpsMin)
+      .max(getEstimateResponseOneTaxRateBpsMax),
+    taxAmount: zod.string(),
+    total: zod.string(),
+    publicToken: zod.string().nullish(),
+    sentAt: zod.coerce.date().nullish(),
+    createdById: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      items: zod.array(
+        zod.object({
           id: zod.number(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          email: zod.string().optional(),
-          phone: zod.string().optional(),
-          address: zod.string().optional(),
-          city: zod.string().optional(),
-          state: zod.string().optional(),
-          zip: zod.string().optional(),
-          notes: zod.string().optional(),
-          categoryId: zod.number().nullish(),
-          preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-          smsOptOut: zod.string().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          vehicleCount: zod.number().optional(),
-          totalBilled: zod.number().optional(),
-          totalPaid: zod.number().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
+          estimateRevisionId: zod.number(),
+          position: zod.number().min(1),
+          kind: zod.enum(["part", "labor", "fee", "discount"]),
+          description: zod.string(),
+          quantity: zod
+            .string()
+            .regex(getEstimateResponseTwoItemsItemQuantityRegExp),
+          unitPrice: zod
+            .string()
+            .regex(getEstimateResponseTwoItemsItemUnitPriceRegExp),
+          unitCost: zod.string().nullish(),
+          inventoryItemId: zod.number().nullish(),
+          estimatedHours: zod.string().nullish(),
+          warrantyMonths: zod.number().nullish(),
+          warrantyMiles: zod.number().nullish(),
+        }),
+      ),
+    }),
+  );
 
 /**
  * @summary Update estimate
@@ -1187,22 +1053,6 @@ export const ConvertEstimateToInvoiceParams = zod.object({
 });
 
 /**
- * @summary Send estimate to customer for approval (email/SMS)
- */
-export const SendEstimateParams = zod.object({
-  id: zod.coerce.number(),
-});
-
-export const SendEstimateResponse = zod.object({
-  emailed: zod.boolean().optional(),
-  smsed: zod.boolean().optional(),
-  channel: zod.string().optional(),
-  estimateUrl: zod.string().optional(),
-  publicToken: zod.string().optional(),
-  errors: zod.array(zod.string()).optional(),
-});
-
-/**
  * @summary Convert approved estimate lines into a Repair Order
  */
 export const ConvertEstimateToRepairOrderParams = zod.object({
@@ -1222,156 +1072,33 @@ export const GetInvoicesQueryParams = zod.object({
   limit: zod.coerce.number().default(getInvoicesQueryLimitDefault),
 });
 
-export const GetInvoicesResponse = zod.object({
-  data: zod.array(
-    zod.object({
-      id: zod.number(),
-      invoiceNumber: zod.string(),
-      customerId: zod.number(),
-      vehicleId: zod.number().optional(),
-      repairOrderId: zod.number().optional(),
-      estimateId: zod.number().optional(),
-      status: zod.enum(["draft", "sent", "paid", "overdue", "void"]),
-      notes: zod.string().optional(),
-      subtotal: zod.number(),
-      taxRate: zod.number(),
-      taxAmount: zod.number(),
-      discountAmount: zod.number(),
-      total: zod.number(),
-      amountPaid: zod.number(),
-      balance: zod.number(),
-      dueDate: zod.coerce.date().optional(),
-      lineItems: zod
-        .array(
-          zod.object({
-            id: zod.number().optional(),
-            type: zod.enum(["labor", "part", "fee", "discount"]),
-            description: zod.string(),
-            quantity: zod.number(),
-            unitPrice: zod.number(),
-            total: zod.number(),
-            partNumber: zod.string().optional(),
-            inventoryItemId: zod.number().optional(),
-            unitCost: zod.number().optional(),
-            customerDecision: zod
-              .enum(["pending", "approved", "declined"])
-              .optional(),
-            warrantyMonths: zod.number().nullish(),
-            warrantyMiles: zod.number().nullish(),
-          }),
-        )
-        .optional(),
-      payments: zod
-        .array(
-          zod.object({
-            id: zod.number(),
-            invoiceId: zod.number(),
-            amount: zod.number(),
-            method: zod.enum([
-              "cash",
-              "check",
-              "credit_card",
-              "debit_card",
-              "paypal",
-              "square",
-              "square_pos",
-              "square_terminal",
-              "stripe",
-              "other",
-            ]),
-            referenceNumber: zod.string().optional(),
-            notes: zod.string().optional(),
-            status: zod.enum(["pending", "succeeded", "failed"]).optional(),
-            failureReason: zod.string().optional(),
-            paidAt: zod.coerce.date(),
-            createdAt: zod.coerce.date(),
-          }),
-        )
-        .optional(),
-      customer: zod
-        .object({
-          id: zod.number(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          email: zod.string().optional(),
-          phone: zod.string().optional(),
-          address: zod.string().optional(),
-          city: zod.string().optional(),
-          state: zod.string().optional(),
-          zip: zod.string().optional(),
-          notes: zod.string().optional(),
-          categoryId: zod.number().nullish(),
-          preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-          smsOptOut: zod.string().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          vehicleCount: zod.number().optional(),
-          totalBilled: zod.number().optional(),
-          totalPaid: zod.number().optional(),
-        })
-        .optional(),
-      vehicle: zod
-        .object({
-          id: zod.number(),
-          customerId: zod.number(),
-          vin: zod.string().optional(),
-          licensePlate: zod.string().optional(),
-          fleetNumber: zod.string().nullish(),
-          year: zod.number(),
-          make: zod.string(),
-          model: zod.string(),
-          trim: zod.string().optional(),
-          color: zod.string().optional(),
-          mileage: zod.number().optional(),
-          engineType: zod.string().optional(),
-          transmissionType: zod.string().optional(),
-          notes: zod.string().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          customer: zod
-            .object({
-              id: zod.number(),
-              firstName: zod.string(),
-              lastName: zod.string(),
-              email: zod.string().optional(),
-              phone: zod.string().optional(),
-              address: zod.string().optional(),
-              city: zod.string().optional(),
-              state: zod.string().optional(),
-              zip: zod.string().optional(),
-              notes: zod.string().optional(),
-              categoryId: zod.number().nullish(),
-              preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-              smsOptOut: zod.string().optional(),
-              createdAt: zod.coerce.date(),
-              updatedAt: zod.coerce.date(),
-              vehicleCount: zod.number().optional(),
-              totalBilled: zod.number().optional(),
-              totalPaid: zod.number().optional(),
-            })
-            .optional(),
-        })
-        .optional(),
-      repairOrder: zod
-        .object({
-          id: zod.number().optional(),
-          orderNumber: zod.string().nullish(),
-          completedAt: zod.coerce.date().nullish(),
-          mileageIn: zod.number().nullish(),
-          mileageOut: zod.number().nullish(),
-        })
-        .nullish()
-        .describe(
-          "Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage.",
-        ),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-    }),
-  ),
-  total: zod.number(),
-  page: zod.number(),
-  limit: zod.number(),
+export const GetInvoicesResponseItem = zod.object({
+  id: zod.number(),
+  invoiceNumber: zod.string(),
+  repairOrderId: zod.number(),
+  customerSnapshot: zod.record(zod.string(), zod.unknown()),
+  vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+  status: zod.enum(["draft", "issued", "partially_paid", "paid", "void"]),
+  notes: zod.string().nullish(),
+  subtotal: zod.string(),
+  taxRateBps: zod.number(),
+  taxAmount: zod.string(),
+  total: zod.string(),
+  amountPaid: zod.string(),
+  balance: zod.string(),
+  taxExempt: zod.boolean(),
+  taxExemptNumber: zod.string().nullish(),
+  publicToken: zod.string().nullish(),
+  issuedAt: zod.coerce.date().nullish(),
+  issuedById: zod.number().nullish(),
+  voidedAt: zod.coerce.date().nullish(),
+  voidedById: zod.number().nullish(),
+  voidReason: zod.string().nullish(),
+  version: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
 });
+export const GetInvoicesResponse = zod.array(GetInvoicesResponseItem);
 
 /**
  * @summary Create an invoice
@@ -1408,149 +1135,78 @@ export const GetInvoiceParams = zod.object({
   id: zod.coerce.number(),
 });
 
-export const GetInvoiceResponse = zod.object({
-  id: zod.number(),
-  invoiceNumber: zod.string(),
-  customerId: zod.number(),
-  vehicleId: zod.number().optional(),
-  repairOrderId: zod.number().optional(),
-  estimateId: zod.number().optional(),
-  status: zod.enum(["draft", "sent", "paid", "overdue", "void"]),
-  notes: zod.string().optional(),
-  subtotal: zod.number(),
-  taxRate: zod.number(),
-  taxAmount: zod.number(),
-  discountAmount: zod.number(),
-  total: zod.number(),
-  amountPaid: zod.number(),
-  balance: zod.number(),
-  dueDate: zod.coerce.date().optional(),
-  lineItems: zod
-    .array(
-      zod.object({
-        id: zod.number().optional(),
-        type: zod.enum(["labor", "part", "fee", "discount"]),
-        description: zod.string(),
-        quantity: zod.number(),
-        unitPrice: zod.number(),
-        total: zod.number(),
-        partNumber: zod.string().optional(),
-        inventoryItemId: zod.number().optional(),
-        unitCost: zod.number().optional(),
-        customerDecision: zod
-          .enum(["pending", "approved", "declined"])
-          .optional(),
-        warrantyMonths: zod.number().nullish(),
-        warrantyMiles: zod.number().nullish(),
-      }),
-    )
-    .optional(),
-  payments: zod
-    .array(
-      zod.object({
-        id: zod.number(),
-        invoiceId: zod.number(),
-        amount: zod.number(),
-        method: zod.enum([
-          "cash",
-          "check",
-          "credit_card",
-          "debit_card",
-          "paypal",
-          "square",
-          "square_pos",
-          "square_terminal",
-          "stripe",
-          "other",
-        ]),
-        referenceNumber: zod.string().optional(),
-        notes: zod.string().optional(),
-        status: zod.enum(["pending", "succeeded", "failed"]).optional(),
-        failureReason: zod.string().optional(),
-        paidAt: zod.coerce.date(),
-        createdAt: zod.coerce.date(),
-      }),
-    )
-    .optional(),
-  customer: zod
-    .object({
-      id: zod.number(),
-      firstName: zod.string(),
-      lastName: zod.string(),
-      email: zod.string().optional(),
-      phone: zod.string().optional(),
-      address: zod.string().optional(),
-      city: zod.string().optional(),
-      state: zod.string().optional(),
-      zip: zod.string().optional(),
-      notes: zod.string().optional(),
-      categoryId: zod.number().nullish(),
-      preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-      smsOptOut: zod.string().optional(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      vehicleCount: zod.number().optional(),
-      totalBilled: zod.number().optional(),
-      totalPaid: zod.number().optional(),
-    })
-    .optional(),
-  vehicle: zod
-    .object({
-      id: zod.number(),
-      customerId: zod.number(),
-      vin: zod.string().optional(),
-      licensePlate: zod.string().optional(),
-      fleetNumber: zod.string().nullish(),
-      year: zod.number(),
-      make: zod.string(),
-      model: zod.string(),
-      trim: zod.string().optional(),
-      color: zod.string().optional(),
-      mileage: zod.number().optional(),
-      engineType: zod.string().optional(),
-      transmissionType: zod.string().optional(),
-      notes: zod.string().optional(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      customer: zod
-        .object({
+export const GetInvoiceResponse = zod
+  .object({
+    id: zod.number(),
+    invoiceNumber: zod.string(),
+    repairOrderId: zod.number(),
+    customerSnapshot: zod.record(zod.string(), zod.unknown()),
+    vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+    status: zod.enum(["draft", "issued", "partially_paid", "paid", "void"]),
+    notes: zod.string().nullish(),
+    subtotal: zod.string(),
+    taxRateBps: zod.number(),
+    taxAmount: zod.string(),
+    total: zod.string(),
+    amountPaid: zod.string(),
+    balance: zod.string(),
+    taxExempt: zod.boolean(),
+    taxExemptNumber: zod.string().nullish(),
+    publicToken: zod.string().nullish(),
+    issuedAt: zod.coerce.date().nullish(),
+    issuedById: zod.number().nullish(),
+    voidedAt: zod.coerce.date().nullish(),
+    voidedById: zod.number().nullish(),
+    voidReason: zod.string().nullish(),
+    version: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      items: zod.array(
+        zod.object({
           id: zod.number(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          email: zod.string().optional(),
-          phone: zod.string().optional(),
-          address: zod.string().optional(),
-          city: zod.string().optional(),
-          state: zod.string().optional(),
-          zip: zod.string().optional(),
-          notes: zod.string().optional(),
-          categoryId: zod.number().nullish(),
-          preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-          smsOptOut: zod.string().optional(),
+          invoiceId: zod.number(),
+          sourceWorkItemId: zod.number(),
+          position: zod.number(),
+          kind: zod.enum(["part", "labor", "fee", "discount"]),
+          description: zod.string(),
+          quantity: zod.string(),
+          unitPrice: zod.string(),
+          unitCost: zod.string().nullish(),
+          lineTotal: zod.string(),
+        }),
+      ),
+      payments: zod.array(
+        zod.object({
+          id: zod.number(),
+          invoiceId: zod.number(),
+          amount: zod.string(),
+          status: zod.enum([
+            "pending",
+            "succeeded",
+            "failed",
+            "refunded",
+            "void",
+          ]),
+          method: zod.string(),
+          processor: zod.string().nullish(),
+          processorPaymentId: zod.string().nullish(),
+          processorEventId: zod.string().nullish(),
+          attemptKey: zod.string(),
+          idempotencyKey: zod.string().nullish(),
+          parentPaymentId: zod.number().nullish(),
+          referenceNumber: zod.string().nullish(),
+          failureReason: zod.string().nullish(),
+          refundedAt: zod.coerce.date().nullish(),
+          voidedAt: zod.coerce.date().nullish(),
+          processedAt: zod.coerce.date().nullish(),
           createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          vehicleCount: zod.number().optional(),
-          totalBilled: zod.number().optional(),
-          totalPaid: zod.number().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  repairOrder: zod
-    .object({
-      id: zod.number().optional(),
-      orderNumber: zod.string().nullish(),
-      completedAt: zod.coerce.date().nullish(),
-      mileageIn: zod.number().nullish(),
-      mileageOut: zod.number().nullish(),
-    })
-    .nullish()
-    .describe(
-      "Linked repair order summary (when invoice was generated from one). Used by the UI to compute warranty status against the actual work-completed moment and mileage.",
-    ),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-});
+        }),
+      ),
+    }),
+  );
 
 /**
  * @summary Update invoice
@@ -1758,213 +1414,54 @@ export const GetRepairOrdersQueryParams = zod.object({
   limit: zod.coerce.number().default(getRepairOrdersQueryLimitDefault),
 });
 
-export const GetRepairOrdersResponse = zod.object({
-  data: zod.array(
-    zod.object({
-      id: zod.number(),
-      orderNumber: zod.string(),
-      internal: zod.boolean().optional(),
-      customerId: zod.number().nullish(),
-      vehicleId: zod.number().nullish(),
-      usedCarId: zod.number().nullish(),
-      assignedToId: zod.number().optional(),
-      status: zod.enum([
-        "pending",
-        "in_progress",
-        "waiting_parts",
-        "awaiting_approval",
-        "completed",
-        "delivered",
-        "cancelled",
-      ]),
-      priority: zod.enum(["low", "normal", "high", "urgent"]),
-      complaint: zod.string().optional(),
-      diagnosis: zod.string().optional(),
-      notes: zod.string().optional(),
-      estimatedHours: zod.number().optional(),
-      actualHours: zod.number().optional(),
-      mileageIn: zod.number().optional(),
-      mileageOut: zod.number().optional(),
-      promisedDate: zod.coerce.date().optional(),
-      completedAt: zod.coerce.date().optional(),
-      customer: zod
-        .object({
-          id: zod.number(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          email: zod.string().optional(),
-          phone: zod.string().optional(),
-          address: zod.string().optional(),
-          city: zod.string().optional(),
-          state: zod.string().optional(),
-          zip: zod.string().optional(),
-          notes: zod.string().optional(),
-          categoryId: zod.number().nullish(),
-          preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-          smsOptOut: zod.string().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          vehicleCount: zod.number().optional(),
-          totalBilled: zod.number().optional(),
-          totalPaid: zod.number().optional(),
-        })
-        .optional(),
-      vehicle: zod
-        .object({
-          id: zod.number(),
-          customerId: zod.number(),
-          vin: zod.string().optional(),
-          licensePlate: zod.string().optional(),
-          fleetNumber: zod.string().nullish(),
-          year: zod.number(),
-          make: zod.string(),
-          model: zod.string(),
-          trim: zod.string().optional(),
-          color: zod.string().optional(),
-          mileage: zod.number().optional(),
-          engineType: zod.string().optional(),
-          transmissionType: zod.string().optional(),
-          notes: zod.string().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          customer: zod
-            .object({
-              id: zod.number(),
-              firstName: zod.string(),
-              lastName: zod.string(),
-              email: zod.string().optional(),
-              phone: zod.string().optional(),
-              address: zod.string().optional(),
-              city: zod.string().optional(),
-              state: zod.string().optional(),
-              zip: zod.string().optional(),
-              notes: zod.string().optional(),
-              categoryId: zod.number().nullish(),
-              preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-              smsOptOut: zod.string().optional(),
-              createdAt: zod.coerce.date(),
-              updatedAt: zod.coerce.date(),
-              vehicleCount: zod.number().optional(),
-              totalBilled: zod.number().optional(),
-              totalPaid: zod.number().optional(),
-            })
-            .optional(),
-        })
-        .optional(),
-      assignedTo: zod
-        .object({
-          id: zod.number(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          email: zod.string().optional(),
-          phone: zod.string().optional(),
-          role: zod
-            .enum([
-              "technician",
-              "service_advisor",
-              "manager",
-              "admin",
-              "receptionist",
-            ])
-            .describe(
-              "Legacy primary role; prefer 'roles' for multi-role support.",
-            ),
-          roles: zod
-            .array(
-              zod.enum([
-                "technician",
-                "service_advisor",
-                "manager",
-                "admin",
-                "receptionist",
-              ]),
-            )
-            .optional(),
-          hourlyRate: zod.number().optional(),
-          active: zod.boolean(),
-          hireDate: zod.coerce.date().optional(),
-          notes: zod.string().optional(),
-          clockedIn: zod.boolean().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-        })
-        .optional(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      marginPct: zod
-        .number()
-        .nullish()
-        .describe(
-          "Gross margin percentage (revenue - cost)\/revenue\*100. Only present for users with reports:view permission.",
-        ),
-      profitability: zod
-        .object({
-          partsRevenue: zod.number(),
-          partsCost: zod.number(),
-          partsCostKnown: zod.boolean(),
-          laborRevenue: zod.number(),
-          laborCost: zod.number(),
-          laborHoursWorked: zod.number(),
-          laborHoursBilled: zod.number(),
-          hasTimeEntries: zod.boolean(),
-          techEfficiencyPct: zod.number().nullable(),
-          effectiveLaborRate: zod.number().nullable(),
-          grossProfit: zod.number(),
-          grossMarginPct: zod.number(),
-          totalRevenue: zod.number(),
-          totalCost: zod.number(),
-          laborRate: zod.number(),
-          laborSource: zod.enum(["time_entries", "ro_hours_fallback"]),
-        })
-        .optional(),
-    }),
-  ),
-  total: zod.number(),
-  page: zod.number(),
-  limit: zod.number(),
+export const GetRepairOrdersResponseItem = zod.object({
+  id: zod.number(),
+  orderNumber: zod.string(),
+  customerId: zod.number(),
+  vehicleId: zod.number(),
+  usedCarId: zod.number().nullish(),
+  internal: zod.boolean().optional(),
+  assignedToId: zod.number().nullish(),
+  createdById: zod.number(),
+  status: zod.enum([
+    "open",
+    "diagnosing",
+    "awaiting_approval",
+    "authorized",
+    "in_progress",
+    "completed",
+    "cancelled",
+  ]),
+  priority: zod.enum(["low", "normal", "high", "urgent"]),
+  complaint: zod.string().nullish(),
+  diagnosis: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  mileageIn: zod.number().nullish(),
+  mileageOut: zod.number().nullish(),
+  promisedAt: zod.coerce.date().nullish(),
+  openedAt: zod.coerce.date(),
+  completedAt: zod.coerce.date().nullish(),
+  cancelledAt: zod.coerce.date().nullish(),
+  cancellationReason: zod.string().nullish(),
+  version: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
 });
+export const GetRepairOrdersResponse = zod.array(GetRepairOrdersResponseItem);
 
 /**
  * @summary Create a repair order
  */
 export const CreateRepairOrderBody = zod.object({
-  internal: zod.boolean().optional(),
-  customerId: zod.number().nullish(),
-  vehicleId: zod.number().nullish(),
-  usedCarId: zod.number().nullish(),
+  customerId: zod.number(),
+  vehicleId: zod.number(),
   assignedToId: zod.number().nullish(),
-  status: zod
-    .enum([
-      "pending",
-      "in_progress",
-      "waiting_parts",
-      "awaiting_approval",
-      "completed",
-      "delivered",
-      "cancelled",
-    ])
-    .optional(),
   priority: zod.enum(["low", "normal", "high", "urgent"]).optional(),
-  complaint: zod.string().optional(),
-  diagnosis: zod.string().optional(),
-  notes: zod.string().optional(),
-  parts: zod
-    .array(
-      zod.object({
-        name: zod.string(),
-        partNumber: zod.string().optional(),
-        quantity: zod.number(),
-        unitPrice: zod.number(),
-        fromInventory: zod.boolean().optional(),
-        inventoryId: zod.number().optional(),
-        warrantyMonths: zod.number().nullish(),
-        warrantyMiles: zod.number().nullish(),
-      }),
-    )
-    .optional(),
-  estimatedHours: zod.number().nullish(),
+  complaint: zod.string().nullish(),
+  diagnosis: zod.string().nullish(),
+  notes: zod.string().nullish(),
   mileageIn: zod.number().nullish(),
-  promisedDate: zod.coerce.date().optional(),
+  promisedAt: zod.coerce.date().nullish(),
 });
 
 /**
@@ -1974,163 +1471,244 @@ export const GetRepairOrderParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const getRepairOrderResponseRevisionsItemOneOneTaxRateBpsMin = 0;
+export const getRepairOrderResponseRevisionsItemOneOneTaxRateBpsMax = 10000;
+
+export const getRepairOrderResponseRevisionsItemOneTwoItemsItemQuantityRegExp =
+  new RegExp("^\\d+(\\.\\d{1,3})?$");
+export const getRepairOrderResponseRevisionsItemOneTwoItemsItemUnitPriceRegExp =
+  new RegExp("^\\d+(\\.\\d{1,2})?$");
+
 export const GetRepairOrderResponse = zod.object({
-  id: zod.number(),
-  orderNumber: zod.string(),
-  internal: zod.boolean().optional(),
-  customerId: zod.number().nullish(),
-  vehicleId: zod.number().nullish(),
-  usedCarId: zod.number().nullish(),
-  assignedToId: zod.number().optional(),
-  status: zod.enum([
-    "pending",
-    "in_progress",
-    "waiting_parts",
-    "awaiting_approval",
-    "completed",
-    "delivered",
-    "cancelled",
-  ]),
-  priority: zod.enum(["low", "normal", "high", "urgent"]),
-  complaint: zod.string().optional(),
-  diagnosis: zod.string().optional(),
-  notes: zod.string().optional(),
-  estimatedHours: zod.number().optional(),
-  actualHours: zod.number().optional(),
-  mileageIn: zod.number().optional(),
-  mileageOut: zod.number().optional(),
-  promisedDate: zod.coerce.date().optional(),
-  completedAt: zod.coerce.date().optional(),
-  customer: zod
-    .object({
-      id: zod.number(),
-      firstName: zod.string(),
-      lastName: zod.string(),
-      email: zod.string().optional(),
-      phone: zod.string().optional(),
-      address: zod.string().optional(),
-      city: zod.string().optional(),
-      state: zod.string().optional(),
-      zip: zod.string().optional(),
-      notes: zod.string().optional(),
-      categoryId: zod.number().nullish(),
-      preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-      smsOptOut: zod.string().optional(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      vehicleCount: zod.number().optional(),
-      totalBilled: zod.number().optional(),
-      totalPaid: zod.number().optional(),
-    })
-    .optional(),
-  vehicle: zod
-    .object({
-      id: zod.number(),
-      customerId: zod.number(),
-      vin: zod.string().optional(),
-      licensePlate: zod.string().optional(),
-      fleetNumber: zod.string().nullish(),
-      year: zod.number(),
-      make: zod.string(),
-      model: zod.string(),
-      trim: zod.string().optional(),
-      color: zod.string().optional(),
-      mileage: zod.number().optional(),
-      engineType: zod.string().optional(),
-      transmissionType: zod.string().optional(),
-      notes: zod.string().optional(),
-      createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-      customer: zod
-        .object({
-          id: zod.number(),
-          firstName: zod.string(),
-          lastName: zod.string(),
-          email: zod.string().optional(),
-          phone: zod.string().optional(),
-          address: zod.string().optional(),
-          city: zod.string().optional(),
-          state: zod.string().optional(),
-          zip: zod.string().optional(),
-          notes: zod.string().optional(),
-          categoryId: zod.number().nullish(),
-          preferredChannel: zod.enum(["email", "sms", "both"]).optional(),
-          smsOptOut: zod.string().optional(),
-          createdAt: zod.coerce.date(),
-          updatedAt: zod.coerce.date(),
-          vehicleCount: zod.number().optional(),
-          totalBilled: zod.number().optional(),
-          totalPaid: zod.number().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  assignedTo: zod
-    .object({
-      id: zod.number(),
-      firstName: zod.string(),
-      lastName: zod.string(),
-      email: zod.string().optional(),
-      phone: zod.string().optional(),
-      role: zod
-        .enum([
-          "technician",
-          "service_advisor",
-          "manager",
-          "admin",
-          "receptionist",
-        ])
-        .describe(
-          "Legacy primary role; prefer 'roles' for multi-role support.",
-        ),
-      roles: zod
-        .array(
-          zod.enum([
-            "technician",
-            "service_advisor",
-            "manager",
-            "admin",
-            "receptionist",
+  repairOrder: zod.object({
+    id: zod.number(),
+    orderNumber: zod.string(),
+    customerId: zod.number(),
+    vehicleId: zod.number(),
+    usedCarId: zod.number().nullish(),
+    internal: zod.boolean().optional(),
+    assignedToId: zod.number().nullish(),
+    createdById: zod.number(),
+    status: zod.enum([
+      "open",
+      "diagnosing",
+      "awaiting_approval",
+      "authorized",
+      "in_progress",
+      "completed",
+      "cancelled",
+    ]),
+    priority: zod.enum(["low", "normal", "high", "urgent"]),
+    complaint: zod.string().nullish(),
+    diagnosis: zod.string().nullish(),
+    notes: zod.string().nullish(),
+    mileageIn: zod.number().nullish(),
+    mileageOut: zod.number().nullish(),
+    promisedAt: zod.coerce.date().nullish(),
+    openedAt: zod.coerce.date(),
+    completedAt: zod.coerce.date().nullish(),
+    cancelledAt: zod.coerce.date().nullish(),
+    cancellationReason: zod.string().nullish(),
+    version: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+  revisions: zod.array(
+    zod
+      .object({
+        id: zod.number(),
+        repairOrderId: zod.number(),
+        revisionNo: zod.number(),
+        kind: zod.enum(["estimate", "supplement"]),
+        status: zod.enum([
+          "draft",
+          "sent",
+          "approved",
+          "partially_approved",
+          "declined",
+          "superseded",
+        ]),
+        notes: zod.string().nullish(),
+        customerSnapshot: zod.record(zod.string(), zod.unknown()),
+        vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+        subtotal: zod.string(),
+        taxRateBps: zod
+          .number()
+          .min(getRepairOrderResponseRevisionsItemOneOneTaxRateBpsMin)
+          .max(getRepairOrderResponseRevisionsItemOneOneTaxRateBpsMax),
+        taxAmount: zod.string(),
+        total: zod.string(),
+        publicToken: zod.string().nullish(),
+        sentAt: zod.coerce.date().nullish(),
+        createdById: zod.number(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      })
+      .and(
+        zod.object({
+          items: zod.array(
+            zod.object({
+              id: zod.number(),
+              estimateRevisionId: zod.number(),
+              position: zod.number().min(1),
+              kind: zod.enum(["part", "labor", "fee", "discount"]),
+              description: zod.string(),
+              quantity: zod
+                .string()
+                .regex(
+                  getRepairOrderResponseRevisionsItemOneTwoItemsItemQuantityRegExp,
+                ),
+              unitPrice: zod
+                .string()
+                .regex(
+                  getRepairOrderResponseRevisionsItemOneTwoItemsItemUnitPriceRegExp,
+                ),
+              unitCost: zod.string().nullish(),
+              inventoryItemId: zod.number().nullish(),
+              estimatedHours: zod.string().nullish(),
+              warrantyMonths: zod.number().nullish(),
+              warrantyMiles: zod.number().nullish(),
+            }),
+          ),
+        }),
+      )
+      .and(
+        zod.object({
+          approval: zod.union([
+            zod.object({
+              id: zod.number(),
+              estimateRevisionId: zod.number(),
+              decision: zod.enum([
+                "approved",
+                "partially_approved",
+                "declined",
+              ]),
+              signerName: zod.string().nullish(),
+              signerEmail: zod.string().nullish(),
+              signatureUrl: zod.string().nullish(),
+              documentHash: zod.string(),
+              requestIp: zod.string().nullish(),
+              requestUserAgent: zod.string().nullish(),
+              decidedAt: zod.coerce.date(),
+              metadata: zod.record(zod.string(), zod.unknown()),
+              createdAt: zod.coerce.date(),
+            }),
+            zod.null(),
           ]),
-        )
-        .optional(),
-      hourlyRate: zod.number().optional(),
-      active: zod.boolean(),
-      hireDate: zod.coerce.date().optional(),
-      notes: zod.string().optional(),
-      clockedIn: zod.boolean().optional(),
+        }),
+      ),
+  ),
+  approvalItems: zod.array(
+    zod.object({
+      id: zod.number(),
+      approvalId: zod.number(),
+      estimateItemId: zod.number(),
+      decision: zod.enum(["approved", "declined"]),
+    }),
+  ),
+  workItems: zod.array(
+    zod.object({
+      id: zod.number(),
+      repairOrderId: zod.number(),
+      sourceEstimateItemId: zod.number(),
+      position: zod.number(),
+      kind: zod.enum(["part", "labor", "fee", "discount"]),
+      description: zod.string(),
+      quantity: zod.string(),
+      unitPrice: zod.string(),
+      unitCost: zod.string().nullish(),
+      estimatedHours: zod.string().nullish(),
+      status: zod.enum(["authorized", "performed", "void"]),
+      authorizedAt: zod.coerce.date(),
+      performedAt: zod.coerce.date().nullish(),
+      performedById: zod.number().nullish(),
+      voidedAt: zod.coerce.date().nullish(),
+      voidReason: zod.string().nullish(),
       createdAt: zod.coerce.date(),
-      updatedAt: zod.coerce.date(),
-    })
-    .optional(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
-  marginPct: zod
-    .number()
-    .nullish()
-    .describe(
-      "Gross margin percentage (revenue - cost)\/revenue\*100. Only present for users with reports:view permission.",
-    ),
-  profitability: zod
-    .object({
-      partsRevenue: zod.number(),
-      partsCost: zod.number(),
-      partsCostKnown: zod.boolean(),
-      laborRevenue: zod.number(),
-      laborCost: zod.number(),
-      laborHoursWorked: zod.number(),
-      laborHoursBilled: zod.number(),
-      hasTimeEntries: zod.boolean(),
-      techEfficiencyPct: zod.number().nullable(),
-      effectiveLaborRate: zod.number().nullable(),
-      grossProfit: zod.number(),
-      grossMarginPct: zod.number(),
-      totalRevenue: zod.number(),
-      totalCost: zod.number(),
-      laborRate: zod.number(),
-      laborSource: zod.enum(["time_entries", "ro_hours_fallback"]),
-    })
-    .optional(),
+    }),
+  ),
+  invoice: zod.union([
+    zod
+      .object({
+        id: zod.number(),
+        invoiceNumber: zod.string(),
+        repairOrderId: zod.number(),
+        customerSnapshot: zod.record(zod.string(), zod.unknown()),
+        vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+        status: zod.enum(["draft", "issued", "partially_paid", "paid", "void"]),
+        notes: zod.string().nullish(),
+        subtotal: zod.string(),
+        taxRateBps: zod.number(),
+        taxAmount: zod.string(),
+        total: zod.string(),
+        amountPaid: zod.string(),
+        balance: zod.string(),
+        taxExempt: zod.boolean(),
+        taxExemptNumber: zod.string().nullish(),
+        publicToken: zod.string().nullish(),
+        issuedAt: zod.coerce.date().nullish(),
+        issuedById: zod.number().nullish(),
+        voidedAt: zod.coerce.date().nullish(),
+        voidedById: zod.number().nullish(),
+        voidReason: zod.string().nullish(),
+        version: zod.number(),
+        createdAt: zod.coerce.date(),
+        updatedAt: zod.coerce.date(),
+      })
+      .and(
+        zod.object({
+          items: zod.array(
+            zod.object({
+              id: zod.number(),
+              invoiceId: zod.number(),
+              sourceWorkItemId: zod.number(),
+              position: zod.number(),
+              kind: zod.enum(["part", "labor", "fee", "discount"]),
+              description: zod.string(),
+              quantity: zod.string(),
+              unitPrice: zod.string(),
+              unitCost: zod.string().nullish(),
+              lineTotal: zod.string(),
+            }),
+          ),
+          payments: zod.array(
+            zod.object({
+              id: zod.number(),
+              invoiceId: zod.number(),
+              amount: zod.string(),
+              status: zod.enum([
+                "pending",
+                "succeeded",
+                "failed",
+                "refunded",
+                "void",
+              ]),
+              method: zod.string(),
+              processor: zod.string().nullish(),
+              processorPaymentId: zod.string().nullish(),
+              processorEventId: zod.string().nullish(),
+              attemptKey: zod.string(),
+              idempotencyKey: zod.string().nullish(),
+              parentPaymentId: zod.number().nullish(),
+              referenceNumber: zod.string().nullish(),
+              failureReason: zod.string().nullish(),
+              refundedAt: zod.coerce.date().nullish(),
+              voidedAt: zod.coerce.date().nullish(),
+              processedAt: zod.coerce.date().nullish(),
+              createdAt: zod.coerce.date(),
+            }),
+          ),
+        }),
+      ),
+    zod.null(),
+  ]),
+  events: zod.array(
+    zod
+      .record(zod.string(), zod.unknown())
+      .describe(
+        "Immutable workflow event returned by the repair-order aggregate.",
+      ),
+  ),
 });
 
 /**
@@ -2346,6 +1924,521 @@ export const UpdateRepairOrderResponse = zod.object({
  */
 export const DeleteRepairOrderParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Edit repair-order intake fields with optimistic concurrency
+ */
+export const UpdateRepairOrderIntakeParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateRepairOrderIntakeBody = zod.object({
+  version: zod.number().min(1),
+  assignedToId: zod.number().nullish(),
+  priority: zod.enum(["low", "normal", "high", "urgent"]).optional(),
+  complaint: zod.string().nullish(),
+  diagnosis: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  mileageIn: zod.number().nullish(),
+  mileageOut: zod.number().nullish(),
+  promisedAt: zod.coerce.date().nullish(),
+});
+
+export const UpdateRepairOrderIntakeResponse = zod.object({
+  id: zod.number(),
+  orderNumber: zod.string(),
+  customerId: zod.number(),
+  vehicleId: zod.number(),
+  usedCarId: zod.number().nullish(),
+  internal: zod.boolean().optional(),
+  assignedToId: zod.number().nullish(),
+  createdById: zod.number(),
+  status: zod.enum([
+    "open",
+    "diagnosing",
+    "awaiting_approval",
+    "authorized",
+    "in_progress",
+    "completed",
+    "cancelled",
+  ]),
+  priority: zod.enum(["low", "normal", "high", "urgent"]),
+  complaint: zod.string().nullish(),
+  diagnosis: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  mileageIn: zod.number().nullish(),
+  mileageOut: zod.number().nullish(),
+  promisedAt: zod.coerce.date().nullish(),
+  openedAt: zod.coerce.date(),
+  completedAt: zod.coerce.date().nullish(),
+  cancelledAt: zod.coerce.date().nullish(),
+  cancellationReason: zod.string().nullish(),
+  version: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Create a draft estimate or supplement revision
+ */
+export const CreateRepairOrderRevisionParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const createRepairOrderRevisionBodyKindDefault = `estimate`;
+export const createRepairOrderRevisionBodyTaxRateBpsDefault = 0;
+export const createRepairOrderRevisionBodyTaxRateBpsMin = 0;
+export const createRepairOrderRevisionBodyTaxRateBpsMax = 10000;
+
+export const CreateRepairOrderRevisionBody = zod.object({
+  kind: zod
+    .enum(["estimate", "supplement"])
+    .default(createRepairOrderRevisionBodyKindDefault),
+  taxRateBps: zod
+    .number()
+    .min(createRepairOrderRevisionBodyTaxRateBpsMin)
+    .max(createRepairOrderRevisionBodyTaxRateBpsMax)
+    .default(createRepairOrderRevisionBodyTaxRateBpsDefault),
+});
+
+/**
+ * @summary Replace every item on a draft revision
+ */
+export const ReplaceEstimateRevisionDraftItemsParams = zod.object({
+  revisionId: zod.coerce.number(),
+});
+
+export const replaceEstimateRevisionDraftItemsBodyItemsItemWarrantyMonthsMin = 0;
+
+export const replaceEstimateRevisionDraftItemsBodyItemsItemWarrantyMilesMin = 0;
+
+export const ReplaceEstimateRevisionDraftItemsBody = zod.object({
+  items: zod.array(
+    zod.object({
+      position: zod.number().min(1),
+      kind: zod.enum(["part", "labor", "fee", "discount"]),
+      description: zod.string().min(1),
+      quantity: zod.union([zod.string(), zod.number()]),
+      unitPrice: zod.union([zod.string(), zod.number()]),
+      unitCost: zod.union([zod.string(), zod.number(), zod.null()]).optional(),
+      inventoryItemId: zod.number().nullish(),
+      estimatedHours: zod
+        .union([zod.string(), zod.number(), zod.null()])
+        .optional(),
+      warrantyMonths: zod
+        .number()
+        .min(replaceEstimateRevisionDraftItemsBodyItemsItemWarrantyMonthsMin)
+        .nullish(),
+      warrantyMiles: zod
+        .number()
+        .min(replaceEstimateRevisionDraftItemsBodyItemsItemWarrantyMilesMin)
+        .nullish(),
+    }),
+  ),
+});
+
+export const replaceEstimateRevisionDraftItemsResponseTaxRateBpsMin = 0;
+export const replaceEstimateRevisionDraftItemsResponseTaxRateBpsMax = 10000;
+
+export const ReplaceEstimateRevisionDraftItemsResponse = zod.object({
+  id: zod.number(),
+  repairOrderId: zod.number(),
+  revisionNo: zod.number(),
+  kind: zod.enum(["estimate", "supplement"]),
+  status: zod.enum([
+    "draft",
+    "sent",
+    "approved",
+    "partially_approved",
+    "declined",
+    "superseded",
+  ]),
+  notes: zod.string().nullish(),
+  customerSnapshot: zod.record(zod.string(), zod.unknown()),
+  vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+  subtotal: zod.string(),
+  taxRateBps: zod
+    .number()
+    .min(replaceEstimateRevisionDraftItemsResponseTaxRateBpsMin)
+    .max(replaceEstimateRevisionDraftItemsResponseTaxRateBpsMax),
+  taxAmount: zod.string(),
+  total: zod.string(),
+  publicToken: zod.string().nullish(),
+  sentAt: zod.coerce.date().nullish(),
+  createdById: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Send a draft revision for customer decision
+ */
+export const SendEstimateRevisionParams = zod.object({
+  revisionId: zod.coerce.number(),
+});
+
+export const sendEstimateRevisionResponseTaxRateBpsMin = 0;
+export const sendEstimateRevisionResponseTaxRateBpsMax = 10000;
+
+export const SendEstimateRevisionResponse = zod.object({
+  id: zod.number(),
+  repairOrderId: zod.number(),
+  revisionNo: zod.number(),
+  kind: zod.enum(["estimate", "supplement"]),
+  status: zod.enum([
+    "draft",
+    "sent",
+    "approved",
+    "partially_approved",
+    "declined",
+    "superseded",
+  ]),
+  notes: zod.string().nullish(),
+  customerSnapshot: zod.record(zod.string(), zod.unknown()),
+  vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+  subtotal: zod.string(),
+  taxRateBps: zod
+    .number()
+    .min(sendEstimateRevisionResponseTaxRateBpsMin)
+    .max(sendEstimateRevisionResponseTaxRateBpsMax),
+  taxAmount: zod.string(),
+  total: zod.string(),
+  publicToken: zod.string().nullish(),
+  sentAt: zod.coerce.date().nullish(),
+  createdById: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Mark an authorized work item performed
+ */
+export const PerformRepairOrderWorkItemParams = zod.object({
+  workItemId: zod.coerce.number(),
+});
+
+export const PerformRepairOrderWorkItemResponse = zod.object({
+  id: zod.number(),
+  repairOrderId: zod.number(),
+  sourceEstimateItemId: zod.number(),
+  position: zod.number(),
+  kind: zod.enum(["part", "labor", "fee", "discount"]),
+  description: zod.string(),
+  quantity: zod.string(),
+  unitPrice: zod.string(),
+  unitCost: zod.string().nullish(),
+  estimatedHours: zod.string().nullish(),
+  status: zod.enum(["authorized", "performed", "void"]),
+  authorizedAt: zod.coerce.date(),
+  performedAt: zod.coerce.date().nullish(),
+  performedById: zod.number().nullish(),
+  voidedAt: zod.coerce.date().nullish(),
+  voidReason: zod.string().nullish(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Complete a repair order after authorized work is performed
+ */
+export const CompleteRepairOrderWorkflowParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CompleteRepairOrderWorkflowResponse = zod.object({
+  id: zod.number(),
+  orderNumber: zod.string(),
+  customerId: zod.number(),
+  vehicleId: zod.number(),
+  usedCarId: zod.number().nullish(),
+  internal: zod.boolean().optional(),
+  assignedToId: zod.number().nullish(),
+  createdById: zod.number(),
+  status: zod.enum([
+    "open",
+    "diagnosing",
+    "awaiting_approval",
+    "authorized",
+    "in_progress",
+    "completed",
+    "cancelled",
+  ]),
+  priority: zod.enum(["low", "normal", "high", "urgent"]),
+  complaint: zod.string().nullish(),
+  diagnosis: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  mileageIn: zod.number().nullish(),
+  mileageOut: zod.number().nullish(),
+  promisedAt: zod.coerce.date().nullish(),
+  openedAt: zod.coerce.date(),
+  completedAt: zod.coerce.date().nullish(),
+  cancelledAt: zod.coerce.date().nullish(),
+  cancellationReason: zod.string().nullish(),
+  version: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Cancel a repair order
+ */
+export const CancelRepairOrderWorkflowParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CancelRepairOrderWorkflowBody = zod.object({
+  reason: zod.string().min(1),
+});
+
+export const CancelRepairOrderWorkflowResponse = zod.object({
+  id: zod.number(),
+  orderNumber: zod.string(),
+  customerId: zod.number(),
+  vehicleId: zod.number(),
+  usedCarId: zod.number().nullish(),
+  internal: zod.boolean().optional(),
+  assignedToId: zod.number().nullish(),
+  createdById: zod.number(),
+  status: zod.enum([
+    "open",
+    "diagnosing",
+    "awaiting_approval",
+    "authorized",
+    "in_progress",
+    "completed",
+    "cancelled",
+  ]),
+  priority: zod.enum(["low", "normal", "high", "urgent"]),
+  complaint: zod.string().nullish(),
+  diagnosis: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  mileageIn: zod.number().nullish(),
+  mileageOut: zod.number().nullish(),
+  promisedAt: zod.coerce.date().nullish(),
+  openedAt: zod.coerce.date(),
+  completedAt: zod.coerce.date().nullish(),
+  cancelledAt: zod.coerce.date().nullish(),
+  cancellationReason: zod.string().nullish(),
+  version: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Create the immutable final invoice for a completed repair order
+ */
+export const CreateRepairOrderFinalInvoiceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
+ * @summary Get a sent estimate revision through its unguessable token
+ */
+export const GetPublicEstimateRevisionParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const getPublicEstimateRevisionResponseRevisionTaxRateBpsMin = 0;
+export const getPublicEstimateRevisionResponseRevisionTaxRateBpsMax = 10000;
+
+export const getPublicEstimateRevisionResponseItemsItemQuantityRegExp =
+  new RegExp("^\\d+(\\.\\d{1,3})?$");
+export const getPublicEstimateRevisionResponseItemsItemUnitPriceRegExp =
+  new RegExp("^\\d+(\\.\\d{1,2})?$");
+
+export const GetPublicEstimateRevisionResponse = zod.object({
+  revision: zod.object({
+    id: zod.number(),
+    revisionNo: zod.number(),
+    kind: zod.enum(["estimate", "supplement"]),
+    notes: zod.string().nullish(),
+    customerSnapshot: zod.record(zod.string(), zod.unknown()),
+    vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+    subtotal: zod.string(),
+    taxRateBps: zod
+      .number()
+      .min(getPublicEstimateRevisionResponseRevisionTaxRateBpsMin)
+      .max(getPublicEstimateRevisionResponseRevisionTaxRateBpsMax),
+    taxAmount: zod.string(),
+    total: zod.string(),
+  }),
+  items: zod.array(
+    zod.object({
+      id: zod.number(),
+      estimateRevisionId: zod.number(),
+      position: zod.number().min(1),
+      kind: zod.enum(["part", "labor", "fee", "discount"]),
+      description: zod.string(),
+      quantity: zod
+        .string()
+        .regex(getPublicEstimateRevisionResponseItemsItemQuantityRegExp),
+      unitPrice: zod
+        .string()
+        .regex(getPublicEstimateRevisionResponseItemsItemUnitPriceRegExp),
+      unitCost: zod.string().nullish(),
+      inventoryItemId: zod.number().nullish(),
+      estimatedHours: zod.string().nullish(),
+      warrantyMonths: zod.number().nullish(),
+      warrantyMiles: zod.number().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Submit the customer's complete item decision for a sent revision
+ */
+export const DecidePublicEstimateRevisionParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const DecidePublicEstimateRevisionBody = zod.object({
+  signerName: zod.string().min(1),
+  signerEmail: zod.string().email().nullish(),
+  decision: zod.enum(["approved", "declined"]),
+  approvedItemIds: zod.array(zod.number()),
+  declinedItemIds: zod.array(zod.number()),
+});
+
+export const DecidePublicEstimateRevisionResponse = zod.object({
+  revisionId: zod.number(),
+  approvalId: zod.number(),
+  decision: zod.enum(["approved", "partially_approved", "declined"]),
+});
+
+/**
+ * @summary Get an issued invoice through its bearer payment token
+ */
+export const GetPublicWorkflowInvoiceParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const GetPublicWorkflowInvoiceResponse = zod.object({
+  invoiceNumber: zod.string(),
+  status: zod.enum(["issued", "partially_paid"]),
+  subtotal: zod.string(),
+  taxAmount: zod.string(),
+  total: zod.string(),
+  amountPaid: zod.string(),
+  balance: zod.string(),
+  lineItems: zod.array(zod.record(zod.string(), zod.unknown())),
+  payments: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Start Stripe checkout for the exact current invoice balance
+ */
+export const CreatePublicInvoiceCheckoutParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+export const CreatePublicInvoiceCheckoutResponse = zod.object({
+  url: zod.string().url(),
+});
+
+/**
+ * @summary Record a customer return from a cancelled checkout
+ */
+export const CancelPublicInvoiceCheckoutParams = zod.object({
+  token: zod.coerce.string(),
+});
+
+/**
+ * @summary Issue a draft workflow invoice
+ */
+export const IssueWorkflowInvoiceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const IssueWorkflowInvoiceResponse = zod.object({
+  invoice: zod.object({
+    id: zod.number(),
+    invoiceNumber: zod.string(),
+    repairOrderId: zod.number(),
+    customerSnapshot: zod.record(zod.string(), zod.unknown()),
+    vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+    status: zod.enum(["draft", "issued", "partially_paid", "paid", "void"]),
+    notes: zod.string().nullish(),
+    subtotal: zod.string(),
+    taxRateBps: zod.number(),
+    taxAmount: zod.string(),
+    total: zod.string(),
+    amountPaid: zod.string(),
+    balance: zod.string(),
+    taxExempt: zod.boolean(),
+    taxExemptNumber: zod.string().nullish(),
+    publicToken: zod.string().nullish(),
+    issuedAt: zod.coerce.date().nullish(),
+    issuedById: zod.number().nullish(),
+    voidedAt: zod.coerce.date().nullish(),
+    voidedById: zod.number().nullish(),
+    voidReason: zod.string().nullish(),
+    version: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  }),
+  paymentUrl: zod.string().url().nullable(),
+});
+
+/**
+ * @summary Void an invoice with no unreversed payments
+ */
+export const VoidWorkflowInvoiceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const VoidWorkflowInvoiceBody = zod.object({
+  reason: zod.string().min(1),
+});
+
+export const VoidWorkflowInvoiceResponse = zod.object({
+  id: zod.number(),
+  invoiceNumber: zod.string(),
+  repairOrderId: zod.number(),
+  customerSnapshot: zod.record(zod.string(), zod.unknown()),
+  vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+  status: zod.enum(["draft", "issued", "partially_paid", "paid", "void"]),
+  notes: zod.string().nullish(),
+  subtotal: zod.string(),
+  taxRateBps: zod.number(),
+  taxAmount: zod.string(),
+  total: zod.string(),
+  amountPaid: zod.string(),
+  balance: zod.string(),
+  taxExempt: zod.boolean(),
+  taxExemptNumber: zod.string().nullish(),
+  publicToken: zod.string().nullish(),
+  issuedAt: zod.coerce.date().nullish(),
+  issuedById: zod.number().nullish(),
+  voidedAt: zod.coerce.date().nullish(),
+  voidedById: zod.number().nullish(),
+  voidReason: zod.string().nullish(),
+  version: zod.number(),
+  createdAt: zod.coerce.date(),
+  updatedAt: zod.coerce.date(),
+});
+
+/**
+ * @summary Record a refund reversal against a succeeded payment
+ */
+export const RefundWorkflowPaymentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RefundWorkflowPaymentBody = zod.object({
+  amount: zod.union([zod.string(), zod.number()]),
+  reason: zod.string().min(1),
+});
+
+/**
+ * @summary Record a void reversal against a succeeded payment
+ */
+export const VoidWorkflowPaymentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const VoidWorkflowPaymentBody = zod.object({
+  amount: zod.union([zod.string(), zod.number()]),
+  reason: zod.string().min(1),
 });
 
 /**
@@ -3697,56 +3790,43 @@ export const GetPaymentsQueryParams = zod.object({
   limit: zod.coerce.number().default(getPaymentsQueryLimitDefault),
 });
 
-export const GetPaymentsResponse = zod.object({
-  data: zod.array(
-    zod.object({
-      id: zod.number(),
-      invoiceId: zod.number(),
-      amount: zod.number(),
-      method: zod.enum([
-        "cash",
-        "check",
-        "credit_card",
-        "debit_card",
-        "paypal",
-        "square",
-        "square_pos",
-        "square_terminal",
-        "stripe",
-        "other",
-      ]),
-      referenceNumber: zod.string().optional(),
-      notes: zod.string().optional(),
-      status: zod.enum(["pending", "succeeded", "failed"]).optional(),
-      failureReason: zod.string().optional(),
-      paidAt: zod.coerce.date(),
-      createdAt: zod.coerce.date(),
-    }),
-  ),
-  total: zod.number(),
-  page: zod.number(),
-  limit: zod.number(),
+export const GetPaymentsResponseItem = zod.object({
+  id: zod.number(),
+  invoiceId: zod.number(),
+  amount: zod.string(),
+  status: zod.enum(["pending", "succeeded", "failed", "refunded", "void"]),
+  method: zod.string(),
+  processor: zod.string().nullish(),
+  processorPaymentId: zod.string().nullish(),
+  processorEventId: zod.string().nullish(),
+  attemptKey: zod.string(),
+  idempotencyKey: zod.string().nullish(),
+  parentPaymentId: zod.number().nullish(),
+  referenceNumber: zod.string().nullish(),
+  failureReason: zod.string().nullish(),
+  refundedAt: zod.coerce.date().nullish(),
+  voidedAt: zod.coerce.date().nullish(),
+  processedAt: zod.coerce.date().nullish(),
+  createdAt: zod.coerce.date(),
 });
+export const GetPaymentsResponse = zod.array(GetPaymentsResponseItem);
 
 /**
  * @summary Record a payment
  */
+
+export const CreatePaymentHeader = zod.object({
+  "Idempotency-Key": zod.string().min(1),
+});
+
 export const CreatePaymentBody = zod.object({
   invoiceId: zod.number(),
-  amount: zod.number(),
-  method: zod.enum([
-    "cash",
-    "check",
-    "credit_card",
-    "debit_card",
-    "paypal",
-    "square",
-    "stripe",
-    "other",
-  ]),
-  referenceNumber: zod.string().optional(),
-  notes: zod.string().optional(),
-  paidAt: zod.coerce.date().optional(),
+  amount: zod.union([zod.string(), zod.number()]),
+  method: zod.string().min(1),
+  attemptKey: zod.string().min(1),
+  processor: zod.string().nullish(),
+  processorPaymentId: zod.string().nullish(),
+  referenceNumber: zod.string().nullish(),
 });
 
 /**
@@ -3759,24 +3839,20 @@ export const GetPaymentParams = zod.object({
 export const GetPaymentResponse = zod.object({
   id: zod.number(),
   invoiceId: zod.number(),
-  amount: zod.number(),
-  method: zod.enum([
-    "cash",
-    "check",
-    "credit_card",
-    "debit_card",
-    "paypal",
-    "square",
-    "square_pos",
-    "square_terminal",
-    "stripe",
-    "other",
-  ]),
-  referenceNumber: zod.string().optional(),
-  notes: zod.string().optional(),
-  status: zod.enum(["pending", "succeeded", "failed"]).optional(),
-  failureReason: zod.string().optional(),
-  paidAt: zod.coerce.date(),
+  amount: zod.string(),
+  status: zod.enum(["pending", "succeeded", "failed", "refunded", "void"]),
+  method: zod.string(),
+  processor: zod.string().nullish(),
+  processorPaymentId: zod.string().nullish(),
+  processorEventId: zod.string().nullish(),
+  attemptKey: zod.string(),
+  idempotencyKey: zod.string().nullish(),
+  parentPaymentId: zod.number().nullish(),
+  referenceNumber: zod.string().nullish(),
+  failureReason: zod.string().nullish(),
+  refundedAt: zod.coerce.date().nullish(),
+  voidedAt: zod.coerce.date().nullish(),
+  processedAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
 });
 
