@@ -96,7 +96,7 @@ function MenuLink({ href, icon: Icon, name, isActive, closeSidebar }: any) {
 }
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({ Admin: true });
   const { user, logout, can, isAdmin } = useAuth();
@@ -131,15 +131,27 @@ export function Layout({ children }: { children: React.ReactNode }) {
             {visibleGroups.map((group) => (
               <SidebarGroup key={group.label}>
                 {group.collapsible ? (
-                  <button
-                    type="button"
-                    className="w-full flex items-center justify-between text-sidebar-foreground/60 uppercase tracking-wider text-xs font-semibold px-6 py-2 hover:text-sidebar-foreground transition-colors"
-                    onClick={() => setCollapsedGroups((current) => ({ ...current, [group.label]: !current[group.label] }))}
-                    aria-expanded={!collapsedGroups[group.label]}
-                  >
-                    <span>{group.label}</span>
-                    {collapsedGroups[group.label] ? <Plus className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
-                  </button>
+                  <div className="flex items-center px-3">
+                    <button
+                      type="button"
+                      className={`flex flex-1 items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+                        group.landing && location === group.landing.href ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""
+                      }`}
+                      onClick={() => group.landing && navigate(group.landing.href)}
+                    >
+                      {group.landing && <group.landing.icon className="h-4 w-4" />}
+                      <span>{group.label}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="ml-1 flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      onClick={() => setCollapsedGroups((current) => ({ ...current, [group.label]: !current[group.label] }))}
+                      aria-expanded={!collapsedGroups[group.label]}
+                      aria-label={`${collapsedGroups[group.label] ? "Expand" : "Collapse"} ${group.label} menu`}
+                    >
+                      {collapsedGroups[group.label] ? <Plus className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 ) : (
                   <SidebarGroupLabel className="text-sidebar-foreground/60 uppercase tracking-wider text-xs font-semibold px-6 py-2">
                     {group.label}
@@ -148,7 +160,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 {(!group.collapsible || !collapsedGroups[group.label]) && (
                   <SidebarGroupContent>
                     <SidebarMenu>
-                      {group.landing && (
+                      {group.landing && !group.collapsible && (
                         <SidebarMenuItem className="px-3">
                           <MenuLink
                             href={group.landing.href}

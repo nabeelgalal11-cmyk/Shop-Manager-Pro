@@ -11,7 +11,6 @@ import {
   Shield,
   Tags,
   UserCircle,
-  Users,
   Wrench,
 } from "lucide-react";
 
