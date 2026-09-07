@@ -68,6 +68,7 @@ const navGroups: NavGroup[] = [
   { label: "Security", items: [
       { name: "Permissions", href: "/permissions", icon: Shield, resource: "permissions" },
       { name: "Email Templates", href: "/email-templates", icon: Mail, resource: "permissions" },
+      { name: "Shop Settings", href: "/settings/shop", icon: Settings2, resource: "permissions" },
       { name: "Payments (Stripe)", href: "/settings/payments", icon: CreditCard, resource: "permissions" },
       { name: "Messaging (SMS)", href: "/settings/messaging", icon: Mail, resource: "permissions" },
     ]

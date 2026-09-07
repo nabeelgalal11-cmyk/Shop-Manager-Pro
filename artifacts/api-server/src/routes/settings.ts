@@ -12,6 +12,27 @@ async function ensureSettingsRow() {
   return created;
 }
 
+// Shop-wide labor rate used by repair-order profitability and reports.
+router.get("/shop", requirePermission("permissions", "view"), async (_req, res) => {
+  const row = await ensureSettingsRow();
+  res.json({ laborRate: Number(row.laborRate) });
+});
+
+router.put("/shop", requirePermission("permissions", "edit"), async (req, res) => {
+  const laborRate = Number(req.body?.laborRate);
+  if (!Number.isFinite(laborRate) || laborRate < 0 || laborRate > 10000) {
+    return res.status(400).json({ error: "Labor rate must be a number between $0 and $10,000 per hour" });
+  }
+
+  const row = await ensureSettingsRow();
+  await db
+    .update(shopSettingsTable)
+    .set({ laborRate: laborRate.toFixed(2), updatedAt: new Date() })
+    .where(eq(shopSettingsTable.id, row.id));
+
+  res.json({ ok: true, laborRate });
+});
+
 // Stripe settings — only admins (managed via permissions on `permissions` resource)
 router.get("/payments", requirePermission("permissions", "view"), async (_req, res) => {
   const row = await ensureSettingsRow();
