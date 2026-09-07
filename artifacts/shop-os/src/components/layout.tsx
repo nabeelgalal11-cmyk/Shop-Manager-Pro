@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
   Wrench, Package, ClipboardCheck, Calendar, CreditCard,
   UserCircle, Clock, Receipt, Bell, Search, BarChart2, BookOpen, Tags, CarFront, ShoppingCart, Settings2,
-  LogOut, Shield, KeyRound, Mail, Truck, AlertTriangle,
+  LogOut, Shield, KeyRound, Mail, Truck, AlertTriangle, Plus, Minus,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -23,7 +23,12 @@ import { MessagesBell } from "@/components/messages-bell";
 import { GlobalSearch } from "@/components/global-search";
 
 interface NavItem { name: string; href: string; icon: any; resource?: string }
-interface NavGroup { label: string; items: NavItem[] }
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+  landing?: NavItem;
+  collapsible?: boolean;
+}
 
 const navGroups: NavGroup[] = [
   { label: "Overview", items: [{ name: "Dashboard", href: "/", icon: LayoutDashboard, resource: "dashboard" }] },
@@ -56,23 +61,21 @@ const navGroups: NavGroup[] = [
       { name: "Template Editor", href: "/njmvc/template", icon: Settings2, resource: "njmvc_template" },
     ]
   },
-  { label: "Admin", items: [
+  { label: "Admin", collapsible: true, landing: { name: "Admin Home", href: "/admin", icon: Settings2 },
+    items: [
       { name: "Employees", href: "/employees", icon: UserCircle, resource: "employees" },
       { name: "Time Entries", href: "/time-entries", icon: Clock, resource: "time_entries" },
       { name: "Expenses", href: "/expenses", icon: Receipt, resource: "expenses" },
       { name: "Reminders", href: "/reminders", icon: Bell, resource: "reminders" },
       { name: "Customer Categories", href: "/customer-categories", icon: Tags, resource: "customer_categories" },
       { name: "Canned Jobs", href: "/canned-jobs", icon: Wrench, resource: "canned_jobs" },
-    ]
-  },
-  { label: "Security", items: [
       { name: "Permissions", href: "/permissions", icon: Shield, resource: "permissions" },
       { name: "Email Templates", href: "/email-templates", icon: Mail, resource: "permissions" },
       { name: "Shop Settings", href: "/settings/shop", icon: Settings2, resource: "permissions" },
       { name: "Payments (Stripe)", href: "/settings/payments", icon: CreditCard, resource: "permissions" },
       { name: "Messaging (SMS)", href: "/settings/messaging", icon: Mail, resource: "permissions" },
-    ]
-  }
+    ],
+  },
 ];
 
 function MenuLink({ href, icon: Icon, name, isActive, closeSidebar }: any) {
@@ -95,6 +98,7 @@ function MenuLink({ href, icon: Icon, name, isActive, closeSidebar }: any) {
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({ Admin: true });
   const { user, logout, can, isAdmin } = useAuth();
 
   const closeSidebar = () => setSidebarOpen(false);
@@ -126,29 +130,54 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <SidebarContent>
             {visibleGroups.map((group) => (
               <SidebarGroup key={group.label}>
-                <SidebarGroupLabel className="text-sidebar-foreground/60 uppercase tracking-wider text-xs font-semibold px-6 py-2">
-                  {group.label}
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {group.items.map((item) => {
-                      const isActive =
-                        location === item.href ||
-                        (item.href !== "/" && location.startsWith(item.href));
-                      return (
-                        <SidebarMenuItem key={item.name} className="px-3">
+                {group.collapsible ? (
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between text-sidebar-foreground/60 uppercase tracking-wider text-xs font-semibold px-6 py-2 hover:text-sidebar-foreground transition-colors"
+                    onClick={() => setCollapsedGroups((current) => ({ ...current, [group.label]: !current[group.label] }))}
+                    aria-expanded={!collapsedGroups[group.label]}
+                  >
+                    <span>{group.label}</span>
+                    {collapsedGroups[group.label] ? <Plus className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />}
+                  </button>
+                ) : (
+                  <SidebarGroupLabel className="text-sidebar-foreground/60 uppercase tracking-wider text-xs font-semibold px-6 py-2">
+                    {group.label}
+                  </SidebarGroupLabel>
+                )}
+                {(!group.collapsible || !collapsedGroups[group.label]) && (
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      {group.landing && (
+                        <SidebarMenuItem className="px-3">
                           <MenuLink
-                            href={item.href}
-                            icon={item.icon}
-                            name={item.name}
-                            isActive={isActive}
+                            href={group.landing.href}
+                            icon={group.landing.icon}
+                            name={group.landing.name}
+                            isActive={location === group.landing.href}
                             closeSidebar={closeSidebar}
                           />
                         </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
+                      )}
+                      {group.items.map((item) => {
+                        const isActive =
+                          location === item.href ||
+                          (item.href !== "/" && location.startsWith(item.href));
+                        return (
+                          <SidebarMenuItem key={item.name} className={group.collapsible ? "px-3 pl-6" : "px-3"}>
+                            <MenuLink
+                              href={item.href}
+                              icon={item.icon}
+                              name={item.name}
+                              isActive={isActive}
+                              closeSidebar={closeSidebar}
+                            />
+                          </SidebarMenuItem>
+                        );
+                      })}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                )}
               </SidebarGroup>
             ))}
           </SidebarContent>

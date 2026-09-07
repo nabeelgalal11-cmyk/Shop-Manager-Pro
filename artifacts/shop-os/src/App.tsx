@@ -64,6 +64,7 @@ import CannedJobs from "@/pages/canned-jobs";
 import SettingsPayments from "@/pages/settings-payments";
 import SettingsMessaging from "@/pages/settings-messaging";
 import SettingsShop from "@/pages/settings-shop";
+import Admin from "@/pages/admin";
 import PayInvoice from "@/pages/pay";
 import InspectionPublic from "@/pages/inspection-public";
 import EstimatePublic from "@/pages/estimate-public";
@@ -206,6 +207,7 @@ function Router() {
         <Route path="/settings/payments" component={SettingsPayments} />
         <Route path="/settings/messaging" component={SettingsMessaging} />
         <Route path="/settings/shop" component={SettingsShop} />
+        <Route path="/admin" component={Admin} />
 
         <Route component={NotFound} />
       </Switch>
