@@ -156,20 +156,56 @@ function CannedJobForm({ value, onChange }: { value: CannedJob; onChange: (v: Ca
         </div>
         <div className="space-y-2">
           {value.items.map((it, i) => (
-            <div key={i} className="flex gap-2 items-start">
-              <Select value={it.type} onValueChange={(v) => updateItem(i, { type: v as any })}>
-                <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="labor">Labor</SelectItem>
-                  <SelectItem value="part">Part</SelectItem>
-                  <SelectItem value="fee">Fee</SelectItem>
-                  <SelectItem value="discount">Discount</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input className="flex-1" placeholder="Description" value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} />
-              <Input className="w-20" type="number" placeholder="Qty" value={it.quantity} onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })} />
-              <Input className="w-28" type="number" step="0.01" placeholder="Unit $" value={it.unitPrice} onChange={(e) => updateItem(i, { unitPrice: Number(e.target.value) })} />
-              <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => removeItem(i)}><Trash2 className="h-4 w-4" /></Button>
+             <div key={i} className="grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-[120px_minmax(0,1fr)_80px_112px_40px] sm:items-end">
+               <div className="sm:col-span-5 text-xs font-medium text-muted-foreground">
+                 Line item {i + 1}
+               </div>
+               <div className="space-y-1.5">
+                 <label htmlFor={`canned-item-type-${i}`} className="text-xs font-medium">Type</label>
+                 <Select value={it.type} onValueChange={(v) => updateItem(i, { type: v as any })}>
+                   <SelectTrigger id={`canned-item-type-${i}`} aria-label={`Line item ${i + 1} type`}>
+                     <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="labor">Labor</SelectItem>
+                     <SelectItem value="part">Part</SelectItem>
+                     <SelectItem value="fee">Fee</SelectItem>
+                     <SelectItem value="discount">Discount</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
+               <div className="space-y-1.5">
+                 <label htmlFor={`canned-item-description-${i}`} className="text-xs font-medium">Description</label>
+                 <Input
+                   id={`canned-item-description-${i}`}
+                   placeholder="e.g. Front brake pads"
+                   value={it.description}
+                   onChange={(e) => updateItem(i, { description: e.target.value })}
+                 />
+               </div>
+               <div className="space-y-1.5">
+                 <label htmlFor={`canned-item-quantity-${i}`} className="text-xs font-medium">Quantity</label>
+                 <Input
+                   id={`canned-item-quantity-${i}`}
+                   type="number"
+                   min="0"
+                   step="0.01"
+                   value={it.quantity}
+                   onChange={(e) => updateItem(i, { quantity: Number(e.target.value) })}
+                 />
+               </div>
+               <div className="space-y-1.5">
+                 <label htmlFor={`canned-item-price-${i}`} className="text-xs font-medium">Unit price</label>
+                 <Input
+                   id={`canned-item-price-${i}`}
+                   type="number"
+                   min="0"
+                   step="0.01"
+                   value={it.unitPrice}
+                   onChange={(e) => updateItem(i, { unitPrice: Number(e.target.value) })}
+                 />
+               </div>
+               <Button type="button" size="icon" variant="ghost" aria-label={`Remove line item ${i + 1}`} className="text-destructive" onClick={() => removeItem(i)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}
         </div>
