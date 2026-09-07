@@ -131,7 +131,8 @@ const server = http.createServer((req, res) => {
   let pathname = url.pathname;
 
   if (basePath && pathname.startsWith(basePath)) {
-    pathname = pathname.slice(basePath.length) || '/';
+    const relativePath = pathname.slice(basePath.length).replace(/^\/+/, '');
+    pathname = relativePath ? `/${relativePath}` : '/';
   }
 
   if (pathname === '/status') {
