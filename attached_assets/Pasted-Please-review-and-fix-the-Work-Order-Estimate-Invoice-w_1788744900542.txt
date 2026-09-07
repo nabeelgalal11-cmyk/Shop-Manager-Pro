@@ -1,0 +1,136 @@
+Please review and fix the Work Order / Estimate / Invoice workflow in Shop Manager Pro.
+
+The correct workflow should be:
+
+Customer → Vehicle → Work Order (Repair Order) → Estimate → Customer Approval → Repair → Final Invoice → Payment
+
+1. Work Order / Repair Order
+
+The Work Order should be the central record for the entire repair job.
+
+When a customer comes in:
+
+- Create/open a Work Order for the vehicle.
+- Record customer complaint/request.
+- Add inspection/diagnostic findings.
+- Track all labor, parts, notes, and activities for this repair.
+
+Do NOT treat the Estimate or Invoice as separate unrelated jobs.
+
+2. Estimate
+
+The Estimate should belong to the Work Order.
+
+It should contain:
+
+- Labor
+- Parts
+- Shop supplies/fees
+- Sublet
+- Discounts
+- Taxes
+- Total
+
+The customer can:
+
+- Approve
+- Decline
+- Request changes
+
+The approval status must be stored on the Work Order/Estimate.
+
+3. Additional Work / Supplements
+
+If the technician discovers additional work:
+
+- Add the new parts/labor to the existing Work Order.
+- Create a revised estimate/supplement for the additional work.
+- Require customer approval before marking that additional work as authorized.
+- Do NOT create a completely new Work Order for the same repair visit.
+
+4. Repair / Work Performed
+
+After approval:
+
+- Work Order status becomes something like Approved / In Progress.
+- Technicians record actual work performed.
+- Track parts actually used and labor actually performed.
+
+5. Final Invoice
+
+When the repair is completed:
+
+- Generate the Invoice from the existing Work Order.
+- The invoice should contain the actual completed/authorized work, not simply duplicate the original estimate blindly.
+- Preserve the original estimate and approval history.
+- The Invoice must remain linked to the Work Order.
+
+6. Payment
+
+Payment belongs to the Invoice.
+
+Support:
+
+- Unpaid
+- Partially Paid
+- Paid
+- Refund/void where appropriate
+
+The invoice balance should automatically update when payments are recorded.
+
+7. Status Flow
+
+Implement a clear status lifecycle such as:
+
+Draft → Estimate → Awaiting Approval → Approved → In Progress → Waiting for Parts → Completed → Invoiced → Paid
+
+Declined estimates should be recorded as Declined, not deleted.
+
+8. Important Data Relationship
+
+Use this relationship:
+
+Customer
+↓
+Vehicle
+↓
+Work Order / Repair Order
+↓
+Estimate(s)
+↓
+Approval(s)
+↓
+Actual Labor + Parts
+↓
+Invoice
+↓
+Payment(s)
+
+The Work Order ID should remain the common link throughout the entire repair.
+
+9. UI
+
+On the Work Order page, make the workflow obvious with sections/tabs such as:
+
+Overview | Estimate | Approval | Labor | Parts | Notes | Inspection | Invoice | Payments
+
+The user should be able to move through the repair without losing the relationship between the Work Order, Estimate, Invoice, and Payment.
+
+10. Before changing the database
+
+First inspect the existing schema, API routes, frontend components, and current relationships between:
+
+- work orders
+- estimates
+- invoices
+- invoice items
+- payments
+- customers
+- vehicles
+
+Do not unnecessarily rebuild working functionality. Fix the existing architecture and preserve existing data.
+
+Also check for duplicate records, broken foreign-key relationships, incorrect status transitions, and places where an invoice or estimate is being created independently instead of being associated with the Work Order.
+
+After making the changes, test the complete flow end-to-end with a realistic repair:
+create RO → create estimate → approve → add repair → complete → generate invoice → take payment → verify paid balance.
