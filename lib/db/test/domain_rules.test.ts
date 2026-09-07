@@ -64,3 +64,11 @@ test("discount and tax totals round exactly to cents", () => {
     { subtotalCents: 100n, taxCents: 0n, totalCents: 100n });
   assert.throws(() => calculateInvoiceTotals([], 10001n), RangeError);
 });
+
+test("tax-inclusive part lines remain in the subtotal but are excluded from tax", () => {
+  const totals = calculateInvoiceTotals([
+    { quantityMilli: 1000n, unitPriceCents: 5000n, kind: "part", taxable: false },
+    { quantityMilli: 1000n, unitPriceCents: 5000n, kind: "labor" },
+  ], 625n);
+  assert.deepEqual(totals, { subtotalCents: 10000n, taxCents: 313n, totalCents: 10313n });
+});

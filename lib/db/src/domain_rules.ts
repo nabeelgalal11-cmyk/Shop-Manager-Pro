@@ -33,7 +33,7 @@ export const canTransitionPayment = transitions<PaymentStatus>({
   failed: [], refunded: [], void: [],
 });
 
-export type CentsLine = { quantityMilli: bigint; unitPriceCents: bigint; kind?: "discount" | string };
+export type CentsLine = { quantityMilli: bigint; unitPriceCents: bigint; kind?: "discount" | string; taxable?: boolean };
 export const roundDiv = (numerator: bigint, denominator: bigint): bigint => {
   if (denominator <= 0n) throw new RangeError("denominator must be positive");
   return numerator >= 0n ? (numerator + denominator / 2n) / denominator : (numerator - denominator / 2n) / denominator;
@@ -47,6 +47,9 @@ export const lineTotalCents = ({ quantityMilli, unitPriceCents, kind }: CentsLin
 export const calculateInvoiceTotals = (lines: readonly CentsLine[], taxRateBps: bigint, taxExempt = false) => {
   if (taxRateBps < 0n || taxRateBps > 10_000n) throw new RangeError("tax rate must be between 0 and 10000 bps");
   const subtotalCents = lines.reduce((sum, line) => sum + lineTotalCents(line), 0n);
-  const taxCents = taxExempt ? 0n : roundDiv(subtotalCents * taxRateBps, 10_000n);
+  const taxableSubtotalCents = lines
+    .filter((line) => line.taxable !== false)
+    .reduce((sum, line) => sum + lineTotalCents(line), 0n);
+  const taxCents = taxExempt ? 0n : roundDiv(taxableSubtotalCents * taxRateBps, 10_000n);
   return { subtotalCents, taxCents, totalCents: subtotalCents + taxCents };
 };

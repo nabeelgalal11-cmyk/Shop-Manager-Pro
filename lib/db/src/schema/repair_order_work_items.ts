@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, numeric, pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { estimateItemsTable } from "./estimate_items";
 import { estimateItemKindEnum } from "./estimate_items";
 import { employeesTable } from "./employees";
@@ -15,6 +15,7 @@ export const repairOrderWorkItemsTable = pgTable("repair_order_work_items", {
   description: text("description").notNull(),
   quantity: numeric("quantity", { precision: 14, scale: 3 }).notNull(),
   unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
+  priceIncludesTax: boolean("price_includes_tax").notNull().default(false),
   unitCost: numeric("unit_cost", { precision: 14, scale: 2 }),
   estimatedHours: numeric("estimated_hours", { precision: 10, scale: 2 }),
   status: workItemStatusEnum("status").notNull().default("authorized"),

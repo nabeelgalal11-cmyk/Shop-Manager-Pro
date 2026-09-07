@@ -16,6 +16,7 @@ export interface WorkflowInvoiceItem {
   readonly description: string;
   readonly quantity: string;
   readonly unitPrice: string;
+  readonly priceIncludesTax: boolean;
   /** @nullable */
   readonly unitCost?: string | null;
   readonly lineTotal: string;

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, integer, numeric, pgTable, serial, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, check, integer, numeric, pgTable, serial, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { invoicesTable } from "./invoices";
@@ -16,6 +16,7 @@ export const invoiceItemsTable = pgTable("invoice_items", {
   description: text("description").notNull(),
   quantity: numeric("quantity", { precision: 14, scale: 3 }).notNull(),
   unitPrice: numeric("unit_price", { precision: 14, scale: 2 }).notNull(),
+  priceIncludesTax: boolean("price_includes_tax").notNull().default(false),
   unitCost: numeric("unit_cost", { precision: 14, scale: 2 }),
   lineTotal: numeric("line_total", { precision: 14, scale: 2 }).notNull(),
 }, (t) => [

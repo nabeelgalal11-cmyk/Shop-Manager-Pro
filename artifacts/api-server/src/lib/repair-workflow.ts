@@ -110,7 +110,7 @@ export async function updateIntake(repairOrderId: number, version: number, input
   });
 }
 
-export type DraftItem = { position: number; kind: "part" | "labor" | "fee" | "discount"; description: string; quantity: string | number; unitPrice: string | number; unitCost?: string | number | null; inventoryItemId?: number | null; estimatedHours?: string | number | null; warrantyMonths?: number | null; warrantyMiles?: number | null };
+export type DraftItem = { position: number; kind: "part" | "labor" | "fee" | "discount"; description: string; quantity: string | number; unitPrice: string | number; priceIncludesTax?: boolean; unitCost?: string | number | null; inventoryItemId?: number | null; estimatedHours?: string | number | null; warrantyMonths?: number | null; warrantyMiles?: number | null };
 export async function createRevision(repairOrderId: number, kind: "estimate" | "supplement", actorId: number, taxRateBps = 0) {
   return db.transaction(async (tx) => {
     const [ro] = await tx.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, repairOrderId)).for("update");
@@ -139,9 +139,10 @@ export async function replaceDraftItems(revisionId: number, items: DraftItem[], 
     if (!revision) throw new WorkflowError("Revision not found", 404);
     if (revision.status !== "draft") throw new WorkflowError("Only draft revisions are editable", 409);
     if (new Set(items.map((item) => item.position)).size !== items.length || items.some((item) => item.position < 1 || !item.description.trim())) throw new WorkflowError("Items require unique positive positions and descriptions");
-    const totals = calculateInvoiceTotals(items.map((item) => ({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind })), BigInt(revision.taxRateBps));
+    if (items.some((item) => item.priceIncludesTax && item.kind !== "part")) throw new WorkflowError("Only part prices can include tax");
+    const totals = calculateInvoiceTotals(items.map((item) => ({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind, taxable: !item.priceIncludesTax })), BigInt(revision.taxRateBps));
     await tx.delete(estimateItemsTable).where(eq(estimateItemsTable.estimateRevisionId, revisionId));
-    if (items.length) await tx.insert(estimateItemsTable).values(items.map((item) => ({ ...item, estimateRevisionId: revisionId, quantity: quantity(milli(item.quantity)), unitPrice: money(cents(item.unitPrice)), unitCost: item.unitCost == null ? null : money(cents(item.unitCost)), estimatedHours: item.estimatedHours == null ? null : String(item.estimatedHours) })));
+    if (items.length) await tx.insert(estimateItemsTable).values(items.map((item) => ({ ...item, priceIncludesTax: item.kind === "part" && item.priceIncludesTax === true, estimateRevisionId: revisionId, quantity: quantity(milli(item.quantity)), unitPrice: money(cents(item.unitPrice)), unitCost: item.unitCost == null ? null : money(cents(item.unitCost)), estimatedHours: item.estimatedHours == null ? null : String(item.estimatedHours) })));
     const [updated] = await tx.update(estimateRevisionsTable).set({ subtotal: money(totals.subtotalCents), taxAmount: money(totals.taxCents), total: money(totals.totalCents), updatedAt: new Date() }).where(eq(estimateRevisionsTable.id, revisionId)).returning();
     await event(tx, revision.repairOrderId, "note_added", actorId, { revisionId, itemCount: items.length });
     return updated;
@@ -198,7 +199,7 @@ export async function decideRevision(token: string, input: { signerName: string;
         await tx.insert(repairOrderWorkItemsTable).values(missing.map((item, index) => ({
           repairOrderId: revision.repairOrderId, sourceEstimateItemId: item.id,
           position: maxPosition + index + 1, kind: item.kind, description: item.description,
-          quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, estimatedHours: item.estimatedHours,
+           quantity: item.quantity, unitPrice: item.unitPrice, priceIncludesTax: item.priceIncludesTax, unitCost: item.unitCost, estimatedHours: item.estimatedHours,
         })));
       }
       if (existing.some((item) => item.repairOrderId !== revision.repairOrderId)) throw new WorkflowError("Authorized source item belongs to another repair order", 409);
@@ -304,13 +305,13 @@ export async function createFinalInvoice(repairOrderId: number, actorId: number)
       tx.select().from(estimateRevisionsTable).where(eq(estimateRevisionsTable.repairOrderId, repairOrderId)).orderBy(desc(estimateRevisionsTable.revisionNo)).limit(1),
     ]);
     if (!work.length || !revision) throw new WorkflowError("Completed repair order has no performed work or revision", 409);
-    const totals = calculateInvoiceTotals(work.map((item) => ({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind })), BigInt(revision.taxRateBps));
+    const totals = calculateInvoiceTotals(work.map((item) => ({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind, taxable: !item.priceIncludesTax })), BigInt(revision.taxRateBps));
     const [invoice] = await tx.insert(invoicesTable).values({
       repairOrderId, invoiceNumber: `INV-${Date.now()}-${randomBytes(3).toString("hex")}`,
       customerSnapshot: revision.customerSnapshot, vehicleSnapshot: revision.vehicleSnapshot, taxRateBps: revision.taxRateBps,
       subtotal: money(totals.subtotalCents), taxAmount: money(totals.taxCents), total: money(totals.totalCents), balance: money(totals.totalCents),
     }).returning();
-    await tx.insert(invoiceItemsTable).values(work.map((item, index) => ({ invoiceId: invoice.id, sourceWorkItemId: item.id, position: index + 1, kind: item.kind, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, unitCost: item.unitCost, lineTotal: money(lineTotalCents({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind })) })));
+    await tx.insert(invoiceItemsTable).values(work.map((item, index) => ({ invoiceId: invoice.id, sourceWorkItemId: item.id, position: index + 1, kind: item.kind, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, priceIncludesTax: item.priceIncludesTax, unitCost: item.unitCost, lineTotal: money(lineTotalCents({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind })) })));
     await event(tx, repairOrderId, "invoice_created", actorId, { invoiceId: invoice.id });
     return invoice;
   });

@@ -15,7 +15,20 @@ async function ensureSettingsRow() {
 // Shop-wide labor rate used by repair-order profitability and reports.
 router.get("/shop", requirePermission("permissions", "view"), async (_req, res) => {
   const row = await ensureSettingsRow();
-  res.json({ laborRate: Number(row.laborRate) });
+  res.json({
+    laborRate: Number(row.laborRate),
+    shopName: row.shopName ?? "",
+    addressLine1: row.addressLine1 ?? "",
+    addressLine2: row.addressLine2 ?? "",
+    city: row.city ?? "",
+    state: row.state ?? "",
+    postalCode: row.postalCode ?? "",
+    phone: row.phone ?? "",
+    email: row.email ?? "",
+    ein: row.ein ?? "",
+    website: row.website ?? "",
+    additionalInfo: row.additionalInfo ?? "",
+  });
 });
 
 router.put("/shop", requirePermission("permissions", "edit"), async (req, res) => {
@@ -25,12 +38,21 @@ router.put("/shop", requirePermission("permissions", "edit"), async (req, res) =
   }
 
   const row = await ensureSettingsRow();
+  const textFields = [
+    "shopName", "addressLine1", "addressLine2", "city", "state",
+    "postalCode", "phone", "email", "ein", "website", "additionalInfo",
+  ] as const;
+  const profileUpdate = Object.fromEntries(
+    textFields
+      .filter((field) => typeof req.body?.[field] === "string")
+      .map((field) => [field, req.body[field].trim() || null]),
+  );
   await db
     .update(shopSettingsTable)
-    .set({ laborRate: laborRate.toFixed(2), updatedAt: new Date() })
+    .set({ laborRate: laborRate.toFixed(2), ...profileUpdate, updatedAt: new Date() })
     .where(eq(shopSettingsTable.id, row.id));
 
-  res.json({ ok: true, laborRate });
+  res.json({ ok: true, laborRate, ...Object.fromEntries(textFields.map((field) => [field, profileUpdate[field] ?? row[field] ?? ""])) });
 });
 
 // Stripe settings — only admins (managed via permissions on `permissions` resource)

@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const fmt = (n: number | string) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n));
-const lineAmount = (item: { quantity: number | string; unitPrice: number | string }) =>
+  const lineAmount = (item: { quantity: number | string; unitPrice: number | string }) =>
   Number(item.quantity) * Number(item.unitPrice);
 
 export default function EstimatePublic() {
@@ -111,7 +111,9 @@ export default function EstimatePublic() {
       ? Math.round(Number(est.taxAmount) / Number(est.subtotal) * 10_000)
       : 0;
   const approvedTax = Math.round(
-    Math.max(approvedSubtotal, 0) * 100 * effectiveTaxRateBps / 10_000,
+    Math.max(approvedSubtotal - est.lineItems
+      .filter(li => decisions[li.id] === "approved" && li.kind === "part" && (li as any).priceIncludesTax === true)
+      .reduce((sum, item) => sum + lineAmount(item), 0), 0) * 100 * effectiveTaxRateBps / 10_000,
   ) / 100;
   const approvedTotal = approvedSubtotal + approvedTax;
 
@@ -144,10 +146,10 @@ export default function EstimatePublic() {
                     <p className="font-semibold">{li.description}</p>
                     <span className="text-sm font-medium tabular-nums">{fmt(lineAmount(li))}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground capitalize mt-0.5">
+                   <p className="text-xs text-muted-foreground capitalize mt-0.5">
                     {li.kind === "labor"
                       ? `${Number((li as any).estimatedHours ?? li.quantity)} hours × ${fmt(Number(li.unitPrice))}/hour`
-                      : `${li.kind} · ${Number(li.quantity)} × ${fmt(Number(li.unitPrice))}`}
+                       : `${li.kind} · ${Number(li.quantity)} × ${fmt(Number(li.unitPrice))}${li.kind === "part" && (li as any).priceIncludesTax ? " · price includes tax" : ""}`}
                   </p>
                   <div className="grid grid-cols-2 gap-2 mt-3">
                     <Button

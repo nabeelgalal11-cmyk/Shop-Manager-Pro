@@ -1640,6 +1640,7 @@ export interface EstimateItem {
   quantity: string;
   /** @pattern ^\d+(\.\d{1,2})?$ */
   unitPrice: string;
+  priceIncludesTax?: boolean;
   /** @nullable */
   readonly unitCost?: string | null;
   /** @nullable */
@@ -1670,6 +1671,7 @@ export interface EstimateItemInput {
   description: string;
   quantity: string | number;
   unitPrice: string | number;
+  priceIncludesTax?: boolean;
   unitCost?: string | number | null;
   /** @nullable */
   inventoryItemId?: number | null;
@@ -1869,6 +1871,7 @@ export interface RepairOrderWorkItem {
   readonly description: string;
   readonly quantity: string;
   readonly unitPrice: string;
+  readonly priceIncludesTax: boolean;
   /** @nullable */
   readonly unitCost?: string | null;
   /** @nullable */
@@ -1905,6 +1908,7 @@ export interface WorkflowInvoiceItem {
   readonly description: string;
   readonly quantity: string;
   readonly unitPrice: string;
+  readonly priceIncludesTax: boolean;
   /** @nullable */
   readonly unitCost?: string | null;
   readonly lineTotal: string;

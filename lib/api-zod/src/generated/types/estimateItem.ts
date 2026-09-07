@@ -18,6 +18,7 @@ export interface EstimateItem {
   quantity: string;
   /** @pattern ^\d+(\.\d{1,2})?$ */
   unitPrice: string;
+  priceIncludesTax?: boolean;
   /** @nullable */
   readonly unitCost?: string | null;
   /** @nullable */

@@ -44,6 +44,7 @@ export default function EstimateDetail() {
           description: i.description,
           quantity: i.kind === "labor" ? Number(i.estimatedHours ?? i.quantity) : Number(i.quantity),
           unitPrice: Number(i.unitPrice),
+          priceIncludesTax: i.kind === "part" && i.priceIncludesTax === true,
         })));
       }
     }
@@ -81,6 +82,7 @@ export default function EstimateDetail() {
       description: item.description,
       quantity: String(item.quantity),
       unitPrice: String(item.unitPrice),
+      ...(item.kind === "part" ? { priceIncludesTax: item.priceIncludesTax === true } : {}),
       ...(item.kind === "labor" ? { estimatedHours: String(item.quantity) } : {}),
     }));
 
@@ -95,7 +97,7 @@ export default function EstimateDetail() {
   };
 
   const addDraftItem = () => {
-    setDraftItems([...draftItems, { kind: "labor", description: "", quantity: 1, unitPrice: 0 }]);
+    setDraftItems([...draftItems, { kind: "labor", description: "", quantity: 1, unitPrice: 0, priceIncludesTax: false }]);
   };
   const removeDraftItem = (index: number) => {
     setDraftItems(draftItems.filter((_, i) => i !== index));
@@ -236,6 +238,16 @@ export default function EstimateDetail() {
                         onChange={(e) => updateDraftItem(idx, 'description', e.target.value)}
                       />
                     </div>
+                    {item.kind === "part" && (
+                      <label className="flex items-center gap-2 text-xs sm:col-span-2">
+                        <input
+                          type="checkbox"
+                          checked={item.priceIncludesTax === true}
+                          onChange={(e) => updateDraftItem(idx, "priceIncludesTax", e.target.checked)}
+                        />
+                        Price includes tax
+                      </label>
+                    )}
                     <div className="space-y-1.5">
                       <Label htmlFor={`draft-quantity-${idx}`} className="text-xs">
                         {item.kind === "labor" ? "Hours" : "Quantity"}
@@ -296,9 +308,10 @@ export default function EstimateDetail() {
                       description: i.description,
                       quantity: i.kind === "labor" ? Number(i.estimatedHours ?? i.quantity) : Number(i.quantity),
                       unitPrice: Number(i.unitPrice),
+                       priceIncludesTax: i.kind === "part" && i.priceIncludesTax === true,
                     })));
                     if (estimate.items.length === 0) {
-                      setDraftItems([{ kind: "labor", description: "", quantity: 1, unitPrice: 0 }]);
+                      setDraftItems([{ kind: "labor", description: "", quantity: 1, unitPrice: 0, priceIncludesTax: false }]);
                     }
                     setIsEditing(true);
                   }}>

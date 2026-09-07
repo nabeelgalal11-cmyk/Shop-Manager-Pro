@@ -99,6 +99,23 @@ async function completedInvoice() {
   return { ro, invoice: await issueInvoice(invoice.id, actorId) };
 }
 
+test("tax-inclusive part prices are not taxed again and survive authorization", async () => {
+  const { ro, revision } = await authorized([
+    { position: 1, kind: "part" as const, description: "Tax-included part", quantity: 1, unitPrice: 50, priceIncludesTax: true },
+    { position: 2, kind: "labor" as const, description: "Taxable labor", quantity: 1, unitPrice: 50 },
+  ]);
+  const workflow = await getRepairOrderWorkflow(ro.id);
+  assert.equal((await getRepairOrderWorkflow(ro.id)).revisions[0].taxAmount, "3.13");
+  assert.equal(workflow.revisions[0].items[0].priceIncludesTax, true);
+  assert.equal(workflow.workItems[0].priceIncludesTax, true);
+  for (const work of workflow.workItems) await performWorkItem(work.id, actorId);
+  await completeRepairOrder(ro.id, actorId);
+  const invoice = await createFinalInvoice(ro.id, actorId);
+  assert.equal(invoice.taxAmount, "3.13");
+  const finalWorkflow = await getRepairOrderWorkflow(ro.id);
+  assert.equal(finalWorkflow.invoice?.items[0].priceIncludesTax, true);
+});
+
 test("happy path reaches paid with exactly one immutable final invoice", async () => {
   const { ro } = await authorized();
   let workflow = await getRepairOrderWorkflow(ro.id);
