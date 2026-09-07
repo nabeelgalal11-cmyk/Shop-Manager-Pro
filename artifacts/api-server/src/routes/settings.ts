@@ -52,7 +52,14 @@ router.put("/shop", requirePermission("permissions", "edit"), async (req, res) =
     .set({ laborRate: laborRate.toFixed(2), ...profileUpdate, updatedAt: new Date() })
     .where(eq(shopSettingsTable.id, row.id));
 
-  res.json({ ok: true, laborRate, ...Object.fromEntries(textFields.map((field) => [field, profileUpdate[field] ?? row[field] ?? ""])) });
+  res.json({
+    ok: true,
+    laborRate,
+    ...Object.fromEntries(textFields.map((field) => [
+      field,
+      field in profileUpdate ? profileUpdate[field] ?? "" : row[field] ?? "",
+    ])),
+  });
 });
 
 // Stripe settings — only admins (managed via permissions on `permissions` resource)
