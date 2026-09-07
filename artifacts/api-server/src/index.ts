@@ -39,6 +39,7 @@ if (!renderSecretEnvFound) {
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { seedNjmvcTemplate } from "./routes/njmvc.js";
+import { runRenderSchemaMigrations } from "./lib/render-migrations.js";
 
 const publicBaseUrl = process.env.PUBLIC_BASE_URL?.trim();
 if (!publicBaseUrl) {
@@ -67,14 +68,22 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// 4️⃣ Start the server — seed NJMVC template on first run
-seedNjmvcTemplate().catch(err => console.error("[NJMVC] Seed error:", err));
+// 4️⃣ Render Free has no separate migration phase. Verify the narrow additive
+// schema changes before accepting traffic, then seed and start the server.
+runRenderSchemaMigrations()
+  .then(() => {
+    seedNjmvcTemplate().catch(err => console.error("[NJMVC] Seed error:", err));
 
-app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
+    app.listen(port, (err) => {
+      if (err) {
+        logger.error({ err }, "Error listening on port");
+        process.exit(1);
+      }
+
+      logger.info({ port }, "Server listening");
+    });
+  })
+  .catch((err) => {
+    logger.error({ err }, "Server startup aborted");
     process.exit(1);
-  }
-
-  logger.info({ port }, "Server listening");
-});
+  });
