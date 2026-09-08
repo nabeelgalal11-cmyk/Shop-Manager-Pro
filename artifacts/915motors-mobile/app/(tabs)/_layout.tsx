@@ -21,6 +21,10 @@ function NativeTabLayout() {
         />
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="web-app">
+        <NativeTabs.Trigger.Icon sf={{ default: 'globe', selected: 'globe' }} />
+        <NativeTabs.Trigger.Label>Web App</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -72,6 +76,18 @@ function ClassicTabLayout() {
               <SymbolView name="house" tintColor={color} size={24} />
             ) : (
               <Feather name="home" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="web-app"
+        options={{
+          title: 'Web App',
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="globe" tintColor={color} size={24} />
+            ) : (
+              <Feather name="globe" size={22} color={color} />
             ),
         }}
       />
