@@ -56,3 +56,17 @@ mtime_ms = 1788841649983
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/c94f7af1-0d8f-4b96-ace2-f35863e4c3dc/271b8dc8-7532-427f-a732-09b964f90ed2"
 storage_version_token = "1788842096369102"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "pEBLtOSp_H84afj8lT--f"
+uri = "file://exports/915motors-mobile-apk-standalone-v3.zip"
+type = "unspecified"
+title = "915motors standalone APK source — public registry"
+description = "Final standalone Expo source bundle with no Replit-only lockfile, public npm registry configuration, local API client, and APK build profiles."
+logical_id = "faff84d2-5516-4d9c-8c12-7371665372af"
+content_hash = "sha256:f0ccfef82fa89748210a0c984fd60c08bd3f16b40330f930bbef31d30cd5daaf"
+size = 934320
+mtime_ms = 1788899163925
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/faff84d2-5516-4d9c-8c12-7371665372af/d6062f04-695d-4df2-ad40-0f38e9ae8d93"
+storage_version_token = "1788900189449963"
+content_type = "application/octet-stream"
