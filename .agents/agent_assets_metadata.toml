@@ -14,3 +14,17 @@ uri = "file://attached_assets/hostgator-php/shopos-storage.tar.gz"
 type = "unspecified"
 title = "shopos-storage.tar.gz (alternative archive)"
 logical_id = "1e5dea34-ad8a-4e6c-bf9a-4211e44bfd21"
+
+[[outputs]]
+id = "rseJywc4DSqq9bwhzN0rP"
+uri = "file://exports/915motors-mobile-apk-source.zip"
+type = "unspecified"
+title = "915motors mobile APK source"
+description = "Source bundle for building the 915motors Android APK on your PC. Includes the web-app tab, native invoice tab, shared API client, workspace files, and preview/production APK profiles."
+logical_id = "202b13b6-fa38-4bf8-b660-8322a60f1a40"
+content_hash = "sha256:b28ffcf4261c207fb86d8144955a7e300979ddc0c4a394bb1e1718661df53545"
+size = 1067039
+mtime_ms = 1788839044150
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/202b13b6-fa38-4bf8-b660-8322a60f1a40/a2118475-c75e-493b-9fe6-349a96a0f8d3"
+storage_version_token = "1788839050908730"
+content_type = "application/octet-stream"
