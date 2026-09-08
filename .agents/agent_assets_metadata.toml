@@ -42,3 +42,17 @@ mtime_ms = 1788841304467
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/471b5177-4fcd-4b98-8b5e-fe72af7fc118/c11e6ee0-1296-4713-b931-683f49bce516"
 storage_version_token = "1788841357383002"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "PH4hESz1Ptohhb1KaEzHE"
+uri = "file://exports/915motors-mobile-apk-standalone-v2.zip"
+type = "unspecified"
+title = "915motors standalone APK source — verified ZIP"
+description = "Windows-compatible verified ZIP containing the standalone Expo mobile app, local API client, APK build profiles, and build instructions."
+logical_id = "c94f7af1-0d8f-4b96-ace2-f35863e4c3dc"
+content_hash = "sha256:86610dd4f41973ae427cc3cd72027031339732f5e7207e8b9846e2f483e76c74"
+size = 1007953
+mtime_ms = 1788841649983
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/c94f7af1-0d8f-4b96-ace2-f35863e4c3dc/271b8dc8-7532-427f-a732-09b964f90ed2"
+storage_version_token = "1788842096369102"
+content_type = "application/octet-stream"
