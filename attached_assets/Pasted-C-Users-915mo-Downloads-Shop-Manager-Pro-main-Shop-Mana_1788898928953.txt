@@ -1,0 +1,36 @@
+C:\Users\915mo\Downloads\Shop-Manager-Pro-main\Shop-Manager-Pro-main\artifacts\915apk2>npm ci
+npm warn deprecated uuid@7.0.3: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn cleanup Failed to remove some directories [
+npm warn cleanup   [
+npm warn cleanup     '\\\\?\\C:\\Users\\915mo\\Downloads\\Shop-Manager-Pro-main\\Shop-Manager-Pro-main\\artifacts\\915apk2\\node_modules\\expo\\node_modules',
+npm warn cleanup     [Error: EPERM: operation not permitted, rmdir 'C:\Users\915mo\Downloads\Shop-Manager-Pro-main\Shop-Manager-Pro-main\artifacts\915apk2\node_modules\expo\node_modules\@expo'] {
+npm warn cleanup       errno: -4048,
+npm warn cleanup       code: 'EPERM',
+npm warn cleanup       syscall: 'rmdir',
+npm warn cleanup       path: 'C:\\Users\\915mo\\Downloads\\Shop-Manager-Pro-main\\Shop-Manager-Pro-main\\artifacts\\915apk2\\node_modules\\expo\\node_modules\\@expo'
+npm warn cleanup     }
+npm warn cleanup   ]
+npm warn cleanup ]
+npm error code ENOTFOUND
+npm error syscall getaddrinfo
+npm error errno ENOTFOUND
+npm error network request to http://package-firewall.replit.local/npm/zod-validation-error/-/zod-validation-error-3.5.4.tgz failed, reason: getaddrinfo ENOTFOUND package-firewall.replit.local
+npm error network This is a problem related to network connectivity.
+npm error network In most cases you are behind a proxy or have bad network settings.
+npm error network
+npm error network If you are behind a proxy, please make sure that the 'proxy' config is set properly.  See: 'npm help config'
+npm error A complete log of this run can be found in: C:\Users\915mo\AppData\Local\npm-cache\_logs\2026-09-08T20_06_20_426Z-debug-0.log
+
+C:\Users\915mo\Downloads\Shop-Manager-Pro-main\Shop-Manager-Pro-main\artifacts\915apk2>npx expo config --json
+PluginError: Failed to resolve plugin for module "expo-router" relative to "C:\Users\915mo\Downloads\Shop-Manager-Pro-main\Shop-Manager-Pro-main\artifacts\915apk2". Do you have node modules installed?
+PluginError: Failed to resolve plugin for module "expo-router" relative to "C:\Users\915mo\Downloads\Shop-Manager-Pro-main\Shop-Manager-Pro-main\artifacts\915apk2". Do you have node modules installed?
+    at resolvePluginForModule (C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config-plugins\build\utils\plugin-resolver.js:84:9)
+    at resolveConfigPluginFunctionWithInfo (C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config-plugins\build\utils\plugin-resolver.js:133:7)
+    at resolveConfigPluginFunction (C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config-plugins\build\utils\plugin-resolver.js:124:7)
+    at withStaticPlugin (C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config-plugins\build\plugins\withStaticPlugin.js:83:70)
+    at C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config-plugins\build\plugins\withPlugins.js:28:84
+    at Array.reduce (<anonymous>)
+    at withPlugins (C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config-plugins\build\plugins\withPlugins.js:28:18)
+    at withConfigPlugins (C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config\build\plugins\withConfigPlugins.js:33:47)
+    at fillAndReturnConfig (C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config\build\Config.js:247:78)
+    at getConfig (C:\Users\915mo\AppData\Local\npm-cache\_npx\249ca9fcd30c476a\node_modules\@expo\config\build\Config.js:304:10)
