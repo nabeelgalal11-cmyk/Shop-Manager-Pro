@@ -28,3 +28,17 @@ mtime_ms = 1788839044150
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/202b13b6-fa38-4bf8-b660-8322a60f1a40/a2118475-c75e-493b-9fe6-349a96a0f8d3"
 storage_version_token = "1788839050908730"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "FzP3zpguWwq8zf_PH-lyB"
+uri = "file://exports/915motors-mobile-apk-standalone.zip"
+type = "unspecified"
+title = "915motors standalone APK source"
+description = "EAS-ready standalone Expo source bundle. It includes a local API client, portable dependency versions, Android APK profiles, the existing Square/native invoice flow, and the full web app link."
+logical_id = "471b5177-4fcd-4b98-8b5e-fe72af7fc118"
+content_hash = "sha256:a4afea9984526be0eb02769404306145125ca93a52879a5a0978c17ada1ca6ed"
+size = 24119547
+mtime_ms = 1788841304467
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/471b5177-4fcd-4b98-8b5e-fe72af7fc118/c11e6ee0-1296-4713-b931-683f49bce516"
+storage_version_token = "1788841357383002"
+content_type = "application/octet-stream"
