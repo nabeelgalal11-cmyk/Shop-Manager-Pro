@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -40,6 +40,16 @@ export default function WebAppScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!loading) return;
+
+    // Some Android System WebView versions never emit onLoadEnd even though
+    // the page has rendered. Never let the native overlay permanently cover
+    // a usable web app.
+    const timeout = setTimeout(() => setLoading(false), 15_000);
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
   const retry = () => {
     setError(null);
     setLoading(true);
@@ -66,7 +76,7 @@ export default function WebAppScreen() {
             Web app unavailable
           </Text>
           <Text style={[styles.errorMessage, { color: colors.mutedForeground }]}>
-            Check your connection and try loading the 915motors web app again.
+            {error}
           </Text>
           <Pressable
             onPress={retry}
@@ -92,16 +102,37 @@ export default function WebAppScreen() {
             cacheMode="LOAD_DEFAULT"
             sharedCookiesEnabled
             thirdPartyCookiesEnabled
+            originWhitelist={['https://*']}
             allowsBackForwardNavigationGestures
             startInLoadingState
             onLoadStart={() => {
               setError(null);
               setLoading(true);
             }}
+            onLoadProgress={(event) => {
+              if (event.nativeEvent.progress >= 0.9) {
+                setLoading(false);
+              }
+            }}
+            onNavigationStateChange={(state) => {
+              if (!state.loading) {
+                setLoading(false);
+              }
+            }}
             onLoadEnd={() => setLoading(false)}
             onError={(event) => {
               setLoading(false);
               setError(event.nativeEvent.description || 'Unable to load the web app.');
+            }}
+            onHttpError={(event) => {
+              setLoading(false);
+              setError(
+                `The web app returned HTTP ${event.nativeEvent.statusCode}. Try again in a moment.`,
+              );
+            }}
+            onRenderProcessGone={() => {
+              setLoading(false);
+              setError('The Android web viewer stopped unexpectedly. Tap Try again to restart it.');
             }}
             testID="embedded-web-app"
           />

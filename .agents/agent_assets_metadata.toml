@@ -98,3 +98,17 @@ mtime_ms = 1788916556442
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/b407e02a-c1a3-4dc6-a6fb-f062cf729c62/7fe8ef7a-f299-4c0f-b88a-a238ccdbcbbf"
 storage_version_token = "1788916565200196"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "5_YdGXXqjiFuaG62unz29"
+uri = "file://exports/915motors-mobile-apk-standalone-v6.zip"
+type = "unspecified"
+title = "915motors Mobile APK Source v6"
+description = "Corrected Android WebView loading behavior, visible HTTP/render errors, and app version 1.0.1 (versionCode 2). Build this package on Windows and install the resulting APK over the previous version."
+logical_id = "3a329bba-7cac-4f42-acea-826ee80ed699"
+content_hash = "sha256:e7fd85b0b427622558e77109212067bfcf1f2b68556ea80a19848b6afbf3dfa7"
+size = 934823
+mtime_ms = 1788925466537
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/3a329bba-7cac-4f42-acea-826ee80ed699/6b338679-964b-417c-a764-6ac5a161aa12"
+storage_version_token = "1788925478835066"
+content_type = "application/octet-stream"

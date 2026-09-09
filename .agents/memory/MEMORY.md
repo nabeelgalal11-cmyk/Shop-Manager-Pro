@@ -11,3 +11,4 @@
 - [Render schema migration](render-schema-migrations.md) — Render Free has no separate migration phase; additive production schema changes use the guarded Render-only startup migration path
 - [EAS standalone bundles](eas-standalone-bundles.md) — mobile APK source uploads must avoid parent-workspace-only dependency specifiers during remote dependency installation
 - [Production host split](production-host-split.md) — app.915motorsusa.com is Render-backed; Replit deployment logs and its replit.app URL do not diagnose that live host
+- [Android WebView loading](android-webview-loading.md) — never rely only on onLoadEnd; some devices render the page without firing it, leaving native overlays stuck

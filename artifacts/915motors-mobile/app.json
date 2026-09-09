@@ -2,7 +2,7 @@
   "expo": {
     "name": "915motors Mobile",
     "slug": "915motors-mobile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "motors915",
@@ -11,7 +11,8 @@
       "supportsTablet": false
     },
     "android": {
-      "package": "com.motors915.mobile"
+      "package": "com.motors915.mobile",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/images/icon.png"
