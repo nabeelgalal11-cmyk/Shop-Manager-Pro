@@ -9,8 +9,9 @@ const fail = (res: any, value: unknown) => {
   if (value instanceof WorkflowError) { res.status(value.status).json({ error: value.message }); return; }
   throw value;
 };
-router.get("/", requirePermission("payments", "view"), async (_req, res): Promise<void> => {
-  res.json(await db.select().from(paymentsTable).orderBy(desc(paymentsTable.createdAt)));
+router.get("/", requirePermission("payments", "view"), async (req, res): Promise<void> => {
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+  res.json(await db.select().from(paymentsTable).orderBy(desc(paymentsTable.createdAt)).limit(limit));
 });
 router.get("/:id", requirePermission("payments", "view"), async (req, res): Promise<void> => {
   const [payment] = await db.select().from(paymentsTable).where(eq(paymentsTable.id, Number(req.params.id)));

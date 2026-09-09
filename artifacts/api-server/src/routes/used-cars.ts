@@ -193,9 +193,10 @@ async function enrichCar(car: any, opts?: { withRecon?: boolean; laborRate?: num
 
 router.get("/", requirePermission("used_cars", "view"), async (req, res) => {
   const status = req.query.status as string | undefined;
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
   const cars = status
-    ? await db.select().from(usedCarsTable).where(eq(usedCarsTable.status, status)).orderBy(desc(usedCarsTable.createdAt))
-    : await db.select().from(usedCarsTable).orderBy(desc(usedCarsTable.createdAt));
+    ? await db.select().from(usedCarsTable).where(eq(usedCarsTable.status, status)).orderBy(desc(usedCarsTable.createdAt)).limit(limit)
+    : await db.select().from(usedCarsTable).orderBy(desc(usedCarsTable.createdAt)).limit(limit);
 
   const laborRate = await getLaborRate();
 

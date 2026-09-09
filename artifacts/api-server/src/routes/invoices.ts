@@ -5,7 +5,10 @@ import { getUser, requirePermission } from "../lib/auth.js";
 import { issueInvoice, voidInvoice, WorkflowError } from "../lib/repair-workflow.js";
 const router: IRouter = Router();
 const fail = (res: any, value: unknown) => { if (value instanceof WorkflowError) { res.status(value.status).json({ error: value.message }); return; } throw value; };
-router.get("/", requirePermission("invoices", "view"), async (_req, res): Promise<void> => { res.json(await db.select().from(invoicesTable).orderBy(desc(invoicesTable.createdAt))); });
+router.get("/", requirePermission("invoices", "view"), async (req, res): Promise<void> => {
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+  res.json(await db.select().from(invoicesTable).orderBy(desc(invoicesTable.createdAt)).limit(limit));
+});
 router.get("/:id", requirePermission("invoices", "view"), async (req, res): Promise<void> => {
   const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, Number(req.params.id)));
   if (!invoice) { res.status(404).json({ error: "Invoice not found" }); return; }
