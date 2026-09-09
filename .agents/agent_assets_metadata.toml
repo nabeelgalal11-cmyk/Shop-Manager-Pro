@@ -70,3 +70,17 @@ mtime_ms = 1788899163925
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/faff84d2-5516-4d9c-8c12-7371665372af/d6062f04-695d-4df2-ad40-0f38e9ae8d93"
 storage_version_token = "1788900189449963"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "pd1FDz1KzMTocjtV63Xli"
+uri = "file://exports/915motors-mobile-apk-standalone-v4.zip"
+type = "unspecified"
+title = "915motors APK source — embedded Web App"
+description = "Updated standalone Expo source: Web App opens inside the app in an embedded WebView, launches as the first tab, and native Invoices remains on the bottom bar with a document icon. Verified with public npm install and Android export."
+logical_id = "a9656b70-43cb-41eb-92a2-0cfdabdc4c38"
+content_hash = "sha256:52408c18a6df30dc6ddf3f4b282cb2429d4ba1d1659248718d19def4dc004c5f"
+size = 933966
+mtime_ms = 1788912643195
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/a9656b70-43cb-41eb-92a2-0cfdabdc4c38/0fd4321c-09d5-4445-8e8d-2b206d2c90e3"
+storage_version_token = "1788912732746902"
+content_type = "application/octet-stream"
