@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { WebView, type WebViewErrorEvent, type WebView as WebViewType } from 'react-native-webview';
+import { WebView } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -35,7 +35,7 @@ function getWebAppUrl(): string {
 export default function WebAppScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const webViewRef = useRef<WebViewType>(null);
+  const webViewRef = useRef<WebView | null>(null);
   const webAppUrl = useMemo(() => getWebAppUrl(), []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +97,7 @@ export default function WebAppScreen() {
               setLoading(true);
             }}
             onLoadEnd={() => setLoading(false)}
-            onError={(event: WebViewErrorEvent) => {
+            onError={(event) => {
               setLoading(false);
               setError(event.nativeEvent.description || 'Unable to load the web app.');
             }}
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   webView: { flex: 1, backgroundColor: 'transparent' },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },
