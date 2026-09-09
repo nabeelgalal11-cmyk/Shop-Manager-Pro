@@ -1,15 +1,13 @@
-import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { WebView, type WebViewErrorEvent, type WebView as WebViewType } from 'react-native-webview';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -37,130 +35,138 @@ function getWebAppUrl(): string {
 export default function WebAppScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [opening, setOpening] = useState<'app' | 'invoices' | null>(null);
+  const webViewRef = useRef<WebViewType>(null);
   const webAppUrl = useMemo(() => getWebAppUrl(), []);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const openWebApp = async (path: '/' | '/invoices', action: 'app' | 'invoices') => {
-    setOpening(action);
-    try {
-      await WebBrowser.openBrowserAsync(`${webAppUrl}${path}`);
-    } finally {
-      setOpening(null);
-    }
+  const retry = () => {
+    setError(null);
+    setLoading(true);
+    webViewRef.current?.reload();
   };
 
   return (
-    <ScrollView
-      style={[styles.screen, { backgroundColor: colors.background }]}
-      contentContainerStyle={[
-        styles.content,
+    <View
+      style={[
+        styles.screen,
         {
-          paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 24),
-          paddingBottom: insets.bottom + 32,
+          backgroundColor: colors.background,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 62,
         },
       ]}
     >
-      <View style={[styles.icon, { backgroundColor: colors.primary }]}>
-        <Feather name="globe" size={28} color={colors.primaryForeground} />
-      </View>
-      <Text style={[styles.eyebrow, { color: colors.primary }]}>915MOTORS</Text>
-      <Text style={[styles.title, { color: colors.foreground }]}>Full web app</Text>
-      <Text style={[styles.description, { color: colors.mutedForeground }]}>
-        Open the complete 915motors shop system without converting it into a
-        second mobile interface.
-      </Text>
-
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.cardHeading}>
-          <View style={[styles.cardIcon, { backgroundColor: colors.secondary }]}>
-            <Feather name="monitor" size={19} color={colors.foreground} />
+      {error ? (
+        <View style={styles.errorState}>
+          <View style={[styles.errorIcon, { backgroundColor: colors.muted }]}>
+            <Feather name="wifi-off" size={26} color={colors.mutedForeground} />
           </View>
-          <View style={styles.cardCopy}>
-            <Text style={[styles.cardTitle, { color: colors.foreground }]}>915motors web app</Text>
-            <Text style={[styles.cardMeta, { color: colors.mutedForeground }]}>
-              Inventory, customers, repair orders, estimates, and settings
-            </Text>
-          </View>
+          <Text style={[styles.errorTitle, { color: colors.foreground }]}>
+            Web app unavailable
+          </Text>
+          <Text style={[styles.errorMessage, { color: colors.mutedForeground }]}>
+            Check your connection and try loading the 915motors web app again.
+          </Text>
+          <Pressable
+            onPress={retry}
+            style={({ pressed }) => [
+              styles.retryButton,
+              { backgroundColor: colors.primary, opacity: pressed ? 0.75 : 1 },
+            ]}
+            testID="retry-web-app-button"
+          >
+            <Feather name="refresh-cw" size={17} color={colors.primaryForeground} />
+            <Text style={[styles.retryText, { color: colors.primaryForeground }]}>Try again</Text>
+          </Pressable>
         </View>
-        <Pressable
-          onPress={() => void openWebApp('/', 'app')}
-          disabled={opening !== null}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            { backgroundColor: colors.primary, opacity: pressed || opening !== null ? 0.75 : 1 },
-          ]}
-          testID="open-web-app-button"
-        >
-          {opening === 'app' ? (
-            <ActivityIndicator color={colors.primaryForeground} />
-          ) : (
-            <>
-              <Feather name="external-link" size={18} color={colors.primaryForeground} />
-              <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>
-                Open web app
+      ) : (
+        <>
+          <WebView
+            ref={webViewRef}
+            source={{ uri: webAppUrl }}
+            style={styles.webView}
+            javaScriptEnabled
+            domStorageEnabled
+            sharedCookiesEnabled
+            thirdPartyCookiesEnabled
+            allowsBackForwardNavigationGestures
+            startInLoadingState
+            onLoadStart={() => {
+              setError(null);
+              setLoading(true);
+            }}
+            onLoadEnd={() => setLoading(false)}
+            onError={(event: WebViewErrorEvent) => {
+              setLoading(false);
+              setError(event.nativeEvent.description || 'Unable to load the web app.');
+            }}
+            testID="embedded-web-app"
+          />
+          {loading ? (
+            <View style={[styles.loadingOverlay, { backgroundColor: colors.background }]}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+                Loading 915motors…
               </Text>
-            </>
-          )}
-        </Pressable>
-      </View>
-
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.cardHeading}>
-          <View style={[styles.cardIcon, { backgroundColor: colors.secondary }]}>
-            <Feather name="file-text" size={19} color={colors.foreground} />
-          </View>
-          <View style={styles.cardCopy}>
-            <Text style={[styles.cardTitle, { color: colors.foreground }]}>Invoices</Text>
-            <Text style={[styles.cardMeta, { color: colors.mutedForeground }]}>
-              Open invoices in the web app, or use the native Invoices tab for Square payments.
-            </Text>
-          </View>
-        </View>
-        <Pressable
-          onPress={() => void openWebApp('/invoices', 'invoices')}
-          disabled={opening !== null}
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            { borderColor: colors.border, opacity: pressed || opening !== null ? 0.75 : 1 },
-          ]}
-          testID="open-web-invoices-button"
-        >
-          {opening === 'invoices' ? (
-            <ActivityIndicator color={colors.foreground} />
-          ) : (
-            <>
-              <Feather name="file-text" size={18} color={colors.foreground} />
-              <Text style={[styles.buttonText, { color: colors.foreground }]}>
-                Open web invoices
-              </Text>
-            </>
-          )}
-        </Pressable>
-      </View>
-
-      <Text style={[styles.note, { color: colors.mutedForeground }]}>
-        The native Invoices tab remains available for fast invoice lookup and
-        Square Point of Sale payments.
-      </Text>
-    </ScrollView>
+            </View>
+          ) : null}
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { paddingHorizontal: 20 },
-  icon: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 1.4, marginTop: 20 },
-  title: { fontFamily: 'Inter_700Bold', fontSize: 30, marginTop: 4 },
-  description: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 22, marginTop: 8, marginBottom: 22 },
-  card: { borderWidth: 1, borderRadius: 10, padding: 16, marginBottom: 14 },
-  cardHeading: { flexDirection: 'row', alignItems: 'flex-start' },
-  cardIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  cardCopy: { flex: 1, marginLeft: 12 },
-  cardTitle: { fontFamily: 'Inter_700Bold', fontSize: 16 },
-  cardMeta: { fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 19, marginTop: 4 },
-  primaryButton: { minHeight: 50, borderRadius: 7, marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  secondaryButton: { minHeight: 50, borderWidth: 1, borderRadius: 7, marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  buttonText: { fontFamily: 'Inter_700Bold', fontSize: 15 },
-  note: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 4 },
+  webView: { flex: 1, backgroundColor: 'transparent' },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    marginTop: 12,
+  },
+  errorState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  errorIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 20,
+    marginTop: 16,
+  },
+  errorMessage: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    minHeight: 48,
+    borderRadius: 7,
+    paddingHorizontal: 18,
+    marginTop: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  retryText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+  },
 });
