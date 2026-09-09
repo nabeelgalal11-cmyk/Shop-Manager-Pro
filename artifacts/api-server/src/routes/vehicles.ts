@@ -25,13 +25,19 @@ router.get("/", async (req, res) => {
 
   const whereClause = conditions.length === 1 ? conditions[0] : conditions.length > 1 ? sql`${conditions[0]} AND ${conditions[1]}` : undefined;
 
-  const vehicles = await db.select().from(vehiclesTable).where(whereClause).orderBy(desc(vehiclesTable.createdAt)).limit(limit).offset(offset);
-  const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(vehiclesTable).where(whereClause);
-
-  const enriched = await Promise.all(vehicles.map(async (v) => {
-    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, v.customerId));
-    return { ...v, customer };
-  }));
+  const [customerRows, countRows] = await Promise.all([
+    db
+      .select({ vehicle: vehiclesTable, customer: customersTable })
+      .from(vehiclesTable)
+      .leftJoin(customersTable, eq(customersTable.id, vehiclesTable.customerId))
+      .where(whereClause)
+      .orderBy(desc(vehiclesTable.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db.select({ count: sql<number>`count(*)` }).from(vehiclesTable).where(whereClause),
+  ]);
+  const [countResult] = countRows;
+  const enriched = customerRows.map(({ vehicle, customer }) => ({ ...vehicle, customer }));
 
   res.json({ data: enriched, total: Number(countResult.count), page, limit });
 });

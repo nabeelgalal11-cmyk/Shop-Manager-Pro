@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Invoices() {
   const [, setLocation] = useLocation();
-  const { data, isLoading } = useGetInvoices({ limit: 50 }, { query: { queryKey: getGetInvoicesQueryKey({ limit: 50 }) } });
+  const { data, isLoading, error } = useGetInvoices({ limit: 50 }, { query: { queryKey: getGetInvoicesQueryKey({ limit: 50 }) } });
   const items = Array.isArray(data) ? data : data?.data || [];
 
   return (
@@ -26,6 +26,12 @@ export default function Invoices() {
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center">
                   <Skeleton className="h-8 w-full" />
+                </TableCell>
+              </TableRow>
+            ) : error ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-24 text-center text-destructive">
+                  Unable to load invoices. Please sign in again and retry.
                 </TableCell>
               </TableRow>
             ) : items.map((inv: any) => (

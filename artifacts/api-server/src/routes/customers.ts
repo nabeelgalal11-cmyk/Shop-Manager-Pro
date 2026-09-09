@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { customersTable, vehiclesTable, invoicesTable, repairOrdersTable, customerCategoriesTable } from "@workspace/db";
-import { eq, ilike, or, sql, desc } from "drizzle-orm";
+import { eq, ilike, or, sql, desc, inArray } from "drizzle-orm";
 
 const router: Router = Router();
 
@@ -25,13 +25,41 @@ router.get("/", async (req, res) => {
     db.select({ count: sql<number>`count(*)` }).from(customersTable).where(whereClause),
   ]);
 
-  const enriched = await Promise.all(data.map(async (customer) => {
-    const [vehicleCount] = await db.select({ count: sql<number>`count(*)` }).from(vehiclesTable).where(eq(vehiclesTable.customerId, customer.id));
-    const invoices = await db.select({ total: invoicesTable.total, amountPaid: invoicesTable.amountPaid }).from(invoicesTable).innerJoin(repairOrdersTable, eq(repairOrdersTable.id, invoicesTable.repairOrderId)).where(eq(repairOrdersTable.customerId, customer.id));
-    const totalBilled = invoices.reduce((sum, inv) => sum + Number(inv.total), 0);
-    const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid), 0);
-    return { ...customer, vehicleCount: Number(vehicleCount.count), totalBilled, totalPaid };
-  }));
+  const customerIds = data.map((customer) => customer.id);
+  const [vehicleCounts, invoiceTotals] = customerIds.length === 0
+    ? [[], []]
+    : await Promise.all([
+        db.select({
+          customerId: vehiclesTable.customerId,
+          count: sql<number>`count(*)`,
+        })
+          .from(vehiclesTable)
+          .where(inArray(vehiclesTable.customerId, customerIds))
+          .groupBy(vehiclesTable.customerId),
+        db.select({
+          customerId: repairOrdersTable.customerId,
+          totalBilled: sql<number>`coalesce(sum(${invoicesTable.total}), 0)`,
+          totalPaid: sql<number>`coalesce(sum(${invoicesTable.amountPaid}), 0)`,
+        })
+          .from(invoicesTable)
+          .innerJoin(repairOrdersTable, eq(repairOrdersTable.id, invoicesTable.repairOrderId))
+          .where(inArray(repairOrdersTable.customerId, customerIds))
+          .groupBy(repairOrdersTable.customerId),
+      ]);
+  const vehicleCountByCustomer = new Map(vehicleCounts.map((row) => [row.customerId, Number(row.count)]));
+  const invoiceTotalsByCustomer = new Map(invoiceTotals.map((row) => [
+    row.customerId,
+    { totalBilled: Number(row.totalBilled), totalPaid: Number(row.totalPaid) },
+  ]));
+  const enriched = data.map((customer) => {
+    const totals = invoiceTotalsByCustomer.get(customer.id);
+    return {
+      ...customer,
+      vehicleCount: vehicleCountByCustomer.get(customer.id) ?? 0,
+      totalBilled: totals?.totalBilled ?? 0,
+      totalPaid: totals?.totalPaid ?? 0,
+    };
+  });
 
   res.json({ data: enriched, total: Number(countResult[0].count), page, limit });
 });

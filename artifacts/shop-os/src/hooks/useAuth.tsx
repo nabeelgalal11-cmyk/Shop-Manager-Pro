@@ -61,6 +61,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  useEffect(() => {
+    const handleUnauthorizedApi = () => {
+      // Generated API queries can discover an expired session before the
+      // auth provider's next refresh. Return to the sign-in screen instead
+      // of leaving the current page's skeleton visible indefinitely.
+      window.location.replace("/");
+    };
+    window.addEventListener("api:unauthorized", handleUnauthorizedApi);
+    return () => window.removeEventListener("api:unauthorized", handleUnauthorizedApi);
+  }, []);
+
   const login = useCallback(async (username: string, password: string) => {
     const r = await fetch(LOGIN_URL, {
       method: "POST",

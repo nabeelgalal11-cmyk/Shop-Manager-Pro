@@ -13,7 +13,7 @@ export default function Vehicles() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useGetVehicles(
+  const { data, isLoading, error } = useGetVehicles(
     { limit: 50 },
     { query: { queryKey: getGetVehiclesQueryKey({ limit: 50 }) } }
   );
@@ -79,6 +79,12 @@ export default function Vehicles() {
                   <TableCell></TableCell>
                 </TableRow>
               ))
+            ) : error ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-32 text-center text-destructive">
+                  Unable to load vehicles. Please sign in again and retry.
+                </TableCell>
+              </TableRow>
             ) : filtered.length > 0 ? (
               filtered.map((vehicle) => (
                 <TableRow

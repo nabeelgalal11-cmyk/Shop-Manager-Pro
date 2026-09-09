@@ -10,3 +10,4 @@
 - [Schema and API tooling quirks](schema-api-tooling-quirks.md) — local additive SQL migrations are safer when Drizzle push prompts on unrelated constraints, and Orval may fail to resolve the local YAML input
 - [Render schema migration](render-schema-migrations.md) — Render Free has no separate migration phase; additive production schema changes use the guarded Render-only startup migration path
 - [EAS standalone bundles](eas-standalone-bundles.md) — mobile APK source uploads must avoid parent-workspace-only dependency specifiers during remote dependency installation
+- [Production host split](production-host-split.md) — app.915motorsusa.com is Render-backed; Replit deployment logs and its replit.app URL do not diagnose that live host

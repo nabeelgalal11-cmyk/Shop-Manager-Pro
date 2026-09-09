@@ -13,7 +13,7 @@ export default function Customers() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useGetCustomers(
+  const { data, isLoading, error } = useGetCustomers(
     { limit: 50 },
     { query: { queryKey: getGetCustomersQueryKey({ limit: 50 }) } }
   );
@@ -76,6 +76,12 @@ export default function Customers() {
                   <TableCell></TableCell>
                 </TableRow>
               ))
+            ) : error ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-32 text-center text-destructive">
+                  Unable to load customers. Please sign in again and retry.
+                </TableCell>
+              </TableRow>
             ) : filtered.length > 0 ? (
               filtered.map((customer) => (
                 <TableRow

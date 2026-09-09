@@ -71,7 +71,15 @@ import EstimatePublic from "@/pages/estimate-public";
 import ResetPassword from "@/pages/reset-password";
 import { useLocation as useWouterLocation } from "wouter";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // An authentication or permission failure should be shown immediately.
+      // Retrying it several times makes every list page look permanently stuck.
+      retry: false,
+    },
+  },
+});
 
 class AppErrorBoundary extends React.Component<
   { children: React.ReactNode },
