@@ -227,10 +227,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <DropdownMenuSeparator />
                     {isAdmin && (
                       <>
-                        <DropdownMenuItem onClick={() => window.location.assign(import.meta.env.BASE_URL + "employees")}>
+                        <DropdownMenuItem onClick={() => navigate("/employees")}>
                           <KeyRound className="h-4 w-4 mr-2" /> Employees &amp; Access
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => window.location.assign(import.meta.env.BASE_URL + "permissions")}>
+                        <DropdownMenuItem onClick={() => navigate("/permissions")}>
                           <Shield className="h-4 w-4 mr-2" /> Permissions
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />

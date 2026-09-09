@@ -70,10 +70,24 @@ if (process.env.NODE_ENV !== "test") {
 // API routes
 app.use("/api", router);
 
-// 🔥 SERVE FRONTEND (shop-os)
+// Serve the frontend. Vite gives fingerprinted assets stable content hashes,
+// so let mobile WebViews and browsers keep those assets without revalidating
+// the entire 1.5 MB application bundle on every full-page navigation.
 const frontendPath = path.join(__dirname, "../../shop-os/dist/public");
 
-app.use(express.static(frontendPath));
+app.use(
+  express.static(frontendPath, {
+    setHeaders(res, filePath) {
+      const fileName = path.basename(filePath);
+      if (/-[A-Za-z0-9_-]{8,}\.[^.]+$/.test(fileName)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else {
+        // Keep the shell and unhashed files fresh after a deployment.
+        res.setHeader("Cache-Control", "no-cache");
+      }
+    },
+  }),
+);
 
 // SPA fallback (for React routes like /repair-orders)
 app.get(/.*/, (req, res) => {

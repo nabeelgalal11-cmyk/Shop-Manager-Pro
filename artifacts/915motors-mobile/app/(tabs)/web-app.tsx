@@ -88,6 +88,8 @@ export default function WebAppScreen() {
             style={styles.webView}
             javaScriptEnabled
             domStorageEnabled
+            cacheEnabled
+            cacheMode="LOAD_DEFAULT"
             sharedCookiesEnabled
             thirdPartyCookiesEnabled
             allowsBackForwardNavigationGestures

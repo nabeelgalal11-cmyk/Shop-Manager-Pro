@@ -84,3 +84,17 @@ mtime_ms = 1788912643195
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/a9656b70-43cb-41eb-92a2-0cfdabdc4c38/0fd4321c-09d5-4445-8e8d-2b206d2c90e3"
 storage_version_token = "1788912732746902"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "-tDFsT3rycXeqka0eUGCC"
+uri = "file://exports/915motors-mobile-apk-standalone-v5.zip"
+type = "unspecified"
+title = "915motors APK source — faster WebView loading"
+description = "Updated standalone Expo source with normal WebView disk caching enabled, the embedded Web App tab, native Invoices, and Square payment support. Extract it outside the original pnpm workspace before building on Windows."
+logical_id = "b407e02a-c1a3-4dc6-a6fb-f062cf729c62"
+content_hash = "sha256:ffd3f9182f3fd5f8173a9e88a059cd72a1b24a0e60a3a62c190626925c691f89"
+size = 933776
+mtime_ms = 1788916556442
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/b407e02a-c1a3-4dc6-a6fb-f062cf729c62/7fe8ef7a-f299-4c0f-b88a-a238ccdbcbbf"
+storage_version_token = "1788916565200196"
+content_type = "application/octet-stream"
