@@ -360,7 +360,17 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  // Explicitly include cookies for browser and Android WebView callers.
+  // WebView implementations are less consistent than desktop browsers about
+  // applying the default "same-origin" credentials mode, and omitting the
+  // session cookie makes authenticated React Query requests retry for a long
+  // time while pages appear stuck loading.
+  const response = await fetch(input, {
+    ...init,
+    method,
+    headers,
+    credentials: init.credentials ?? "include",
+  });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
