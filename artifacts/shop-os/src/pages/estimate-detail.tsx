@@ -5,6 +5,8 @@ import {
   useGetEstimate, getGetEstimateQueryKey,
   useSendEstimateRevision,
   useReplaceEstimateRevisionDraftItems,
+  useGetInventory,
+  getGetInventoryQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,11 +14,12 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, Send, Copy, Plus, Trash2, Save, X } from "lucide-react";
+import { ArrowLeft, Printer, Send, Copy, Plus, Trash2, Save, X, Search, Package, Wrench } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
 
 export default function EstimateDetail() {
   const [match, params] = useRoute("/estimates/:id");
@@ -28,6 +31,10 @@ export default function EstimateDetail() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [draftItems, setDraftItems] = useState<any[]>([]);
+  const [cannedJobOpen, setCannedJobOpen] = useState(false);
+  const [activePartIndex, setActivePartIndex] = useState<number | null>(null);
+  const [partSearch, setPartSearch] = useState("");
+  const [debouncedPartSearch, setDebouncedPartSearch] = useState("");
 
   const { data: estimate, isLoading } = useGetEstimate(id, {
     query: { enabled: !!id, queryKey: getGetEstimateQueryKey(id) },
@@ -35,6 +42,23 @@ export default function EstimateDetail() {
 
   const sendEstimate = useSendEstimateRevision();
   const saveDraftItems = useReplaceEstimateRevisionDraftItems();
+  const inventoryQuery = useGetInventory(
+    { search: debouncedPartSearch || undefined, limit: 20 },
+    {
+      query: {
+        enabled: isEditing && activePartIndex !== null && debouncedPartSearch.length > 0,
+        queryKey: getGetInventoryQueryKey({
+          search: debouncedPartSearch || undefined,
+          limit: 20,
+        }),
+      },
+    },
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedPartSearch(partSearch.trim()), 200);
+    return () => clearTimeout(timer);
+  }, [partSearch]);
 
   useEffect(() => {
     if (estimate && isEditing) {
@@ -106,6 +130,33 @@ export default function EstimateDetail() {
     const newItems = [...draftItems];
     newItems[index] = { ...newItems[index], [field]: value };
     setDraftItems(newItems);
+  };
+
+  const selectInventoryPart = (index: number, item: any) => {
+    const newItems = [...draftItems];
+    newItems[index] = {
+      ...newItems[index],
+      kind: "part",
+      description: item.name,
+      unitPrice: Number(item.sellPrice ?? 0),
+      partNumber: item.partNumber ?? "",
+      inventoryId: item.id,
+    };
+    setDraftItems(newItems);
+    setPartSearch(item.name);
+    setActivePartIndex(null);
+    setDebouncedPartSearch("");
+  };
+
+  const addCannedJob = (job: CannedJob) => {
+    const items = job.items.map((item) => ({
+      kind: item.type,
+      description: item.description,
+      quantity: item.type === "labor" ? Number(item.quantity || job.estimatedHours || 1) : Number(item.quantity || 1),
+      unitPrice: Number(item.unitPrice || 0),
+      priceIncludesTax: false,
+    }));
+    setDraftItems((current) => [...current, ...items]);
   };
 
   const formatCurrency = (val: number) =>
@@ -210,9 +261,14 @@ export default function EstimateDetail() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold">Edit Draft Items</h3>
-                <Button variant="outline" size="sm" onClick={addDraftItem}>
-                  <Plus className="h-4 w-4 mr-2" /> Add Item
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCannedJobOpen(true)}>
+                    <Wrench className="h-4 w-4 mr-2" /> Find Labor / Job
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={addDraftItem}>
+                    <Plus className="h-4 w-4 mr-2" /> Add Item
+                  </Button>
+                </div>
               </div>
               <div className="space-y-3">
                 {draftItems.map((item, idx) => (
@@ -237,6 +293,59 @@ export default function EstimateDetail() {
                         value={item.description}
                         onChange={(e) => updateDraftItem(idx, 'description', e.target.value)}
                       />
+                      {item.kind === "part" && (
+                        <div className="relative">
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              className="h-8 pl-7 text-xs"
+                              placeholder="Search inventory by name, part #, or category"
+                              value={activePartIndex === idx ? partSearch : ""}
+                              onFocus={() => {
+                                setActivePartIndex(idx);
+                                setPartSearch(item.description || "");
+                              }}
+                              onChange={(e) => {
+                                setActivePartIndex(idx);
+                                setPartSearch(e.target.value);
+                              }}
+                            />
+                          </div>
+                          {activePartIndex === idx && debouncedPartSearch && (
+                            <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
+                              {inventoryQuery.isLoading ? (
+                                <div className="p-2 text-xs text-muted-foreground">Searching inventory…</div>
+                              ) : inventoryQuery.isError ? (
+                                <div className="p-2 text-xs text-destructive">Inventory search failed. Manual entry is still available.</div>
+                              ) : inventoryQuery.data?.data?.length ? (
+                                inventoryQuery.data.data.map((result: any) => (
+                                  <button
+                                    type="button"
+                                    key={result.id}
+                                    className="flex w-full items-start gap-2 rounded-sm p-2 text-left text-xs hover:bg-muted"
+                                    onMouseDown={(event) => {
+                                      event.preventDefault();
+                                      selectInventoryPart(idx, result);
+                                    }}
+                                  >
+                                    <Package className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate font-medium">{result.name}</span>
+                                      <span className="block truncate text-muted-foreground">
+                                        {result.partNumber || "No part number"}{result.category ? ` · ${result.category}` : ""}
+                                        {" · "}{Number(result.quantity ?? 0)} in stock
+                                      </span>
+                                    </span>
+                                    <span className="font-medium">${Number(result.sellPrice ?? 0).toFixed(2)}</span>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="p-2 text-xs text-muted-foreground">No inventory matches. You can enter the part manually.</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {item.kind === "part" && (
                       <label className="flex items-center gap-2 text-xs sm:col-span-2">
@@ -354,6 +463,11 @@ export default function EstimateDetail() {
               </Table>
             </>
           )}
+          <CannedJobPicker
+            open={cannedJobOpen}
+            onClose={() => setCannedJobOpen(false)}
+            onPick={addCannedJob}
+          />
 
           <div className="mt-8 flex justify-end">
             <div className="w-64 space-y-3">

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { inventoryTable, stockMovementsTable, suppliersTable } from "@workspace/db";
-import { eq, ilike, sql, desc } from "drizzle-orm";
+import { eq, ilike, sql, desc, or } from "drizzle-orm";
 
 const router: Router = Router();
 
@@ -41,8 +41,13 @@ router.get("/", async (req, res) => {
   let countQuery = db.select({ count: sql<number>`count(*)` }).from(inventoryTable).$dynamic();
 
   if (search) {
-    query = query.where(ilike(inventoryTable.name, `%${search}%`));
-    countQuery = countQuery.where(ilike(inventoryTable.name, `%${search}%`));
+    const searchFilter = or(
+      ilike(inventoryTable.name, `%${search}%`),
+      ilike(inventoryTable.partNumber, `%${search}%`),
+      ilike(inventoryTable.category, `%${search}%`),
+    );
+    query = query.where(searchFilter);
+    countQuery = countQuery.where(searchFilter);
   }
   if (category) {
     query = query.where(eq(inventoryTable.category, category));
