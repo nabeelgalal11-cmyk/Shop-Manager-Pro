@@ -14,12 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, Send, Copy, Plus, Trash2, Save, X, Search, Package, Wrench } from "lucide-react";
+import { ArrowLeft, Printer, Send, Copy, Plus, Trash2, Save, X, Search, Package, Wrench, Bot } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
+import { AIEstimateModal } from "@/components/ai-estimate-modal";
 
 export default function EstimateDetail() {
   const [match, params] = useRoute("/estimates/:id");
@@ -32,6 +33,7 @@ export default function EstimateDetail() {
   const [isEditing, setIsEditing] = useState(false);
   const [draftItems, setDraftItems] = useState<any[]>([]);
   const [cannedJobOpen, setCannedJobOpen] = useState(false);
+  const [aiEstimateOpen, setAiEstimateOpen] = useState(false);
   const [activePartIndex, setActivePartIndex] = useState<number | null>(null);
   const [partSearch, setPartSearch] = useState("");
   const [debouncedPartSearch, setDebouncedPartSearch] = useState("");
@@ -159,6 +161,24 @@ export default function EstimateDetail() {
     setDraftItems((current) => [...current, ...items]);
   };
 
+  const addAIEstimate = (items: Array<{
+    type: "labor" | "part" | "fee" | "discount";
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }>) => {
+    setDraftItems((current) => [
+      ...current,
+      ...items.map((item) => ({
+        kind: item.type,
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        priceIncludesTax: false,
+      })),
+    ]);
+  };
+
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
 
@@ -262,6 +282,9 @@ export default function EstimateDetail() {
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold">Edit Draft Items</h3>
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setAiEstimateOpen(true)}>
+                    <Bot className="h-4 w-4 mr-2" /> AI Estimate
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => setCannedJobOpen(true)}>
                     <Wrench className="h-4 w-4 mr-2" /> Find Labor / Job
                   </Button>
@@ -467,6 +490,23 @@ export default function EstimateDetail() {
             open={cannedJobOpen}
             onClose={() => setCannedJobOpen(false)}
             onPick={addCannedJob}
+          />
+          <AIEstimateModal
+            open={aiEstimateOpen}
+            onClose={() => setAiEstimateOpen(false)}
+            vehicles={(() => {
+              const vehicle = estimate?.vehicleSnapshot as any;
+              return vehicle?.id
+                ? [{
+                    id: Number(vehicle.id),
+                    year: Number(vehicle.year),
+                    make: String(vehicle.make ?? ""),
+                    model: String(vehicle.model ?? ""),
+                  }]
+                : [];
+            })()}
+            selectedVehicleId={Number((estimate?.vehicleSnapshot as any)?.id ?? 0)}
+            onApply={addAIEstimate}
           />
 
           <div className="mt-8 flex justify-end">
