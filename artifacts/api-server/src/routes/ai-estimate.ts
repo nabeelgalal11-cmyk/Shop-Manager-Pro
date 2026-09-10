@@ -1,12 +1,11 @@
 import { Router, type IRouter } from "express";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const router: IRouter = Router();
 
-const openai = new OpenAI({
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-});
+const gemini = process.env.GEMINI_API_KEY
+  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  : null;
 
 router.post("/", async (req, res) => {
   const { vehicle, repair } = req.body;
@@ -48,13 +47,23 @@ Rules:
 - Be practical. Consider rust, access difficulty, and real shop conditions.`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5.2",
-      max_completion_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
+    if (!gemini) {
+      return res.status(503).json({
+        error: "Gemini AI is not configured on the server",
+      });
+    }
+
+    const model = gemini.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+        maxOutputTokens: 1024,
+      },
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "";
+    const result = await model.generateContent(prompt);
+    const raw = result.response.text();
 
     let parsed: any;
     try {
@@ -69,7 +78,16 @@ Rules:
 
     res.json(parsed);
   } catch (err: any) {
-    res.status(500).json({ error: err?.message ?? "AI request failed" });
+    const providerStatus = err?.status ?? err?.response?.status;
+    if (providerStatus === 429) {
+      return res.status(429).json({
+        error:
+          "Gemini free-tier quota reached. Please wait and try again later.",
+      });
+    }
+
+    console.error("Gemini estimate request failed", err);
+    res.status(500).json({ error: "AI estimate request failed" });
   }
 });
 
