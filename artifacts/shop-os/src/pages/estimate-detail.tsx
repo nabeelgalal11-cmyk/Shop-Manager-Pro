@@ -14,13 +14,14 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, Send, Copy, Plus, Trash2, Save, X, Search, Package, Wrench, Bot } from "lucide-react";
+import { ArrowLeft, Printer, Send, Copy, Plus, Trash2, Save, X, Search, Package, Wrench, Bot, BookOpen } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
 import { AIEstimateModal } from "@/components/ai-estimate-modal";
+import { RepairGuideModal } from "@/components/repair-guide-modal";
 
 export default function EstimateDetail() {
   const [match, params] = useRoute("/estimates/:id");
@@ -34,6 +35,7 @@ export default function EstimateDetail() {
   const [draftItems, setDraftItems] = useState<any[]>([]);
   const [cannedJobOpen, setCannedJobOpen] = useState(false);
   const [aiEstimateOpen, setAiEstimateOpen] = useState(false);
+  const [repairGuideOpen, setRepairGuideOpen] = useState(false);
   const [activePartIndex, setActivePartIndex] = useState<number | null>(null);
   const [partSearch, setPartSearch] = useState("");
   const [debouncedPartSearch, setDebouncedPartSearch] = useState("");
@@ -80,6 +82,16 @@ export default function EstimateDetail() {
   const publicToken = estimate?.publicToken;
   const publicUrl = publicToken ? `${window.location.origin}/estimate/${publicToken}` : null;
   const isDraft = status === "draft";
+  const vehicleSnapshot = estimate?.vehicleSnapshot as any;
+  const repairGuideVehicle = {
+    year: Number(vehicleSnapshot?.year ?? 0),
+    make: String(vehicleSnapshot?.make ?? ""),
+    model: String(vehicleSnapshot?.model ?? ""),
+  };
+  const repairGuideRepair = (isEditing ? draftItems : estimate?.items ?? [])
+    .map((item: any) => item.description)
+    .filter(Boolean)
+    .join(", ");
 
   const handleSend = () => {
     sendEstimate.mutate({ revisionId: id }, {
@@ -234,6 +246,14 @@ export default function EstimateDetail() {
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" /> Print
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setRepairGuideOpen(true)}
+            disabled={!repairGuideVehicle.year || !repairGuideVehicle.make || !repairGuideVehicle.model}
+            title="Open repair steps and YouTube videos"
+          >
+            <BookOpen className="h-4 w-4 mr-2" /> How To & Videos
           </Button>
           {(status === "draft" || status === "sent" || status === "viewed") && (
             <Button onClick={handleSend} disabled={sendEstimate.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -507,6 +527,12 @@ export default function EstimateDetail() {
             })()}
             selectedVehicleId={Number((estimate?.vehicleSnapshot as any)?.id ?? 0)}
             onApply={addAIEstimate}
+          />
+          <RepairGuideModal
+            open={repairGuideOpen}
+            onClose={() => setRepairGuideOpen(false)}
+            vehicle={repairGuideVehicle}
+            initialRepair={repairGuideRepair}
           />
 
           <div className="mt-8 flex justify-end">
