@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 const router: IRouter = Router();
 
@@ -54,15 +54,72 @@ Rules:
     }
 
     const model = gemini.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-lite-latest",
       generationConfig: {
         responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.OBJECT,
+          properties: {
+            labor_hours: { type: SchemaType.STRING },
+            labor_value: { type: SchemaType.NUMBER },
+            labor_rate: { type: SchemaType.NUMBER },
+            parts: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  name: { type: SchemaType.STRING },
+                  type: {
+                    type: SchemaType.STRING,
+                    format: "enum",
+                    enum: ["required", "recommended"],
+                  },
+                  estimated_price: { type: SchemaType.NUMBER },
+                },
+                required: ["name", "type", "estimated_price"],
+              },
+            },
+            fluids: {
+              type: SchemaType.ARRAY,
+              items: { type: SchemaType.STRING },
+            },
+            notes: { type: SchemaType.STRING },
+          },
+          required: [
+            "labor_hours",
+            "labor_value",
+            "labor_rate",
+            "parts",
+            "fluids",
+            "notes",
+          ],
+        },
         temperature: 0.2,
         maxOutputTokens: 1024,
       },
     });
 
-    const result = await model.generateContent(prompt);
+    let result;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        result = await model.generateContent(prompt);
+        break;
+      } catch (error: any) {
+        const providerStatus = error?.status ?? error?.response?.status;
+        const retryable = providerStatus === 429 || providerStatus === 503;
+        if (!retryable || attempt === 2) {
+          throw error;
+        }
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 * (attempt + 1)),
+        );
+      }
+    }
+
+    if (!result) {
+      throw new Error("Gemini did not return an estimate");
+    }
+
     const raw = result.response.text();
 
     let parsed: any;
@@ -83,6 +140,11 @@ Rules:
       return res.status(429).json({
         error:
           "Gemini free-tier quota reached. Please wait and try again later.",
+      });
+    }
+    if (providerStatus === 503) {
+      return res.status(503).json({
+        error: "Gemini is temporarily busy. Please try again shortly.",
       });
     }
 
