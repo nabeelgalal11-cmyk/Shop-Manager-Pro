@@ -24,6 +24,10 @@ console.log(
     `HOSTGATOR_STORAGE_TOKEN: ${process.env.HOSTGATOR_STORAGE_TOKEN ? "set" : "MISSING"}; ` +
     `HOSTGATOR_PUBLIC_BASE_URL: ${process.env.HOSTGATOR_PUBLIC_BASE_URL ? "set" : "MISSING"}`,
 );
+console.log(
+  `[boot] Square configuration: SQUARE_ACCESS_TOKEN: ${process.env.SQUARE_ACCESS_TOKEN?.trim() ? "set" : "MISSING"}; ` +
+    `SQUARE_ENVIRONMENT: ${process.env.SQUARE_ENVIRONMENT?.trim() || "sandbox"}`,
+);
 if (!renderSecretEnvFound) {
   // Help users find their actual mount path on first boot.
   try {

@@ -31,7 +31,7 @@ type SquareResponse<T> = T & { errors?: Array<{ code?: string; detail?: string; 
 
 export class SquareClient {
   readonly baseUrl: string;
-  constructor(private readonly accessToken = process.env.SQUARE_ACCESS_TOKEN, environment = process.env.SQUARE_ENVIRONMENT ?? "sandbox") {
+  constructor(private readonly accessToken = process.env.SQUARE_ACCESS_TOKEN?.trim(), environment = process.env.SQUARE_ENVIRONMENT?.trim() ?? "sandbox") {
     if (!accessToken) throw new SquareError("Square access token is not configured", 503, "SQUARE_NOT_CONFIGURED");
     if (environment !== "sandbox" && environment !== "production") throw new SquareError("SQUARE_ENVIRONMENT must be sandbox or production", 500);
     this.baseUrl = environment === "production" ? PRODUCTION_URL : SANDBOX_URL;
