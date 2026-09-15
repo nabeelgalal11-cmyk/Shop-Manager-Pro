@@ -97,8 +97,16 @@ export default function EstimateDetail() {
 
   const handleSend = () => {
     sendEstimate.mutate({ revisionId: id }, {
-      onSuccess: () => {
-        toast({ title: "Estimate sent" });
+      onSuccess: (result: any) => {
+        if (result.emailSent) {
+          toast({ title: "Estimate sent", description: "The estimate email was delivered to the customer." });
+        } else {
+          toast({
+            title: "Estimate sent, but email was not delivered",
+            description: result.emailError || "Use the approval link to share it with the customer.",
+            variant: "destructive",
+          });
+        }
         queryClient.invalidateQueries({ queryKey: getGetEstimateQueryKey(id) });
       },
       onError: (err: any) => {

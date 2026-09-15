@@ -14,6 +14,8 @@ import {
   lineTotalCents,
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { escapeHtml, sendTemplatedEmail } from "./email.js";
+import { getShopDocumentInfo } from "./shop-settings.js";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export class WorkflowError extends Error {
@@ -177,8 +179,55 @@ export async function replaceDraftItems(revisionId: number, items: DraftItem[], 
   });
 }
 
+type EstimateEmailResult = {
+  ok: boolean;
+  error?: string;
+  provider?: string;
+};
+
+async function sendEstimateEmail(revision: {
+  repairOrderId: number;
+  revisionNo: number;
+  total: string;
+  publicToken: string | null;
+  customerSnapshot: Record<string, unknown>;
+}): Promise<EstimateEmailResult> {
+  const customer = revision.customerSnapshot;
+  const customerEmail = typeof customer.email === "string" ? customer.email.trim() : "";
+  if (!customerEmail) return { ok: false, error: "Customer has no email address on file" };
+  if (!revision.publicToken) return { ok: false, error: "Estimate approval link was not created" };
+
+  const configuredBase = process.env.PUBLIC_BASE_URL?.trim();
+  if (!configuredBase) return { ok: false, error: "PUBLIC_BASE_URL is not configured" };
+
+  let estimateUrl: string;
+  try {
+    const base = new URL(configuredBase);
+    if (!["http:", "https:"].includes(base.protocol) || base.username || base.password) {
+      return { ok: false, error: "PUBLIC_BASE_URL must be an absolute HTTP(S) URL" };
+    }
+    estimateUrl = new URL(`/estimate/${encodeURIComponent(revision.publicToken)}`, base).toString();
+  } catch {
+    return { ok: false, error: "PUBLIC_BASE_URL must be an absolute HTTP(S) URL" };
+  }
+
+  try {
+    const shop = await getShopDocumentInfo();
+    const result = await sendTemplatedEmail("estimate_sent", customerEmail, {
+      customerName: escapeHtml(`${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || "Customer"),
+      shopName: escapeHtml(shop.shopName),
+      estimateNumber: `RO-${revision.repairOrderId}-REV-${revision.revisionNo}`,
+      total: escapeHtml(`$${revision.total}`),
+      estimateUrl: escapeHtml(estimateUrl),
+    });
+    return { ok: result.ok, error: result.error, provider: result.provider };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Estimate email failed" };
+  }
+}
+
 export async function sendRevision(revisionId: number, actorId: number) {
-  return db.transaction(async (tx) => {
+  const revision = await db.transaction(async (tx) => {
     const [revision] = await tx.select().from(estimateRevisionsTable).where(eq(estimateRevisionsTable.id, revisionId)).for("update");
     if (!revision) throw new WorkflowError("Revision not found", 404);
     const [[ro], items, sent] = await Promise.all([
@@ -196,6 +245,13 @@ export async function sendRevision(revisionId: number, actorId: number) {
     await event(tx, ro.id, revision.kind === "supplement" ? "supplement_sent" : "estimate_sent", actorId, { revisionId, priorOperationalStatus: revision.kind === "supplement" ? ro.status : null });
     return updated;
   });
+  const email = await sendEstimateEmail(revision);
+  return {
+    ...revision,
+    emailSent: email.ok,
+    emailError: email.ok ? null : email.error || "Estimate email failed",
+    emailProvider: email.provider ?? null,
+  };
 }
 
 export async function decideRevision(token: string, input: { signerName: string; signerEmail?: string | null; decision: "approved" | "declined"; approvedItemIds: number[]; declinedItemIds: number[]; requestIp?: string; requestUserAgent?: string }) {
