@@ -4129,6 +4129,90 @@ export const useSendEstimateRevision = <
 };
 
 /**
+ * @summary Resend a sent revision while it awaits customer decision
+ */
+export const getResendEstimateRevisionUrl = (revisionId: number) => {
+  return `/api/repair-orders/revisions/${revisionId}/resend`;
+};
+
+export const resendEstimateRevision = async (
+  revisionId: number,
+  options?: RequestInit,
+): Promise<EstimateRevision> => {
+  return customFetch<EstimateRevision>(getResendEstimateRevisionUrl(revisionId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getResendEstimateRevisionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendEstimateRevision>>,
+    TError,
+    { revisionId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resendEstimateRevision>>,
+  TError,
+  { revisionId: number },
+  TContext
+> => {
+  const mutationKey = ["resendEstimateRevision"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resendEstimateRevision>>,
+    { revisionId: number }
+  > = (props) => {
+    const { revisionId } = props ?? {};
+
+    return resendEstimateRevision(revisionId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResendEstimateRevisionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resendEstimateRevision>>
+>;
+
+export type ResendEstimateRevisionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Resend a sent revision while it awaits customer decision
+ */
+export const useResendEstimateRevision = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resendEstimateRevision>>,
+    TError,
+    { revisionId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof resendEstimateRevision>>,
+  TError,
+  { revisionId: number },
+  TContext
+> => {
+  return useMutation(getResendEstimateRevisionMutationOptions(options));
+};
+
+/**
  * @summary Mark an authorized work item performed
  */
 export const getPerformRepairOrderWorkItemUrl = (workItemId: number) => {

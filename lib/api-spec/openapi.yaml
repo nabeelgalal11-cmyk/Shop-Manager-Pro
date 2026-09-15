@@ -933,7 +933,18 @@ paths:
       parameters:
         - $ref: "#/components/parameters/RevisionId"
       responses:
-        "200": { description: Sent revision, content: { application/json: { schema: { $ref: "#/components/schemas/EstimateRevision" } } } }
+        "200": { description: Sent revision and email delivery result, content: { application/json: { schema: { $ref: "#/components/schemas/EstimateRevisionEmailResult" } } } }
+
+  /repair-orders/revisions/{revisionId}/resend:
+    post:
+      operationId: resendEstimateRevision
+      tags: [repair-orders, estimates]
+      summary: Resend a sent revision while it awaits customer decision
+      parameters:
+        - $ref: "#/components/parameters/RevisionId"
+      responses:
+        "200": { description: Resent revision and email delivery result, content: { application/json: { schema: { $ref: "#/components/schemas/EstimateRevisionEmailResult" } } } }
+        "409": { $ref: "#/components/responses/WorkflowConflict" }
 
   /repair-orders/work-items/{workItemId}/perform:
     post:
@@ -4982,6 +4993,15 @@ components:
         createdById: { type: integer, readOnly: true }
         createdAt: { type: string, format: date-time, readOnly: true }
         updatedAt: { type: string, format: date-time, readOnly: true }
+    EstimateRevisionEmailResult:
+      allOf:
+        - $ref: "#/components/schemas/EstimateRevision"
+        - type: object
+          required: [emailSent, emailError, emailProvider]
+          properties:
+            emailSent: { type: boolean, readOnly: true }
+            emailError: { type: [string, "null"], readOnly: true }
+            emailProvider: { type: [string, "null"], readOnly: true }
     EstimateRevisionDetail:
       allOf:
         - $ref: "#/components/schemas/EstimateRevision"

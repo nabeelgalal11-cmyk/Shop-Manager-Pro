@@ -5,7 +5,7 @@ import { getUser, requirePermission } from "../lib/auth.js";
 import {
   WorkflowError, completeRepairOrder, createFinalInvoice, createRepairOrder,
   createRevision, getRepairOrderWorkflow, performWorkItem, cancelRepairOrder,
-  replaceDraftItems, sendRevision, updateIntake,
+  replaceDraftItems, resendRevision, sendRevision, updateIntake,
 } from "../lib/repair-workflow.js";
 
 const router: IRouter = Router();
@@ -89,6 +89,15 @@ router.post("/revisions/:revisionId/send", requirePermission("estimates", "edit"
     const revisionId = id(req.params.revisionId);
     await requireCommercialRevisionAccess(req, revisionId);
     res.json(await sendRevision(revisionId, user.id));
+  } catch (error) { sendError(res, error); }
+});
+router.post("/revisions/:revisionId/resend", requirePermission("estimates", "edit"), async (req, res): Promise<void> => {
+  try {
+    const user = getUser(req)!;
+    if (!user.roles.some((role) => ["admin", "manager", "advisor"].includes(role))) throw new WorkflowError("Only advisors or managers may resend revisions", 403);
+    const revisionId = id(req.params.revisionId);
+    await requireCommercialRevisionAccess(req, revisionId);
+    res.json(await resendRevision(revisionId));
   } catch (error) { sendError(res, error); }
 });
 router.post("/work-items/:workItemId/perform", requirePermission("repair_orders", "edit"), async (req, res): Promise<void> => {

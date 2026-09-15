@@ -254,6 +254,22 @@ export async function sendRevision(revisionId: number, actorId: number) {
   };
 }
 
+export async function resendRevision(revisionId: number) {
+  const [revision] = await db.select().from(estimateRevisionsTable).where(eq(estimateRevisionsTable.id, revisionId));
+  if (!revision) throw new WorkflowError("Revision not found", 404);
+  if (revision.status !== "sent") {
+    throw new WorkflowError("Only estimates awaiting customer decision can be resent", 409);
+  }
+
+  const email = await sendEstimateEmail(revision);
+  return {
+    ...revision,
+    emailSent: email.ok,
+    emailError: email.ok ? null : email.error || "Estimate email failed",
+    emailProvider: email.provider ?? null,
+  };
+}
+
 export async function decideRevision(token: string, input: { signerName: string; signerEmail?: string | null; decision: "approved" | "declined"; approvedItemIds: number[]; declinedItemIds: number[]; requestIp?: string; requestUserAgent?: string }) {
   return db.transaction(async (tx) => {
     const [revision] = await tx.select().from(estimateRevisionsTable).where(eq(estimateRevisionsTable.publicToken, token)).for("update");

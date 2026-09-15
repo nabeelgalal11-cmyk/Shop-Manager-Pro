@@ -3,7 +3,7 @@ import { useRoute, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetEstimate, getGetEstimateQueryKey,
-  useSendEstimateRevision,
+  useSendEstimateRevision, useResendEstimateRevision,
   useReplaceEstimateRevisionDraftItems,
   useGetInventory,
   getGetInventoryQueryKey,
@@ -47,6 +47,7 @@ export default function EstimateDetail() {
   const { data: shop } = useShopSettings();
 
   const sendEstimate = useSendEstimateRevision();
+  const resendEstimate = useResendEstimateRevision();
   const saveDraftItems = useReplaceEstimateRevisionDraftItems();
   const inventoryQuery = useGetInventory(
     { search: debouncedPartSearch || undefined, limit: 20 },
@@ -112,6 +113,26 @@ export default function EstimateDetail() {
       onError: (err: any) => {
         toast({ title: "Failed to send estimate", description: err.message, variant: "destructive" });
       }
+    });
+  };
+
+  const handleResend = () => {
+    resendEstimate.mutate({ revisionId: id }, {
+      onSuccess: (result: any) => {
+        if (result.emailSent) {
+          toast({ title: "Estimate resent", description: "The estimate email was sent again to the customer." });
+        } else {
+          toast({
+            title: "Estimate remains pending, but email was not delivered",
+            description: result.emailError || "Use the approval link to share it with the customer.",
+            variant: "destructive",
+          });
+        }
+        queryClient.invalidateQueries({ queryKey: getGetEstimateQueryKey(id) });
+      },
+      onError: (err: any) => {
+        toast({ title: "Failed to resend estimate", description: err.message, variant: "destructive" });
+      },
     });
   };
 
@@ -272,9 +293,14 @@ export default function EstimateDetail() {
           >
             <BookOpen className="h-4 w-4 mr-2" /> How To & Videos
           </Button>
-          {(status === "draft" || status === "sent" || status === "viewed") && (
+          {status === "draft" && (
             <Button onClick={handleSend} disabled={sendEstimate.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
               <Send className="h-4 w-4 mr-2" /> {sendEstimate.isPending ? "Sending…" : "Send for approval"}
+            </Button>
+          )}
+          {status === "sent" && (
+            <Button onClick={handleResend} disabled={resendEstimate.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Send className="h-4 w-4 mr-2" /> {resendEstimate.isPending ? "Resending…" : "Resend email"}
             </Button>
           )}
         </div>
