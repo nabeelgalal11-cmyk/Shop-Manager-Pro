@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useCreateVehicle } from "@workspace/api-client-react";
+import { useCreateCustomer, useCreateVehicle } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -10,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, Plus } from "lucide-react";
 import { CustomerCombobox } from "@/components/customer-combobox";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const formSchema = z.object({
   customerId: z.coerce.number().min(1, "Customer is required"),
@@ -31,6 +33,7 @@ const formSchema = z.object({
 export default function VehiclesNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,7 +54,15 @@ export default function VehiclesNew() {
   });
 
   const createVehicle = useCreateVehicle();
+  const createCustomer = useCreateCustomer();
   const [decoding, setDecoding] = useState(false);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    email: "",
+  });
 
   async function decodeVin() {
     const vin = (form.getValues("vin") || "").trim();
@@ -83,6 +94,51 @@ export default function VehiclesNew() {
     } finally {
       setDecoding(false);
     }
+  }
+
+  function handleCreateCustomer() {
+    const firstName = newCustomer.firstName.trim();
+    const lastName = newCustomer.lastName.trim();
+    if (!firstName || !lastName) {
+      toast({
+        title: "First and last name are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createCustomer.mutate(
+      {
+        data: {
+          firstName,
+          lastName,
+          phone: newCustomer.phone.trim(),
+          email: newCustomer.email.trim(),
+        } as any,
+      },
+      {
+        onSuccess: (customer) => {
+          queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+          form.setValue("customerId", Number(customer.id), {
+            shouldDirty: true,
+            shouldValidate: true,
+          });
+          setNewCustomer({ firstName: "", lastName: "", phone: "", email: "" });
+          setNewCustomerOpen(false);
+          toast({
+            title: "Customer added",
+            description: `${firstName} ${lastName} is now selected for this vehicle.`,
+          });
+        },
+        onError: () => {
+          toast({
+            title: "Could not add customer",
+            description: "Please check the customer information and try again.",
+            variant: "destructive",
+          });
+        },
+      },
+    );
   }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
@@ -117,7 +173,17 @@ export default function VehiclesNew() {
                 name="customerId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Customer</FormLabel>
+                    <div className="flex items-center justify-between">
+                      <FormLabel>Customer</FormLabel>
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="h-auto gap-1 p-0 text-xs"
+                        onClick={() => setNewCustomerOpen(true)}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add customer
+                      </Button>
+                    </div>
                     <FormControl>
                       <CustomerCombobox
                         value={field.value || null}
@@ -203,6 +269,81 @@ export default function VehiclesNew() {
           </Form>
         </CardContent>
       </Card>
+
+      <Dialog open={newCustomerOpen} onOpenChange={setNewCustomerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add customer</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="new-customer-first-name">First name</Label>
+                <Input
+                  id="new-customer-first-name"
+                  autoFocus
+                  value={newCustomer.firstName}
+                  onChange={(event) =>
+                    setNewCustomer((current) => ({
+                      ...current,
+                      firstName: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-customer-last-name">Last name</Label>
+                <Input
+                  id="new-customer-last-name"
+                  value={newCustomer.lastName}
+                  onChange={(event) =>
+                    setNewCustomer((current) => ({
+                      ...current,
+                      lastName: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-phone">Phone</Label>
+              <Input
+                id="new-customer-phone"
+                type="tel"
+                value={newCustomer.phone}
+                onChange={(event) =>
+                  setNewCustomer((current) => ({
+                    ...current,
+                    phone: event.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-customer-email">Email</Label>
+              <Input
+                id="new-customer-email"
+                type="email"
+                value={newCustomer.email}
+                onChange={(event) =>
+                  setNewCustomer((current) => ({
+                    ...current,
+                    email: event.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setNewCustomerOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleCreateCustomer} disabled={createCustomer.isPending}>
+              {createCustomer.isPending ? "Adding…" : "Add customer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
