@@ -52,7 +52,15 @@ const timestamp = (value: unknown, field: string): Date | null | undefined => {
 const event = (tx: Tx, repairOrderId: number, eventType: any, actorId: number | null, payload: Record<string, unknown> = {}) =>
   tx.insert(repairOrderEventsTable).values({ repairOrderId, eventType, actorId, payload });
 const snapshot = (customer: any, vehicle: any) => ({
-  customer: { id: customer.id, firstName: customer.firstName, lastName: customer.lastName, email: customer.email, phone: customer.phone },
+  customer: {
+    id: customer.id,
+    firstName: customer.firstName,
+    lastName: customer.lastName,
+    email: customer.email,
+    phone: customer.phone,
+    taxExempt: customer.taxExempt === true,
+    taxExemptNumber: customer.taxExemptNumber ?? null,
+  },
   vehicle: { id: vehicle.id, year: vehicle.year, make: vehicle.make, model: vehicle.model, vin: vehicle.vin, licensePlate: vehicle.licensePlate },
 });
 
@@ -127,7 +135,15 @@ export async function createRevision(repairOrderId: number, kind: "estimate" | "
       tx.select({ max: sql<number>`coalesce(max(${estimateRevisionsTable.revisionNo}), 0)::int` }).from(estimateRevisionsTable).where(eq(estimateRevisionsTable.repairOrderId, repairOrderId)),
     ]);
     if (!customer || !vehicle) throw new WorkflowError("Repair order references missing customer or vehicle", 409);
-    const [revision] = await tx.insert(estimateRevisionsTable).values({ repairOrderId, revisionNo: max.max + 1, kind, taxRateBps, customerSnapshot: snapshot(customer, vehicle).customer, vehicleSnapshot: snapshot(customer, vehicle).vehicle, createdById: actorId }).returning();
+    const [revision] = await tx.insert(estimateRevisionsTable).values({
+      repairOrderId,
+      revisionNo: max.max + 1,
+      kind,
+      taxRateBps: customer.taxExempt ? 0 : taxRateBps,
+      customerSnapshot: snapshot(customer, vehicle).customer,
+      vehicleSnapshot: snapshot(customer, vehicle).vehicle,
+      createdById: actorId,
+    }).returning();
     await event(tx, repairOrderId, kind === "supplement" ? "supplement_created" : "estimate_created", actorId, { revisionId: revision.id });
     return revision;
   });
@@ -140,10 +156,22 @@ export async function replaceDraftItems(revisionId: number, items: DraftItem[], 
     if (revision.status !== "draft") throw new WorkflowError("Only draft revisions are editable", 409);
     if (new Set(items.map((item) => item.position)).size !== items.length || items.some((item) => item.position < 1 || !item.description.trim())) throw new WorkflowError("Items require unique positive positions and descriptions");
     if (items.some((item) => item.priceIncludesTax && item.kind !== "part")) throw new WorkflowError("Only part prices can include tax");
-    const totals = calculateInvoiceTotals(items.map((item) => ({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind, taxable: !item.priceIncludesTax })), BigInt(revision.taxRateBps));
+    const [repairOrder] = await tx.select({ customerId: repairOrdersTable.customerId })
+      .from(repairOrdersTable)
+      .where(eq(repairOrdersTable.id, revision.repairOrderId));
+    const [customer] = repairOrder
+      ? await tx.select({ taxExempt: customersTable.taxExempt }).from(customersTable).where(eq(customersTable.id, repairOrder.customerId))
+      : [];
+    const taxExempt = customer?.taxExempt === true || revision.customerSnapshot?.taxExempt === true;
+    const taxRateBps = taxExempt ? 0 : revision.taxRateBps;
+    const totals = calculateInvoiceTotals(
+      items.map((item) => ({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind, taxable: !item.priceIncludesTax })),
+      BigInt(taxRateBps),
+      taxExempt,
+    );
     await tx.delete(estimateItemsTable).where(eq(estimateItemsTable.estimateRevisionId, revisionId));
     if (items.length) await tx.insert(estimateItemsTable).values(items.map((item) => ({ ...item, priceIncludesTax: item.kind === "part" && item.priceIncludesTax === true, estimateRevisionId: revisionId, quantity: quantity(milli(item.quantity)), unitPrice: money(cents(item.unitPrice)), unitCost: item.unitCost == null ? null : money(cents(item.unitCost)), estimatedHours: item.estimatedHours == null ? null : String(item.estimatedHours) })));
-    const [updated] = await tx.update(estimateRevisionsTable).set({ subtotal: money(totals.subtotalCents), taxAmount: money(totals.taxCents), total: money(totals.totalCents), updatedAt: new Date() }).where(eq(estimateRevisionsTable.id, revisionId)).returning();
+    const [updated] = await tx.update(estimateRevisionsTable).set({ taxRateBps, subtotal: money(totals.subtotalCents), taxAmount: money(totals.taxCents), total: money(totals.totalCents), updatedAt: new Date() }).where(eq(estimateRevisionsTable.id, revisionId)).returning();
     await event(tx, revision.repairOrderId, "note_added", actorId, { revisionId, itemCount: items.length });
     return updated;
   });
@@ -305,11 +333,23 @@ export async function createFinalInvoice(repairOrderId: number, actorId: number)
       tx.select().from(estimateRevisionsTable).where(eq(estimateRevisionsTable.repairOrderId, repairOrderId)).orderBy(desc(estimateRevisionsTable.revisionNo)).limit(1),
     ]);
     if (!work.length || !revision) throw new WorkflowError("Completed repair order has no performed work or revision", 409);
-    const totals = calculateInvoiceTotals(work.map((item) => ({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind, taxable: !item.priceIncludesTax })), BigInt(revision.taxRateBps));
+    const [customer] = await tx.select().from(customersTable).where(eq(customersTable.id, ro.customerId));
+    const taxExempt = customer?.taxExempt === true || revision.customerSnapshot?.taxExempt === true;
+    const taxRateBps = taxExempt ? 0 : revision.taxRateBps;
+    const totals = calculateInvoiceTotals(
+      work.map((item) => ({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind, taxable: !item.priceIncludesTax })),
+      BigInt(taxRateBps),
+      taxExempt,
+    );
+    const customerSnapshot = revision.customerSnapshot as Record<string, unknown>;
     const [invoice] = await tx.insert(invoicesTable).values({
       repairOrderId, invoiceNumber: `INV-${Date.now()}-${randomBytes(3).toString("hex")}`,
-      customerSnapshot: revision.customerSnapshot, vehicleSnapshot: revision.vehicleSnapshot, taxRateBps: revision.taxRateBps,
+      customerSnapshot: revision.customerSnapshot,
+      vehicleSnapshot: revision.vehicleSnapshot,
+      taxRateBps,
       subtotal: money(totals.subtotalCents), taxAmount: money(totals.taxCents), total: money(totals.totalCents), balance: money(totals.totalCents),
+      taxExempt,
+      taxExemptNumber: customer?.taxExemptNumber ?? (customerSnapshot.taxExemptNumber as string | null | undefined) ?? null,
     }).returning();
     await tx.insert(invoiceItemsTable).values(work.map((item, index) => ({ invoiceId: invoice.id, sourceWorkItemId: item.id, position: index + 1, kind: item.kind, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, priceIncludesTax: item.priceIncludesTax, unitCost: item.unitCost, lineTotal: money(lineTotalCents({ quantityMilli: milli(item.quantity), unitPriceCents: cents(item.unitPrice), kind: item.kind })) })));
     await event(tx, repairOrderId, "invoice_created", actorId, { invoiceId: invoice.id });
