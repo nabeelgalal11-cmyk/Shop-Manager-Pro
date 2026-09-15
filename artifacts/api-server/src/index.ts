@@ -26,7 +26,9 @@ console.log(
 );
 console.log(
   `[boot] Square configuration: SQUARE_ACCESS_TOKEN: ${process.env.SQUARE_ACCESS_TOKEN?.trim() ? "set" : "MISSING"}; ` +
-    `SQUARE_ENVIRONMENT: ${process.env.SQUARE_ENVIRONMENT?.trim() || "sandbox"}`,
+    `SQUARE_APPLICATION_ID: ${process.env.SQUARE_APPLICATION_ID?.trim() ? "set" : "MISSING"}; ` +
+    `SQUARE_ENVIRONMENT: ${process.env.SQUARE_ENVIRONMENT?.trim() || "sandbox"}; ` +
+    `SESSION_SECRET: ${process.env.SESSION_SECRET?.trim() ? "set" : "MISSING"}`,
 );
 if (!renderSecretEnvFound) {
   // Help users find their actual mount path on first boot.
