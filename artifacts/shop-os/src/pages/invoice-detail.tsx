@@ -5,6 +5,7 @@ import {
   useGetInvoice, getGetInvoiceQueryKey, getGetRepairOrderQueryKey,
   useCreatePayment,
   useIssueWorkflowInvoice,
+  useSendWorkflowInvoiceEmail,
   useVoidWorkflowInvoice,
   useRefundWorkflowPayment,
   useVoidWorkflowPayment,
@@ -15,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Printer, CreditCard, CheckCircle, XCircle, Link } from "lucide-react";
+import { ArrowLeft, Printer, CreditCard, CheckCircle, XCircle, Link, Mail, AlertTriangle } from "lucide-react";
 import { ActivityTimeline } from "@/components/activity-timeline";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +26,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useShopSettings } from "@/hooks/use-shop-settings";
 
 export default function InvoiceDetail() {
@@ -53,6 +55,7 @@ export default function InvoiceDetail() {
   const { data: shop } = useShopSettings();
 
   const issueInvoice = useIssueWorkflowInvoice();
+  const sendInvoiceEmail = useSendWorkflowInvoiceEmail();
   const voidInvoice = useVoidWorkflowInvoice();
   const createPayment = useCreatePayment({
     request: { headers: { "Idempotency-Key": paymentAttemptKey } }
@@ -158,6 +161,22 @@ export default function InvoiceDetail() {
     );
   };
 
+  const handleSendInvoiceEmail = () => {
+    sendInvoiceEmail.mutate(
+      { id },
+      {
+        onSuccess: (result: any) => {
+          if (result.emailSent) {
+            toast({ title: "Invoice emailed", description: "The invoice was sent to the customer." });
+          } else {
+            toast({ title: "Invoice was not emailed", description: result.emailError || "Copy the payment link and send it manually.", variant: "destructive" });
+          }
+        },
+        onError: (err: any) => toast({ title: "Failed to email invoice", description: err.message, variant: "destructive" }),
+      },
+    );
+  };
+
   const handleReversal = () => {
     if (!reversalOpen) return;
     const amount = parseFloat(reversalAmount);
@@ -234,6 +253,11 @@ export default function InvoiceDetail() {
               toast({ title: "Payment link copied" });
             }}>
               <Link className="h-4 w-4 mr-2" /> Copy Pay Link
+            </Button>
+          )}
+          {!isDraft && !isVoid && (
+            <Button variant="outline" onClick={handleSendInvoiceEmail} disabled={sendInvoiceEmail.isPending}>
+              <Mail className="h-4 w-4 mr-2" /> {sendInvoiceEmail.isPending ? "Emailing…" : "Email invoice"}
             </Button>
           )}
           {!isDraft && !isVoid && invoice.status !== 'paid' && balance > 0 && (
@@ -360,7 +384,7 @@ export default function InvoiceDetail() {
                             <Button variant="outline" size="sm" onClick={() => {
                               setReversalAmount(String(p.amount));
                               setReversalOpen({ id: p.id, action: "void", amount: String(p.amount) });
-                            }}>Void</Button>
+                            }}>{invoice.status === "paid" ? "Void & reopen" : "Void"}</Button>
                           </div>
                         )}
                       </TableCell>
@@ -371,6 +395,16 @@ export default function InvoiceDetail() {
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {invoice.status === "paid" && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Invoice is marked paid</AlertTitle>
+          <AlertDescription>
+            If this payment was entered by mistake before confirming it in Square, use <strong>Void & reopen</strong> next to that payment. This creates a reversal and reopens the invoice without deleting the payment history.
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Record Payment Dialog */}
@@ -409,6 +443,15 @@ export default function InvoiceDetail() {
                 </SelectContent>
               </Select>
             </div>
+            {payMethod === "card" && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Use Square on the phone for card payments</AlertTitle>
+                <AlertDescription>
+                  Open the 915motors mobile app, tap <strong>Take payment</strong>, and complete the payment in Square Point of Sale. Only use this manual option after Square confirms the card payment.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button>

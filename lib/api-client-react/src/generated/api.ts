@@ -5092,6 +5092,89 @@ export const useIssueWorkflowInvoice = <
 };
 
 /**
+ * @summary Email an issued invoice and payment link to the customer
+ */
+export const getSendWorkflowInvoiceEmailUrl = (id: number) => {
+  return `/api/invoices/${id}/send`;
+};
+
+export const sendWorkflowInvoiceEmail = async (
+  id: number,
+  options?: RequestInit,
+): Promise<WorkflowInvoice> => {
+  return customFetch<WorkflowInvoice>(getSendWorkflowInvoiceEmailUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSendWorkflowInvoiceEmailMutationOptions = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendWorkflowInvoiceEmail>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendWorkflowInvoiceEmail>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["sendWorkflowInvoiceEmail"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendWorkflowInvoiceEmail>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+    return sendWorkflowInvoiceEmail(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendWorkflowInvoiceEmailMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendWorkflowInvoiceEmail>>
+>;
+export type SendWorkflowInvoiceEmailMutationError =
+  ErrorType<WorkflowConflictResponse>;
+
+/**
+ * @summary Email an issued invoice and payment link to the customer
+ */
+export const useSendWorkflowInvoiceEmail = <
+  TError = ErrorType<WorkflowConflictResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendWorkflowInvoiceEmail>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendWorkflowInvoiceEmail>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getSendWorkflowInvoiceEmailMutationOptions(options));
+};
+
+/**
  * @summary Void an invoice with no unreversed payments
  */
 export const getVoidWorkflowInvoiceUrl = (id: number) => {

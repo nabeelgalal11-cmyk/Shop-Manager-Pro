@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, invoiceItemsTable, invoicesTable, paymentsTable } from "@workspace/db";
 import { desc, eq } from "drizzle-orm";
 import { getUser, requirePermission } from "../lib/auth.js";
-import { issueInvoice, voidInvoice, WorkflowError } from "../lib/repair-workflow.js";
+import { issueInvoice, sendInvoiceEmail, voidInvoice, WorkflowError } from "../lib/repair-workflow.js";
 const router: IRouter = Router();
 const fail = (res: any, value: unknown) => { if (value instanceof WorkflowError) { res.status(value.status).json({ error: value.message }); return; } throw value; };
 router.get("/", requirePermission("invoices", "view"), async (req, res): Promise<void> => {
@@ -27,6 +27,9 @@ router.post("/:id/issue", requirePermission("invoices", "edit"), async (req, res
     }
     res.json({ invoice, paymentUrl });
   } catch (value) { fail(res, value); }
+});
+router.post("/:id/send", requirePermission("invoices", "edit"), async (req, res): Promise<void> => {
+  try { res.json(await sendInvoiceEmail(Number(req.params.id))); } catch (value) { fail(res, value); }
 });
 router.post("/:id/void", requirePermission("invoices", "delete"), async (req, res): Promise<void> => { try { res.json(await voidInvoice(Number(req.params.id), String(req.body.reason ?? ""), getUser(req)!.id)); } catch (value) { fail(res, value); } });
 router.all("/:id", (_req, res): void => { res.status(405).json({ error: "Invoices are immutable; use issue or void" }); });

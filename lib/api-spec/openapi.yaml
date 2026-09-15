@@ -1078,6 +1078,17 @@ paths:
       responses:
         "200": { description: Issued invoice and canonical payment URL, content: { application/json: { schema: { $ref: "#/components/schemas/IssuedInvoiceResult" } } } }
 
+  /invoices/{id}/send:
+    post:
+      operationId: sendWorkflowInvoiceEmail
+      tags: [invoices]
+      summary: Email an issued invoice and payment link to the customer
+      parameters:
+        - $ref: "#/components/parameters/InvoiceId"
+      responses:
+        "200": { description: Invoice email delivery result, content: { application/json: { schema: { $ref: "#/components/schemas/WorkflowInvoiceEmailResult" } } } }
+        "409": { $ref: "#/components/responses/WorkflowConflict" }
+
   /invoices/{id}/void:
     post:
       operationId: voidWorkflowInvoice
@@ -5140,6 +5151,15 @@ components:
           properties:
             items: { type: array, items: { $ref: "#/components/schemas/WorkflowInvoiceItem" } }
             payments: { type: array, items: { $ref: "#/components/schemas/WorkflowPayment" } }
+    WorkflowInvoiceEmailResult:
+      allOf:
+        - $ref: "#/components/schemas/WorkflowInvoice"
+        - type: object
+          required: [emailSent, emailError, emailProvider]
+          properties:
+            emailSent: { type: boolean, readOnly: true }
+            emailError: { type: [string, "null"], readOnly: true }
+            emailProvider: { type: [string, "null"], readOnly: true }
     IssuedInvoiceResult:
       type: object
       required: [invoice, paymentUrl]

@@ -270,6 +270,56 @@ export async function resendRevision(revisionId: number) {
   };
 }
 
+export async function sendInvoiceEmail(invoiceId: number) {
+  const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.id, invoiceId));
+  if (!invoice) throw new WorkflowError("Invoice not found", 404);
+  if (!["issued", "partially_paid", "paid"].includes(invoice.status)) {
+    throw new WorkflowError("Only issued invoices can be emailed", 409);
+  }
+
+  const customer = invoice.customerSnapshot;
+  const customerEmail = typeof customer.email === "string" ? customer.email.trim() : "";
+  if (!customerEmail) return { ...invoice, emailSent: false, emailError: "Customer has no email address on file", emailProvider: null };
+  if (!invoice.publicToken) return { ...invoice, emailSent: false, emailError: "Invoice payment link was not created", emailProvider: null };
+
+  const configuredBase = process.env.PUBLIC_BASE_URL?.trim();
+  if (!configuredBase) return { ...invoice, emailSent: false, emailError: "PUBLIC_BASE_URL is not configured", emailProvider: null };
+
+  let paymentUrl: string;
+  try {
+    const base = new URL(configuredBase);
+    if (!["http:", "https:"].includes(base.protocol) || base.username || base.password) {
+      return { ...invoice, emailSent: false, emailError: "PUBLIC_BASE_URL must be an absolute HTTP(S) URL", emailProvider: null };
+    }
+    paymentUrl = new URL(`/pay/${encodeURIComponent(invoice.publicToken)}`, base).toString();
+  } catch {
+    return { ...invoice, emailSent: false, emailError: "PUBLIC_BASE_URL must be an absolute HTTP(S) URL", emailProvider: null };
+  }
+
+  const vehicle = invoice.vehicleSnapshot;
+  const vehicleInfo = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ") || "your vehicle";
+  const payLinkSection = cents(invoice.balance) > 0n
+    ? `<p style="text-align:center;margin:28px 0;"><a href="${escapeHtml(paymentUrl)}" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;display:inline-block;font-weight:bold;">Pay invoice online</a></p><p style="font-size:12px;color:#6b7280;word-break:break-all;">Or open this link: ${escapeHtml(paymentUrl)}</p>`
+    : `<p style="color:#166534;font-weight:bold;">This invoice is paid. No payment is due.</p>`;
+
+  try {
+    const shop = await getShopDocumentInfo();
+    const result = await sendTemplatedEmail("invoice_sent", customerEmail, {
+      customerName: escapeHtml(`${customer.firstName ?? ""} ${customer.lastName ?? ""}`.trim() || "Customer"),
+      shopName: escapeHtml(shop.shopName),
+      invoiceNumber: escapeHtml(invoice.invoiceNumber),
+      total: escapeHtml(`$${invoice.total}`),
+      balance: escapeHtml(`$${invoice.balance}`),
+      dueDate: "Due upon receipt",
+      vehicleInfo: escapeHtml(vehicleInfo),
+      payLinkSection,
+    });
+    return { ...invoice, emailSent: result.ok, emailError: result.ok ? null : result.error || "Invoice email failed", emailProvider: result.provider ?? null };
+  } catch (error) {
+    return { ...invoice, emailSent: false, emailError: error instanceof Error ? error.message : "Invoice email failed", emailProvider: null };
+  }
+}
+
 export async function decideRevision(token: string, input: { signerName: string; signerEmail?: string | null; decision: "approved" | "declined"; approvedItemIds: number[]; declinedItemIds: number[]; requestIp?: string; requestUserAgent?: string }) {
   return db.transaction(async (tx) => {
     const [revision] = await tx.select().from(estimateRevisionsTable).where(eq(estimateRevisionsTable.publicToken, token)).for("update");
