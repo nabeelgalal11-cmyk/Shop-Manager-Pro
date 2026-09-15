@@ -46,6 +46,20 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The request could not be completed.';
 }
 
+function squareFailureMessage(error: unknown): { title: string; message: string } {
+  const message = errorMessage(error);
+  if (/square access token is not configured|SQUARE_NOT_CONFIGURED/i.test(message)) {
+    return {
+      title: 'Square is not configured',
+      message: 'The live server is missing its Square access token. Contact the shop administrator; installing or signing in to Square on this phone will not fix this server setup issue.',
+    };
+  }
+  return {
+    title: 'Square Point of Sale unavailable',
+    message: `${message} Make sure the official Square Point of Sale app is installed and signed in.`,
+  };
+}
+
 function formatMoney(value: number | string | undefined): string {
   const amount = Number(value ?? 0);
   return new Intl.NumberFormat('en-US', {
@@ -298,9 +312,10 @@ function PaymentPanel({
       setNotice({ kind: 'pending', message: 'Complete payment in Square Point of Sale.' });
       await Linking.openURL(buildSquareUrl(prepared));
     } catch (cause) {
+      const failure = squareFailureMessage(cause);
       Alert.alert(
-        'Square Point of Sale unavailable',
-        `${errorMessage(cause)} Make sure the official Square Point of Sale app is installed and signed in.`,
+        failure.title,
+        failure.message,
       );
       setNotice({ kind: 'failure', message: errorMessage(cause) });
     }
