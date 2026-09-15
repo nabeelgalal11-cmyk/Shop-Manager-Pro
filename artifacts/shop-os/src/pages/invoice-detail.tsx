@@ -25,6 +25,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useShopSettings } from "@/hooks/use-shop-settings";
 
 export default function InvoiceDetail() {
   const [match, params] = useRoute("/invoices/:id");
@@ -49,6 +50,7 @@ export default function InvoiceDetail() {
   const { data: invoice, isLoading } = useGetInvoice(id, {
     query: { enabled: !!id, queryKey: getGetInvoiceQueryKey(id) },
   });
+  const { data: shop } = useShopSettings();
 
   const issueInvoice = useIssueWorkflowInvoice();
   const voidInvoice = useVoidWorkflowInvoice();
@@ -192,6 +194,12 @@ export default function InvoiceDetail() {
   const balance = Number(invoice.balance ?? 0);
   const isDraft = invoice.status === "draft";
   const isVoid = invoice.status === "void";
+  const shopAddress = [
+    shop?.addressLine1,
+    shop?.addressLine2,
+    [shop?.city, shop?.state, shop?.postalCode].filter(Boolean).join(", "),
+  ].filter(Boolean);
+  const shopContact = [shop?.phone, shop?.email, shop?.website].filter(Boolean);
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -245,8 +253,11 @@ export default function InvoiceDetail() {
         <CardContent className="p-8">
           <div className="flex justify-between items-start mb-8">
             <div>
-              <h2 className="text-lg font-bold mb-2">915motors</h2>
-              <p className="text-sm text-muted-foreground">123 Mechanic St.<br />Auto City, ST 12345</p>
+              <h2 className="text-lg font-bold mb-2">{shop?.shopName || "915motors"}</h2>
+              {shopAddress.length > 0 && <p className="text-sm text-muted-foreground">{shopAddress.map((line, index) => <span key={index}>{index > 0 && <br />}{line}</span>)}</p>}
+              {shopContact.length > 0 && <p className="text-xs text-muted-foreground mt-2">{shopContact.join(" • ")}</p>}
+              {shop?.ein && <p className="text-xs text-muted-foreground mt-1">Tax ID: {shop.ein}</p>}
+              {shop?.additionalInfo && <p className="text-xs text-muted-foreground mt-1 whitespace-pre-line">{shop.additionalInfo}</p>}
             </div>
             <div className="text-right">
               <h3 className="font-semibold text-lg mb-2">Bill To</h3>
@@ -311,7 +322,7 @@ export default function InvoiceDetail() {
       </Card>
 
       {invoice.payments && invoice.payments.length > 0 && (
-        <Card className="shadow-sm border-border">
+      <Card ref={printRef} className="shadow-sm border-border">
           <CardContent className="p-6">
             <h3 className="font-semibold mb-3">Payment history</h3>
             <Table>

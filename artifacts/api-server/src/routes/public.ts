@@ -3,6 +3,7 @@ import { db, estimateItemsTable, estimateRevisionsTable, invoiceItemsTable, invo
 import { eq } from "drizzle-orm";
 import { decideRevision, WorkflowError } from "../lib/repair-workflow.js";
 import { getStripeClient, getStripeSettings } from "../lib/stripe.js";
+import { getShopDocumentInfo } from "../lib/shop-settings.js";
 
 const router: IRouter = Router();
 const error = (res: any, value: unknown) => {
@@ -16,7 +17,22 @@ router.get("/estimates/:token", async (req, res): Promise<void> => {
   const [revision] = await db.select().from(estimateRevisionsTable).where(eq(estimateRevisionsTable.publicToken, token));
   if (!revision || revision.status !== "sent") { res.status(404).json({ error: "Estimate decision link not found" }); return; }
   const items = await db.select().from(estimateItemsTable).where(eq(estimateItemsTable.estimateRevisionId, revision.id));
-  res.json({ revision: { id: revision.id, revisionNo: revision.revisionNo, kind: revision.kind, notes: revision.notes, customerSnapshot: revision.customerSnapshot, vehicleSnapshot: revision.vehicleSnapshot, subtotal: revision.subtotal, taxRateBps: revision.taxRateBps, taxAmount: revision.taxAmount, total: revision.total }, items });
+  res.json({
+    revision: {
+      id: revision.id,
+      revisionNo: revision.revisionNo,
+      kind: revision.kind,
+      notes: revision.notes,
+      customerSnapshot: revision.customerSnapshot,
+      vehicleSnapshot: revision.vehicleSnapshot,
+      subtotal: revision.subtotal,
+      taxRateBps: revision.taxRateBps,
+      taxAmount: revision.taxAmount,
+      total: revision.total,
+    },
+    items,
+    shop: await getShopDocumentInfo(),
+  });
 });
 router.post("/estimates/:token/decision", async (req, res): Promise<void> => {
   try {
@@ -40,7 +56,20 @@ router.get("/invoices/:token", async (req, res): Promise<void> => {
     db.select({ amount: paymentsTable.amount, method: paymentsTable.method, processedAt: paymentsTable.processedAt, referenceNumber: paymentsTable.referenceNumber }).from(paymentsTable).where(eq(paymentsTable.invoiceId, invoice.id)),
   ]);
   // Snapshots intentionally do not expose contact details on a bearer link.
-  res.json({ invoiceNumber: invoice.invoiceNumber, status: invoice.status, createdAt: invoice.createdAt, subtotal: invoice.subtotal, taxAmount: invoice.taxAmount, total: invoice.total, amountPaid: invoice.amountPaid, balance: invoice.balance, notes: invoice.notes, lineItems: items, payments });
+  res.json({
+    invoiceNumber: invoice.invoiceNumber,
+    status: invoice.status,
+    createdAt: invoice.createdAt,
+    subtotal: invoice.subtotal,
+    taxAmount: invoice.taxAmount,
+    total: invoice.total,
+    amountPaid: invoice.amountPaid,
+    balance: invoice.balance,
+    notes: invoice.notes,
+    lineItems: items,
+    payments,
+    shop: await getShopDocumentInfo(),
+  });
 });
 router.post("/invoices/:token/checkout-session", async (req, res): Promise<void> => {
   const [invoice] = await db.select().from(invoicesTable).where(eq(invoicesTable.publicToken, String(req.params.token)));

@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { CannedJobPicker, type CannedJob } from "@/components/canned-job-picker";
 import { AIEstimateModal } from "@/components/ai-estimate-modal";
 import { RepairGuideModal } from "@/components/repair-guide-modal";
+import { useShopSettings } from "@/hooks/use-shop-settings";
 
 export default function EstimateDetail() {
   const [match, params] = useRoute("/estimates/:id");
@@ -43,6 +44,7 @@ export default function EstimateDetail() {
   const { data: estimate, isLoading } = useGetEstimate(id, {
     query: { enabled: !!id, queryKey: getGetEstimateQueryKey(id) },
   });
+  const { data: shop } = useShopSettings();
 
   const sendEstimate = useSendEstimateRevision();
   const saveDraftItems = useReplaceEstimateRevisionDraftItems();
@@ -227,6 +229,13 @@ export default function EstimateDetail() {
   if (isLoading) return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
   if (!estimate) return <div className="p-8 text-center">Estimate not found</div>;
 
+  const shopAddress = [
+    shop?.addressLine1,
+    shop?.addressLine2,
+    [shop?.city, shop?.state, shop?.postalCode].filter(Boolean).join(", "),
+  ].filter(Boolean);
+  const shopContact = [shop?.phone, shop?.email, shop?.website].filter(Boolean);
+
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -281,8 +290,11 @@ export default function EstimateDetail() {
         <CardContent className="p-8">
           <div className="flex justify-between items-start mb-8">
             <div>
-              <h2 className="text-lg font-bold mb-2">915motors</h2>
-              <p className="text-sm text-muted-foreground">123 Mechanic St.<br />Auto City, ST 12345</p>
+              <h2 className="text-lg font-bold mb-2">{shop?.shopName || "915motors"}</h2>
+              {shopAddress.length > 0 && <p className="text-sm text-muted-foreground">{shopAddress.map((line, index) => <span key={index}>{index > 0 && <br />}{line}</span>)}</p>}
+              {shopContact.length > 0 && <p className="text-xs text-muted-foreground mt-2">{shopContact.join(" • ")}</p>}
+              {shop?.ein && <p className="text-xs text-muted-foreground mt-1">Tax ID: {shop.ein}</p>}
+              {shop?.additionalInfo && <p className="text-xs text-muted-foreground mt-1 whitespace-pre-line">{shop.additionalInfo}</p>}
             </div>
             <div className="text-right">
               <h3 className="font-semibold text-lg mb-2">Estimate For</h3>
@@ -565,6 +577,11 @@ export default function EstimateDetail() {
       )}
 
       <div ref={printRef} style={{ display: "none" }}>
+        <h2>{shop?.shopName || "915motors"}</h2>
+        {shopAddress.length > 0 && <div className="meta">{shopAddress.map((line, index) => <span key={index}>{index > 0 && " · "}{line}</span>)}</div>}
+        {shopContact.length > 0 && <div className="meta">{shopContact.join(" · ")}</div>}
+        {shop?.ein && <div className="meta">Tax ID: {shop.ein}</div>}
+        {shop?.additionalInfo && <div className="meta">{shop.additionalInfo}</div>}
         <h1>Estimate Revision #{estimate.revisionNo}</h1>
         <div className="meta">
           Customer: {(estimate.customerSnapshot as any)?.firstName} {(estimate.customerSnapshot as any)?.lastName} &bull;

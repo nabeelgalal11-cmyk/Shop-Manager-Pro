@@ -23,7 +23,19 @@ interface PublicInvoice {
   lineItems: { description: string; quantity: string; unitPrice: string; total: string; type: string }[];
   payments: { amount: string; method: string; paidAt: string; referenceNumber: string | null }[];
   paymentsEnabled: boolean;
-  shopName: string;
+  shop: {
+    shopName: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    phone: string;
+    email: string;
+    website: string;
+    ein: string;
+    additionalInfo: string;
+  };
 }
 
 const fmt = (n: number | string) =>
@@ -188,11 +200,23 @@ export default function PayInvoice() {
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">{invoice.shopName}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">{invoice.shop?.shopName || "915motors"}</p>
                   <CardTitle className="text-2xl">Invoice {invoice.invoiceNumber}</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">
                     {invoice.customer && `${invoice.customer.firstName} ${invoice.customer.lastName}`}
                   </p>
+                  {invoice.shop && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {[
+                        invoice.shop.addressLine1,
+                        invoice.shop.addressLine2,
+                        [invoice.shop.city, invoice.shop.state, invoice.shop.postalCode].filter(Boolean).join(", "),
+                        [invoice.shop.phone, invoice.shop.email, invoice.shop.website].filter(Boolean).join(" • "),
+                        invoice.shop.ein ? `Tax ID: ${invoice.shop.ein}` : "",
+                        invoice.shop.additionalInfo,
+                      ].filter(Boolean).map((line, index) => <span key={index}>{index > 0 && <br />}{line}</span>)}
+                    </p>
+                  )}
                 </div>
                 <Badge variant={invoice.status === "paid" ? "default" : "secondary"} className="capitalize">
                   {invoice.status}

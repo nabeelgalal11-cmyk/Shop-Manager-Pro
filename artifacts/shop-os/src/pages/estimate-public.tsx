@@ -100,6 +100,13 @@ export default function EstimatePublic() {
 
   const customerName = est.customerSnapshot ? `${(est.customerSnapshot as any).firstName} ${(est.customerSnapshot as any).lastName}`.trim() : null;
   const v = est.vehicleSnapshot as any;
+  const shop = (estData as any)?.shop;
+  const shopAddress = [
+    shop?.addressLine1,
+    shop?.addressLine2,
+    [shop?.city, shop?.state, shop?.postalCode].filter(Boolean).join(", "),
+  ].filter(Boolean);
+  const shopContact = [shop?.phone, shop?.email, shop?.website].filter(Boolean);
 
   const approvedSubtotal = est.lineItems
     .filter(li => decisions[li.id] === "approved")
@@ -121,12 +128,16 @@ export default function EstimatePublic() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-12">
       <div className="bg-violet-600 text-white">
         <div className="max-w-2xl mx-auto px-4 py-6">
-          <p className="text-xs uppercase tracking-wide opacity-90">915motors</p>
+          <p className="text-xs uppercase tracking-wide opacity-90">{shop?.shopName || "915motors"}</p>
           <h1 className="text-2xl font-bold mt-1 capitalize">{est.kind} #{est.revisionNo}</h1>
           <p className="text-sm opacity-90 mt-1">
             {v ? `${v.year ?? ""} ${v.make ?? ""} ${v.model ?? ""}`.trim() : ""}
           </p>
           {customerName && <p className="text-xs opacity-80 mt-1">Prepared for {customerName}</p>}
+          {shopAddress.length > 0 && <p className="text-xs opacity-80 mt-2">{shopAddress.join(" · ")}</p>}
+          {shopContact.length > 0 && <p className="text-xs opacity-80 mt-1">{shopContact.join(" · ")}</p>}
+          {shop?.ein && <p className="text-xs opacity-80 mt-1">Tax ID: {shop.ein}</p>}
+          {shop?.additionalInfo && <p className="text-xs opacity-80 mt-1 whitespace-pre-line">{shop.additionalInfo}</p>}
         </div>
       </div>
 
