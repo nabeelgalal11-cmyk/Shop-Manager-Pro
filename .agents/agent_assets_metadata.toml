@@ -182,3 +182,17 @@ mtime_ms = 1789527696198
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/257ba3ed-2dca-467c-b7a9-e1fc41a8856f/753b3c41-2076-433a-85e2-b60bf6a06e77"
 storage_version_token = "1789527703322938"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "z0t7aP0tdfmMlEvtU2X54"
+uri = "file://downloads/915motors-mobile-v1.0.2-build-v4.zip"
+type = "unspecified"
+title = "915motors Android build bundle v4 — Git-safe Windows ZIP"
+description = "Windows-safe 1.1 MB ZIP with corrected Expo dependencies, lockfile, and root Git ignore rules so node_modules is excluded from build indexing."
+logical_id = "a8a9c9d9-d5ec-4f0c-be75-f5ef31bda3f5"
+content_hash = "sha256:f330d6edd10f4875140a758c71ca565cf8f00a254f40b55fc3694e1b30f148aa"
+size = 1064717
+mtime_ms = 1789528340142
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/a8a9c9d9-d5ec-4f0c-be75-f5ef31bda3f5/3767b7f8-1fcf-43f4-8c9f-67748826bbfb"
+storage_version_token = "1789528345369088"
+content_type = "application/octet-stream"
