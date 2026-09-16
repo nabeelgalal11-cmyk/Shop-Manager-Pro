@@ -126,3 +126,17 @@ mtime_ms = 1789522715172
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/c3b06119-5891-4b7f-8872-b6116c930b2a/ebc54dd0-5850-48d9-a052-f8a8e668e858"
 storage_version_token = "1789522719826527"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "c095LkatWumXzb_xgZfJp"
+uri = "file://downloads/915motors-mobile-v1.0.2-windows.zip"
+type = "unspecified"
+title = "915motors Mobile v1.0.2 — Windows-friendly ZIP"
+description = "Clean source ZIP verified for extraction on Windows. Generated folders, dependencies, caches, APKs, and environment files are excluded."
+logical_id = "165538cf-b8b9-4527-a09e-d8a08957c022"
+content_hash = "sha256:865a44d50ffb2f01a9edbc58f7578fe203c1d169730b3ee214f7c3406d8b78e1"
+size = 896841
+mtime_ms = 1789522950964
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/165538cf-b8b9-4527-a09e-d8a08957c022/7acc1a3a-8bd9-4e78-a0e5-770c228d8fbc"
+storage_version_token = "1789522955292970"
+content_type = "application/octet-stream"
