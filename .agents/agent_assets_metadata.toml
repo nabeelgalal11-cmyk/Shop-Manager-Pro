@@ -112,3 +112,17 @@ mtime_ms = 1788925466537
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/3a329bba-7cac-4f42-acea-826ee80ed699/6b338679-964b-417c-a764-6ac5a161aa12"
 storage_version_token = "1788925478835066"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "TXiPP9RY4WpXOby9qJdwC"
+uri = "file://downloads/915motors-mobile-v1.0.2-source.zip"
+type = "unspecified"
+title = "915motors Mobile v1.0.2 source ZIP"
+description = "Updated mobile app source with Android versionCode 3. Dependencies, caches, generated output, and environment files are excluded."
+logical_id = "c3b06119-5891-4b7f-8872-b6116c930b2a"
+content_hash = "sha256:4598ba07b611a08939caed99afdc5f0cf0639fa47a6501be0a30378e259bf513"
+size = 8211842
+mtime_ms = 1789522715172
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/c3b06119-5891-4b7f-8872-b6116c930b2a/ebc54dd0-5850-48d9-a052-f8a8e668e858"
+storage_version_token = "1789522719826527"
+content_type = "application/octet-stream"
