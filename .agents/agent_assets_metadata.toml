@@ -154,3 +154,17 @@ mtime_ms = 1789523394215
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/0981131b-9560-4475-b89d-74bab2674f7b/d54d4f79-4f8a-4589-9e6d-1cfae7e91d2a"
 storage_version_token = "1789523419119685"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "TnygERvJhF4M-cTTIAL3b"
+uri = "file://downloads/915motors-mobile-v1.0.2-build-v2.zip"
+type = "unspecified"
+title = "915motors Android build bundle v2"
+description = "Updated Windows/EAS source bundle with Expo and React Native runtime packages available during cloud builds."
+logical_id = "98d29c71-e61a-4afc-85c0-be7da260f8bf"
+content_hash = "sha256:936b907a4c5f1c7e1812177476de73932d48eb2e858028a95d83ca9aeed431c8"
+size = 24242904
+mtime_ms = 1789527244766
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/98d29c71-e61a-4afc-85c0-be7da260f8bf/00a2997c-1979-4be9-bba2-a776b634f0df"
+storage_version_token = "1789527258086384"
+content_type = "application/octet-stream"
