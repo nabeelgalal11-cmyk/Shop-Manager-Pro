@@ -168,3 +168,17 @@ mtime_ms = 1789527244766
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/98d29c71-e61a-4afc-85c0-be7da260f8bf/00a2997c-1979-4be9-bba2-a776b634f0df"
 storage_version_token = "1789527258086384"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "pIWIR8nvS4kGPXZ0ksTTD"
+uri = "file://downloads/915motors-mobile-v1.0.2-build-v3.zip"
+type = "unspecified"
+title = "915motors Android build bundle v3 — Windows-safe"
+description = "Clean 1.1 MB ZIP with the corrected Expo dependencies, lockfile, workspace, and no generated dist or static-build folders."
+logical_id = "257ba3ed-2dca-467c-b7a9-e1fc41a8856f"
+content_hash = "sha256:c5b4de436ca5281253cffe244d064a5f4583571e1b9ee442c8d580998bb2032b"
+size = 1064175
+mtime_ms = 1789527696198
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/257ba3ed-2dca-467c-b7a9-e1fc41a8856f/753b3c41-2076-433a-85e2-b60bf6a06e77"
+storage_version_token = "1789527703322938"
+content_type = "application/octet-stream"
