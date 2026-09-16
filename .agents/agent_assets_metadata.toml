@@ -210,3 +210,17 @@ mtime_ms = 1789530859226
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/b63f2754-ac97-4c93-9c4f-fd7aefe4bbbc/5eee668c-6ab7-4ac6-9e3f-cdcb1324bc74"
 storage_version_token = "1789530865599857"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "i1YoJEnLCVIdkig7rtx3Q"
+uri = "file://downloads/915motors-mobile-v1.0.2-build-v6.zip"
+type = "unspecified"
+title = "915motors Android build bundle v6 — Square amount fix"
+description = "Windows-safe source bundle with Square Android SDK-compatible extras, string-array tender types, API v2.1, and native payment result verification."
+logical_id = "8ccbedc1-dee4-4614-a33b-0e4d255d94a4"
+content_hash = "sha256:9815ee0cd6ba5bd9b634a26c197f1e869d356d4c79660619c6b0abb300d89baf"
+size = 1065285
+mtime_ms = 1789532611561
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/8ccbedc1-dee4-4614-a33b-0e4d255d94a4/de99fba2-ffa4-4d5b-a132-2ef50d18445d"
+storage_version_token = "1789532618775009"
+content_type = "application/octet-stream"

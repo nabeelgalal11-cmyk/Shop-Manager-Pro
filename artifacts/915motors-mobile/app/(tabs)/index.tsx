@@ -198,13 +198,13 @@ function buildSquareAndroidIntent(prepared: SquarePosPrepareResult): {
     params: {
       packageName: 'com.squareup',
       extra: {
-        'com.squareup.pos.WEB_CALLBACK_URI': prepared.callbackUrl,
         'com.squareup.pos.TOTAL_AMOUNT': prepared.amountMoney.amount,
         'com.squareup.pos.CURRENCY_CODE': prepared.amountMoney.currencyCode,
         'com.squareup.pos.CLIENT_ID': prepared.clientId,
-        'com.squareup.pos.API_VERSION': 'v2.0',
+        'com.squareup.pos.API_VERSION': 'v2.1',
+        'com.squareup.pos.SDK_VERSION': 'point-of-sale-sdk-2.1',
         'com.squareup.pos.LOCATION_ID': prepared.locationId,
-        'com.squareup.pos.TENDER_TYPES': tenderTypes.join(','),
+        'com.squareup.pos.TENDER_TYPES': tenderTypes,
         'com.squareup.pos.NOTE': prepared.notes,
         'com.squareup.pos.REQUEST_METADATA': prepared.state,
       },
@@ -292,6 +292,68 @@ function PaymentPanel({
     [complete, onFinished],
   );
 
+  const reconcileAndroidResult = useCallback(
+    async (result: IntentLauncher.IntentLauncherResult, fallbackState: string) => {
+      const extras = (result.extra ?? {}) as Record<string, unknown>;
+      const value = (key: string): string | undefined => {
+        const candidate = extras[key];
+        return Array.isArray(candidate) ? candidate[0]?.toString() : candidate?.toString();
+      };
+      const errorCode = value('com.squareup.pos.ERROR_CODE');
+      if (errorCode && /CANCEL/i.test(errorCode)) {
+        await AsyncStorage.removeItem(PENDING_PAYMENT_KEY);
+        setNotice({ kind: 'failure', message: 'Payment was canceled in Square.' });
+        return;
+      }
+      if (errorCode) {
+        await AsyncStorage.removeItem(PENDING_PAYMENT_KEY);
+        setNotice({
+          kind: 'failure',
+          message: value('com.squareup.pos.ERROR_DESCRIPTION') ?? `Square returned ${errorCode}.`,
+        });
+        return;
+      }
+      if (result.resultCode === IntentLauncher.ResultCode.Canceled) {
+        await AsyncStorage.removeItem(PENDING_PAYMENT_KEY);
+        setNotice({ kind: 'failure', message: 'Payment was canceled in Square.' });
+        return;
+      }
+      const paymentId = value('com.squareup.pos.SERVER_TRANSACTION_ID');
+      if (!paymentId) {
+        setNotice({
+          kind: 'pending',
+          message: 'Square returned without a verifiable payment ID. No invoice credit was applied.',
+        });
+        return;
+      }
+      setNotice({ kind: 'pending', message: 'Verifying payment with Square…' });
+      try {
+        const result = await complete.mutateAsync({
+          data: {
+            state: value('com.squareup.pos.REQUEST_METADATA') ?? fallbackState,
+            paymentId,
+          },
+        });
+        await AsyncStorage.removeItem(PENDING_PAYMENT_KEY);
+        setNotice({
+          kind: result.status === 'COMPLETED' || result.status === 'succeeded' ? 'success' : 'pending',
+          message:
+            result.status === 'COMPLETED' || result.status === 'succeeded'
+              ? 'Payment verified and applied.'
+              : `Square payment status: ${result.status}.`,
+        });
+        queryClient.invalidateQueries({ queryKey: getGetInvoicesQueryKey() });
+        await onFinished();
+      } catch (cause) {
+        setNotice({
+          kind: 'pending',
+          message: `Payment is not yet reconciled: ${errorMessage(cause)}`,
+        });
+      }
+    },
+    [complete, onFinished, queryClient],
+  );
+
   useEffect(() => {
     const subscription = Linking.addEventListener('url', ({ url }) => {
       void reconcileCallback(url);
@@ -330,7 +392,12 @@ function PaymentPanel({
       if (Platform.OS === 'android') {
         const intent = buildSquareAndroidIntent(prepared);
         const result = await IntentLauncher.startActivityAsync(intent.action, intent.params);
-        if (result.data) {
+        const hasNativeSquareResult = Object.keys(result.extra ?? {}).some((key) =>
+          key.startsWith('com.squareup.pos.'),
+        );
+        if (hasNativeSquareResult || !result.data) {
+          await reconcileAndroidResult(result, prepared.state);
+        } else {
           await reconcileCallback(result.data);
         }
       } else {
