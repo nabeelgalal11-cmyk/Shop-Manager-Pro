@@ -16,3 +16,4 @@
 - [Render filtered logs](render-filtered-logs.md) — level-30 exports may omit console startup diagnostics; use structured logger output for production configuration failures
 - [EAS Expo dependencies](eas-expo-dependencies.md) — standalone cloud builds must install Expo runtime packages as production dependencies, not only devDependencies
 - [Windows APK bundles](windows-apk-bundles.md) — include the workspace-root ignore file and exclude generated output so Git never indexes pnpm's deep node_modules paths
+- [Square Android intent handoff](square-android-intent.md) — native apps must launch Square with Android intent extras, not pass an intent URI through Linking.openURL

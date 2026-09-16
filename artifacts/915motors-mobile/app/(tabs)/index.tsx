@@ -10,6 +10,7 @@ import {
   usePrepareSquarePosPayment,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
+import * as IntentLauncher from 'expo-intent-launcher';
 import * as Linking from 'expo-linking';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -156,7 +157,7 @@ function LoginScreen() {
   );
 }
 
-function buildSquareUrl(prepared: SquarePosPrepareResult): string {
+function buildSquareIosUrl(prepared: SquarePosPrepareResult): string {
   if (Platform.OS === 'ios') {
     const data = {
       amount_money: {
@@ -175,24 +176,40 @@ function buildSquareUrl(prepared: SquarePosPrepareResult): string {
     };
     return `square-commerce-v1://payment/create?data=${encodeURIComponent(JSON.stringify(data))}`;
   }
-  if (Platform.OS === 'android') {
-    const extra = (value: string) => encodeURIComponent(value);
-    return [
-      'intent:#Intent',
-      'action=com.squareup.pos.action.CHARGE',
-      'package=com.squareup',
-      `S.com.squareup.pos.WEB_CALLBACK_URI=${extra(prepared.callbackUrl)}`,
-      `i.com.squareup.pos.TOTAL_AMOUNT=${prepared.amountMoney.amount}`,
-      'S.com.squareup.pos.CURRENCY_CODE=USD',
-      `S.com.squareup.pos.CLIENT_ID=${extra(prepared.clientId)}`,
-      'S.com.squareup.pos.API_VERSION=v2.0',
-      `S.com.squareup.pos.LOCATION_ID=${extra(prepared.locationId)}`,
-      `S.com.squareup.pos.NOTE=${extra(prepared.notes)}`,
-      `S.com.squareup.pos.REQUEST_METADATA=${extra(prepared.state)}`,
-      'end',
-    ].join(';');
-  }
-  throw new Error('Square Point of Sale handoff is available only on iOS and Android.');
+  throw new Error('Square Point of Sale iOS handoff was requested on a non-iOS platform.');
+}
+
+function buildSquareAndroidIntent(prepared: SquarePosPrepareResult): {
+  action: string;
+  params: IntentLauncher.IntentLauncherParams;
+} {
+  const tenderTypes = prepared.options.supportedTenderTypes.map((type) => {
+    const tenderTypeMap: Record<string, string> = {
+      CREDIT_CARD: 'com.squareup.pos.TENDER_CARD',
+      CARD_ON_FILE: 'com.squareup.pos.TENDER_CARD_ON_FILE',
+      CASH: 'com.squareup.pos.TENDER_CASH',
+      OTHER: 'com.squareup.pos.TENDER_OTHER',
+    };
+    return tenderTypeMap[type] ?? type;
+  });
+
+  return {
+    action: 'com.squareup.pos.action.CHARGE',
+    params: {
+      packageName: 'com.squareup',
+      extra: {
+        'com.squareup.pos.WEB_CALLBACK_URI': prepared.callbackUrl,
+        'com.squareup.pos.TOTAL_AMOUNT': prepared.amountMoney.amount,
+        'com.squareup.pos.CURRENCY_CODE': prepared.amountMoney.currencyCode,
+        'com.squareup.pos.CLIENT_ID': prepared.clientId,
+        'com.squareup.pos.API_VERSION': 'v2.0',
+        'com.squareup.pos.LOCATION_ID': prepared.locationId,
+        'com.squareup.pos.TENDER_TYPES': tenderTypes.join(','),
+        'com.squareup.pos.NOTE': prepared.notes,
+        'com.squareup.pos.REQUEST_METADATA': prepared.state,
+      },
+    },
+  };
 }
 
 function PaymentPanel({
@@ -310,7 +327,15 @@ function PaymentPanel({
       };
       await AsyncStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(pending));
       setNotice({ kind: 'pending', message: 'Complete payment in Square Point of Sale.' });
-      await Linking.openURL(buildSquareUrl(prepared));
+      if (Platform.OS === 'android') {
+        const intent = buildSquareAndroidIntent(prepared);
+        const result = await IntentLauncher.startActivityAsync(intent.action, intent.params);
+        if (result.data) {
+          await reconcileCallback(result.data);
+        }
+      } else {
+        await Linking.openURL(buildSquareIosUrl(prepared));
+      }
     } catch (cause) {
       const failure = squareFailureMessage(cause);
       Alert.alert(

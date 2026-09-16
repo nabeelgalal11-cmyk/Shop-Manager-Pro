@@ -196,3 +196,17 @@ mtime_ms = 1789528340142
 storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/a8a9c9d9-d5ec-4f0c-be75-f5ef31bda3f5/3767b7f8-1fcf-43f4-8c9f-67748826bbfb"
 storage_version_token = "1789528345369088"
 content_type = "application/octet-stream"
+
+[[outputs]]
+id = "TybexFuAXjfzjQRXoTsJ-"
+uri = "file://downloads/915motors-mobile-v1.0.2-build-v5.zip"
+type = "unspecified"
+title = "915motors Android build bundle v5 — Square handoff fix"
+description = "Windows-safe source bundle using Expo's native Android intent launcher, Square's required tender types, corrected dependencies, lockfile, and Git ignore rules."
+logical_id = "b63f2754-ac97-4c93-9c4f-fd7aefe4bbbc"
+content_hash = "sha256:635a38ae00f854111c5fac1a36a072012a20c33adecac51ad4040b66228478c2"
+size = 1065041
+mtime_ms = 1789530859226
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:3e796315-7dd9-499b-921c-ad34c4441228/b63f2754-ac97-4c93-9c4f-fd7aefe4bbbc/5eee668c-6ab7-4ac6-9e3f-cdcb1324bc74"
+storage_version_token = "1789530865599857"
+content_type = "application/octet-stream"
