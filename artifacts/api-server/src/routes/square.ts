@@ -4,16 +4,21 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { db, invoicesTable, paymentsTable, squareMappingsTable, squareSyncStatesTable } from "@workspace/db";
 import { ApplySquareSyncBody, ApplySquareSyncParams, ApplySquareSyncResponse, CreateSquareInvoicePaymentBody, CreateSquareInvoicePaymentParams, CreateSquareRefundBody, GetSquareStatusResponse, PreviewSquareSyncParams, PreviewSquareSyncResponse } from "@workspace/api-zod";
 import { getUser, requirePermission } from "../lib/auth.js";
+import { logger } from "../lib/logger.js";
 import { SquareClient, SquareError, dollarsToCents } from "../lib/square.js";
 import { reconcileSquarePayment } from "../lib/square-accounting.js";
 import { reconcileProcessorRefund } from "../lib/repair-workflow.js";
 
 const router: IRouter = Router();
 const client = () => new SquareClient();
-const fail = (res: any, err: unknown) => { const e = err instanceof SquareError ? err : new SquareError(err instanceof Error ? err.message : "Square operation failed", 502); res.status(e.status).json({ error: e.message, code: e.code }); };
+const fail = (res: any, err: unknown) => {
+  const e = err instanceof SquareError ? err : new SquareError(err instanceof Error ? err.message : "Square operation failed", 502);
+  logger.info({ status: e.status, code: e.code, message: e.message }, "Square request failed");
+  res.status(e.status).json({ error: e.message, code: e.code });
+};
 const parsed = <T,>(result: { success: boolean; data?: T; error?: { message: string } }, res: any): T | null => { if (result.success) return result.data as T; res.status(400).json({ error: result.error?.message ?? "Invalid request" }); return null; };
 type PosState = { invoiceId: number; amountCents: number; userId: number; locationId: string; nonce: string; exp: number };
-const stateSecret = () => process.env.SESSION_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new SquareError("SESSION_SECRET is required for mobile payments", 503); })() : "dev-only-insecure-secret");
+const stateSecret = () => process.env.SESSION_SECRET || (process.env.NODE_ENV === "production" ? (() => { throw new SquareError("SESSION_SECRET is required for mobile payments", 503, "SQUARE_SESSION_SECRET_NOT_CONFIGURED"); })() : "dev-only-insecure-secret");
 const signState = (value: PosState) => { const data = Buffer.from(JSON.stringify(value)).toString("base64url"); return `${data}.${createHmac("sha256", stateSecret()).update(data).digest("base64url")}`; };
 function readState(value: string): PosState {
   const [data, signature, extra] = value.split("."), expected = createHmac("sha256", stateSecret()).update(data ?? "").digest();
@@ -46,7 +51,8 @@ router.post("/pos/prepare", requirePermission("payments", "create"), async (req,
     if (!invoice || !["issued", "partially_paid"].includes(invoice.status) || amountCents > dollarsToCents(invoice.balance)) throw new SquareError("Invoice is not open for this payment amount", 409);
     const locations = (await client().locations()).locations.filter((l) => l.status === "ACTIVE");
     const location = req.body?.locationId ? locations.find((l) => l.id === String(req.body.locationId)) : locations[0];
-    if (!location?.id || !process.env.SQUARE_APPLICATION_ID?.trim()) throw new SquareError("Square is not configured for POS payments", 503);
+    if (!location?.id) throw new SquareError("Square has no active payment location", 503, "SQUARE_NO_ACTIVE_LOCATION");
+    if (!process.env.SQUARE_APPLICATION_ID?.trim()) throw new SquareError("Square application ID is not configured for POS payments", 503, "SQUARE_APPLICATION_NOT_CONFIGURED");
     const state: PosState = { invoiceId, amountCents, userId: getUser(req)!.id, locationId: location.id, nonce: randomBytes(12).toString("base64url"), exp: Date.now() + 600_000 };
     res.json({ amountMoney: { amount: amountCents, currencyCode: "USD" }, callbackUrl: "motors915://square-callback", clientId: process.env.SQUARE_APPLICATION_ID, options: { supportedTenderTypes: ["CREDIT_CARD"] }, version: "1.3", locationId: location.id, state: signState(state), notes: `Invoice ${invoice.invoiceNumber} [915:${state.nonce}]`, expiresAt: new Date(state.exp).toISOString() });
   } catch (err) { fail(res, err); }

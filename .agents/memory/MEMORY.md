@@ -13,3 +13,4 @@
 - [Production host split](production-host-split.md) — app.915motorsusa.com is Render-backed; Replit deployment logs and its replit.app URL do not diagnose that live host
 - [Android WebView loading](android-webview-loading.md) — never rely only on onLoadEnd; some devices render the page without firing it, leaving native overlays stuck
 - [Direct Gemini model availability](direct-gemini-model-availability.md) — query Google’s model list for new accounts; older Flash names may be unavailable or temporarily overloaded
+- [Render filtered logs](render-filtered-logs.md) — level-30 exports may omit console startup diagnostics; use structured logger output for production configuration failures
