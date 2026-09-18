@@ -26,6 +26,7 @@ router.get("/overview", async (req, res) => {
   const fromTs = from ? new Date(from + "T00:00:00Z") : null;
   const toTs = to ? new Date(to + "T23:59:59Z") : null;
   const invWhere = sql`
+    AND status IN ('issued', 'partially_paid', 'paid')
     ${fromTs ? sql`AND created_at >= ${fromTs}` : sql``}
     ${toTs ? sql`AND created_at <= ${toTs}` : sql``}
   `;
@@ -118,6 +119,7 @@ router.get("/revenue-by-category", async (_req, res) => {
     FROM invoices i
     LEFT JOIN customers c  ON i.customer_id = c.id
     LEFT JOIN customer_categories cc ON c.category_id = cc.id
+    WHERE i.status IN ('issued', 'partially_paid', 'paid')
     GROUP BY COALESCE(cc.name, 'Uncategorized')
     ORDER BY revenue DESC
   `);
@@ -132,7 +134,8 @@ router.get("/monthly-revenue", async (_req, res) => {
       COALESCE(SUM(total), 0)::numeric                    AS revenue,
       COUNT(*)::int                                        AS count
     FROM invoices
-    WHERE created_at >= NOW() - INTERVAL '12 months'
+    WHERE status IN ('issued', 'partially_paid', 'paid')
+      AND created_at >= NOW() - INTERVAL '12 months'
     GROUP BY DATE_TRUNC('month', created_at)
     ORDER BY month ASC
   `);
@@ -154,6 +157,7 @@ router.get("/top-customers", async (req, res) => {
       COALESCE(SUM(i.balance), 0)::numeric        AS outstanding_balance
     FROM customers c
     LEFT JOIN invoices i ON i.customer_id = c.id
+      AND i.status IN ('issued', 'partially_paid', 'paid')
     LEFT JOIN customer_categories cc ON c.category_id = cc.id
     GROUP BY c.id, c.first_name, c.last_name, c.email, cc.name
     ORDER BY total_spent DESC

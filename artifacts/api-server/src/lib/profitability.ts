@@ -65,7 +65,7 @@ export function roProfitabilitySql(extraWhere?: SQL): SQL {
         COUNT(*) AS parts_count,
         COUNT(*) FILTER (WHERE ii.unit_cost IS NOT NULL) AS parts_cost_known_count
        FROM invoice_items ii
-       JOIN invoices i ON i.id = ii.invoice_id AND i.repair_order_id = ro.id AND i.status <> 'void'
+        JOIN invoices i ON i.id = ii.invoice_id AND i.repair_order_id = ro.id AND i.status IN ('issued', 'partially_paid', 'paid')
        WHERE ii.kind = 'part'
     ) parts ON TRUE
     LEFT JOIN LATERAL (
@@ -73,7 +73,7 @@ export function roProfitabilitySql(extraWhere?: SQL): SQL {
         SUM(ii.line_total::numeric) AS labor_revenue,
         SUM(COALESCE(w.estimated_hours, ii.quantity)::numeric) AS labor_hours_billed
       FROM invoice_items ii
-      JOIN invoices i ON i.id = ii.invoice_id AND i.repair_order_id = ro.id AND i.status <> 'void'
+        JOIN invoices i ON i.id = ii.invoice_id AND i.repair_order_id = ro.id AND i.status IN ('issued', 'partially_paid', 'paid')
       JOIN repair_order_work_items w ON w.id = ii.source_work_item_id
       WHERE ii.kind = 'labor'
     ) commercial ON TRUE

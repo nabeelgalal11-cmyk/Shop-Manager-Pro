@@ -8,6 +8,19 @@ import { eq, sql, desc, gte, and, lte } from "drizzle-orm";
 
 const router: Router = Router();
 
+// Payments are an immutable ledger: a refund or void is a child reversal row,
+// so revenue must include the original success and subtract its reversal.
+const netPaymentTotal = sql<number>`
+  COALESCE(SUM(
+    CASE
+      WHEN ${paymentsTable.status} = 'succeeded' THEN ${paymentsTable.amount}
+      WHEN ${paymentsTable.status} IN ('refunded', 'void')
+        AND ${paymentsTable.parentPaymentId} IS NOT NULL THEN -${paymentsTable.amount}
+      ELSE 0
+    END
+  ), 0)
+`;
+
 router.get("/summary", async (req, res) => {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -35,8 +48,8 @@ router.get("/summary", async (req, res) => {
     db.select({ count: sql<number>`count(*)` }).from(appointmentsTable).where(and(gte(appointmentsTable.scheduledAt, now), lte(appointmentsTable.scheduledAt, endOfToday))),
     db.select({ count: sql<number>`count(*)` }).from(inventoryTable).where(sql`quantity <= min_quantity`),
     db.select({ count: sql<number>`count(*)` }).from(estimateRevisionsTable).where(sql`status IN ('draft','sent')`),
-    db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(and(eq(paymentsTable.status, "succeeded"), gte(paymentsTable.processedAt, startOfMonth))),
-    db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(and(eq(paymentsTable.status, "succeeded"), gte(paymentsTable.processedAt, startOfLastMonth), lte(paymentsTable.processedAt, endOfLastMonth))),
+    db.select({ total: netPaymentTotal }).from(paymentsTable).where(and(gte(paymentsTable.processedAt, startOfMonth), sql`${paymentsTable.processedAt} IS NOT NULL`)),
+    db.select({ total: netPaymentTotal }).from(paymentsTable).where(and(gte(paymentsTable.processedAt, startOfLastMonth), lte(paymentsTable.processedAt, endOfLastMonth))),
   ]);
 
   res.json({
@@ -78,7 +91,7 @@ router.get("/revenue-chart", async (req, res) => {
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
-    const [rev] = await db.select({ total: sql<number>`sum(amount)` }).from(paymentsTable).where(and(eq(paymentsTable.status, "succeeded"), gte(paymentsTable.processedAt, d), lte(paymentsTable.processedAt, end)));
+    const [rev] = await db.select({ total: netPaymentTotal }).from(paymentsTable).where(and(gte(paymentsTable.processedAt, d), lte(paymentsTable.processedAt, end)));
     const [exp] = await db.select({ total: sql<number>`sum(amount)` }).from(expensesTable).where(and(gte(expensesTable.expenseDate, d.toISOString().split("T")[0]), lte(expensesTable.expenseDate, end.toISOString().split("T")[0])));
     const revenue = Number(rev.total) || 0;
     const expenses = Number(exp.total) || 0;
@@ -112,6 +125,10 @@ router.get("/top-services", async (req, res) => {
     count: sql<number>`count(*)`,
     revenue: sql<number>`sum(${invoiceItemsTable.lineTotal})`,
   }).from(invoiceItemsTable)
+    .innerJoin(invoicesTable, and(
+      eq(invoicesTable.id, invoiceItemsTable.invoiceId),
+      sql`${invoicesTable.status} IN ('issued', 'partially_paid', 'paid')`,
+    ))
     .groupBy(invoiceItemsTable.description)
     .orderBy(desc(sql`sum(${invoiceItemsTable.lineTotal})`))
     .limit(limit);
