@@ -1222,6 +1222,18 @@ paths:
           in: query
           schema:
             type: boolean
+        - name: vehicleYear
+          in: query
+          schema:
+            type: integer
+        - name: vehicleMake
+          in: query
+          schema:
+            type: string
+        - name: vehicleModel
+          in: query
+          schema:
+            type: string
         - name: page
           in: query
           schema:
@@ -3745,6 +3757,8 @@ components:
           type: string
         notes:
           type: string
+        compatibleVehicles:
+          type: string
         defaultWarrantyMonths:
           type: integer
           nullable: true
@@ -3795,6 +3809,8 @@ components:
         location:
           type: string
         notes:
+          type: string
+        compatibleVehicles:
           type: string
         defaultWarrantyMonths:
           type: integer

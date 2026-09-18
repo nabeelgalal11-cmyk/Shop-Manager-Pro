@@ -836,6 +836,7 @@ export interface InventoryItem {
   minQuantity: number;
   location?: string;
   notes?: string;
+  compatibleVehicles?: string;
   defaultWarrantyMonths?: number | null;
   defaultWarrantyMiles?: number | null;
   createdAt: string;
@@ -855,6 +856,7 @@ export interface CreateInventoryItemInput {
   minQuantity: number;
   location?: string;
   notes?: string;
+  compatibleVehicles?: string;
   defaultWarrantyMonths?: number | null;
   defaultWarrantyMiles?: number | null;
 }
@@ -2256,6 +2258,9 @@ export type GetInventoryParams = {
   search?: string;
   category?: string;
   lowStock?: boolean;
+  vehicleYear?: number;
+  vehicleMake?: string;
+  vehicleModel?: string;
   page?: number;
   limit?: number;
 };

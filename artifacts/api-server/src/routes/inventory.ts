@@ -1,9 +1,37 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { inventoryTable, stockMovementsTable, suppliersTable } from "@workspace/db";
-import { eq, ilike, sql, desc, or } from "drizzle-orm";
+import { and, eq, ilike, sql, desc, or } from "drizzle-orm";
 
 const router: Router = Router();
+
+function vehicleMatchesFitment(
+  compatibleVehicles: string | null | undefined,
+  year: number,
+  make: string,
+  model: string,
+): boolean {
+  const fitment = compatibleVehicles?.trim().toLowerCase();
+  if (!fitment) return true;
+
+  const normalized = fitment.replace(/[–—]/g, "-");
+  if (!normalized.includes(make.toLowerCase()) || !normalized.includes(model.toLowerCase())) return false;
+
+  const rangeMatches = [...normalized.matchAll(/\b((?:19|20)\d{2})\s*-\s*(\d{2,4})\b/g)];
+  const plusMatches = [...normalized.matchAll(/\b((?:19|20)\d{2})\s*\+/g)];
+  const explicitYears = [...normalized.matchAll(/\b(?:19|20)\d{2}\b/g)].map((match) => Number(match[0]));
+
+  if (rangeMatches.some((match) => {
+    const start = Number(match[1]);
+    const rawEnd = match[2];
+    const end = rawEnd.length === 2 ? Math.floor(start / 100) * 100 + Number(rawEnd) : Number(rawEnd);
+    return year >= start && year <= end;
+  })) return true;
+
+  if (plusMatches.some((match) => year >= Number(match[1]))) return true;
+  if (explicitYears.length === 0) return true;
+  return explicitYears.includes(year);
+}
 
 router.get("/", async (req, res) => {
   const page = Number(req.query.page) || 1;
@@ -11,6 +39,10 @@ router.get("/", async (req, res) => {
   const search = req.query.search as string | undefined;
   const category = req.query.category as string | undefined;
   const lowStock = req.query.lowStock === "true";
+  const vehicleYear = Number(req.query.vehicleYear);
+  const vehicleMake = String(req.query.vehicleMake ?? "").trim();
+  const vehicleModel = String(req.query.vehicleModel ?? "").trim();
+  const hasVehicleFitment = Number.isInteger(vehicleYear) && vehicleYear > 0 && Boolean(vehicleMake && vehicleModel);
   const offset = (page - 1) * limit;
 
   let query = db
@@ -40,24 +72,43 @@ router.get("/", async (req, res) => {
     .$dynamic();
   let countQuery = db.select({ count: sql<number>`count(*)` }).from(inventoryTable).$dynamic();
 
+  const filters = [];
   if (search) {
-    const searchFilter = or(
+    filters.push(or(
       ilike(inventoryTable.name, `%${search}%`),
       ilike(inventoryTable.partNumber, `%${search}%`),
       ilike(inventoryTable.category, `%${search}%`),
-    );
-    query = query.where(searchFilter);
-    countQuery = countQuery.where(searchFilter);
+    ));
   }
   if (category) {
-    query = query.where(eq(inventoryTable.category, category));
-    countQuery = countQuery.where(eq(inventoryTable.category, category));
+    filters.push(eq(inventoryTable.category, category));
+  }
+  if (hasVehicleFitment) {
+    filters.push(or(
+      sql`${inventoryTable.compatibleVehicles} IS NULL`,
+      sql`btrim(${inventoryTable.compatibleVehicles}) = ''`,
+      and(
+        ilike(inventoryTable.compatibleVehicles, `%${vehicleMake}%`),
+        ilike(inventoryTable.compatibleVehicles, `%${vehicleModel}%`),
+      ),
+    ));
+  }
+  if (filters.length) {
+    const filter = and(...filters);
+    query = query.where(filter);
+    countQuery = countQuery.where(filter);
   }
 
-  const items = await query.orderBy(desc(inventoryTable.createdAt)).limit(limit).offset(offset);
+  const items = hasVehicleFitment
+    ? await query.orderBy(desc(inventoryTable.createdAt))
+    : await query.orderBy(desc(inventoryTable.createdAt)).limit(limit).offset(offset);
   const [countResult] = await countQuery;
-  const filtered = lowStock ? items.filter(i => i.quantity <= i.minQuantity) : items;
-  res.json({ data: filtered, total: Number(countResult.count), page, limit });
+  const fitmentFiltered = hasVehicleFitment
+    ? items.filter((item) => vehicleMatchesFitment(item.compatibleVehicles, vehicleYear, vehicleMake, vehicleModel))
+    : items;
+  const stockFiltered = lowStock ? fitmentFiltered.filter(i => i.quantity <= i.minQuantity) : fitmentFiltered;
+  const data = hasVehicleFitment ? stockFiltered.slice(offset, offset + limit) : stockFiltered;
+  res.json({ data, total: hasVehicleFitment ? stockFiltered.length : Number(countResult.count), page, limit });
 });
 
 router.post("/", async (req, res) => {

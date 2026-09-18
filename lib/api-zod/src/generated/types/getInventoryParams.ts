@@ -10,6 +10,9 @@ export type GetInventoryParams = {
   search?: string;
   category?: string;
   lowStock?: boolean;
+  vehicleYear?: number;
+  vehicleMake?: string;
+  vehicleModel?: string;
   page?: number;
   limit?: number;
 };

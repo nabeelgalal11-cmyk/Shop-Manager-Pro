@@ -21,6 +21,7 @@ export interface InventoryItem {
   minQuantity: number;
   location?: string;
   notes?: string;
+  compatibleVehicles?: string;
   defaultWarrantyMonths?: number | null;
   defaultWarrantyMiles?: number | null;
   createdAt: Date;

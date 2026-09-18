@@ -40,23 +40,33 @@ export default function EstimateDetail() {
   const [activePartIndex, setActivePartIndex] = useState<number | null>(null);
   const [partSearch, setPartSearch] = useState("");
   const [debouncedPartSearch, setDebouncedPartSearch] = useState("");
+  const [showAllInventory, setShowAllInventory] = useState(false);
 
   const { data: estimate, isLoading } = useGetEstimate(id, {
     query: { enabled: !!id, queryKey: getGetEstimateQueryKey(id) },
   });
   const { data: shop } = useShopSettings();
+  const vehicleSnapshot = estimate?.vehicleSnapshot as any;
+  const vehicleFitmentParams = !showAllInventory && vehicleSnapshot?.year && vehicleSnapshot?.make && vehicleSnapshot?.model
+    ? {
+        vehicleYear: Number(vehicleSnapshot.year),
+        vehicleMake: String(vehicleSnapshot.make),
+        vehicleModel: String(vehicleSnapshot.model),
+      }
+    : {};
 
   const sendEstimate = useSendEstimateRevision();
   const resendEstimate = useResendEstimateRevision();
   const saveDraftItems = useReplaceEstimateRevisionDraftItems();
   const inventoryQuery = useGetInventory(
-    { search: debouncedPartSearch || undefined, limit: 20 },
+    { search: debouncedPartSearch || undefined, limit: 20, ...vehicleFitmentParams },
     {
       query: {
         enabled: isEditing && activePartIndex !== null && debouncedPartSearch.length > 0,
         queryKey: getGetInventoryQueryKey({
           search: debouncedPartSearch || undefined,
           limit: 20,
+          ...vehicleFitmentParams,
         }),
       },
     },
@@ -75,6 +85,8 @@ export default function EstimateDetail() {
           description: i.description,
           quantity: i.kind === "labor" ? Number(i.estimatedHours ?? i.quantity) : Number(i.quantity),
           unitPrice: Number(i.unitPrice),
+           unitCost: i.unitCost == null ? null : Number(i.unitCost),
+           inventoryItemId: i.inventoryItemId ?? null,
           priceIncludesTax: i.kind === "part" && i.priceIncludesTax === true,
         })));
       }
@@ -85,7 +97,6 @@ export default function EstimateDetail() {
   const publicToken = estimate?.publicToken;
   const publicUrl = publicToken ? `${window.location.origin}/estimate/${publicToken}` : null;
   const isDraft = status === "draft";
-  const vehicleSnapshot = estimate?.vehicleSnapshot as any;
   const repairGuideVehicle = {
     year: Number(vehicleSnapshot?.year ?? 0),
     make: String(vehicleSnapshot?.make ?? ""),
@@ -152,6 +163,10 @@ export default function EstimateDetail() {
       quantity: String(item.quantity),
       unitPrice: String(item.unitPrice),
       ...(item.kind === "part" ? { priceIncludesTax: item.priceIncludesTax === true } : {}),
+      ...(item.kind === "part" ? {
+        unitCost: item.unitCost == null ? null : String(item.unitCost),
+        inventoryItemId: item.inventoryItemId ?? null,
+      } : {}),
       ...(item.kind === "labor" ? { estimatedHours: String(item.quantity) } : {}),
     }));
 
@@ -184,8 +199,9 @@ export default function EstimateDetail() {
       kind: "part",
       description: item.name,
       unitPrice: Number(item.sellPrice ?? 0),
+       unitCost: Number(item.costPrice ?? 0),
       partNumber: item.partNumber ?? "",
-      inventoryId: item.id,
+       inventoryItemId: item.id,
     };
     setDraftItems(newItems);
     setPartSearch(item.name);
@@ -388,7 +404,7 @@ export default function EstimateDetail() {
                             <Search className="pointer-events-none absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                             <Input
                               className="h-8 pl-7 text-xs"
-                              placeholder="Search inventory by name, part #, or category"
+                              placeholder="Search compatible parts by name, part #, or category"
                               value={activePartIndex === idx ? partSearch : ""}
                               onFocus={() => {
                                 setActivePartIndex(idx);
@@ -400,6 +416,17 @@ export default function EstimateDetail() {
                               }}
                             />
                           </div>
+                          {vehicleSnapshot?.year && vehicleSnapshot?.make && vehicleSnapshot?.model && (
+                            <button
+                              type="button"
+                              className="mt-1 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                              onClick={() => setShowAllInventory((value) => !value)}
+                            >
+                              {showAllInventory
+                                ? "Showing all inventory · show vehicle-compatible parts"
+                                : `Showing parts for ${vehicleSnapshot.year} ${vehicleSnapshot.make} ${vehicleSnapshot.model} · show all inventory`}
+                            </button>
+                          )}
                           {activePartIndex === idx && debouncedPartSearch && (
                             <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover p-1 shadow-md">
                               {inventoryQuery.isLoading ? (
