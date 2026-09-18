@@ -273,7 +273,7 @@ export default function InvoiceDetail() {
         </div>
       </div>
 
-      <Card className="shadow-sm border-border">
+      <Card ref={printRef} className="shadow-sm border-border">
         <CardContent className="p-8">
           <div className="flex justify-between items-start mb-8">
             <div>
@@ -346,7 +346,7 @@ export default function InvoiceDetail() {
       </Card>
 
       {invoice.payments && invoice.payments.length > 0 && (
-      <Card ref={printRef} className="shadow-sm border-border">
+       <Card className="shadow-sm border-border">
           <CardContent className="p-6">
             <h3 className="font-semibold mb-3">Payment history</h3>
             <Table>
