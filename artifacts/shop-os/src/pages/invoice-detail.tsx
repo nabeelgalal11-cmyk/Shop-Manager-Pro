@@ -349,7 +349,6 @@ export default function InvoiceDetail() {
               <div class="info-card">
                 <p class="info-label">Invoice details</p>
                 <p class="info-subvalue">Issued <strong>${escapeHtml(formatDate(invoiceDate))}</strong></p>
-                ${invoice.dueDate ? `<p class="info-subvalue">Due <strong>${escapeHtml(formatDate(invoice.dueDate))}</strong></p>` : ""}
                 ${invoice.repairOrderId ? `<p class="info-subvalue">Repair order <strong>#${escapeHtml(invoice.repairOrderId)}</strong></p>` : ""}
                 ${vehicleDetails.length > 0 ? `<p class="info-subvalue">${vehicleDetails.map(escapeHtml).join(" • ")}</p>` : ""}
               </div>
