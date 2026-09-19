@@ -19,7 +19,10 @@ import { SupplierPicker } from "@/components/supplier-picker";
 const formSchema = z.object({
   partNumber: z.string().optional(),
   name: z.string().min(1, "Name is required"),
-  category: z.string().min(1, "Category is required"),
+  // The custom-category input is stored separately from the select field.
+  // Validate the final category in onSubmit so the form can submit when a
+  // user chooses "Add new category".
+  category: z.string(),
   costPrice: z.coerce.number().min(0, "Must be 0 or more"),
   sellPrice: z.coerce.number().min(0, "Must be 0 or more"),
   quantity: z.coerce.number().min(0, "Must be 0 or more"),
