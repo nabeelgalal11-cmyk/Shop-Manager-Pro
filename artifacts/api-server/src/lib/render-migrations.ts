@@ -26,6 +26,10 @@ const SHOP_PROFILE_COLUMN_SQL = [
   `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS additional_info text`,
 ];
 
+const INVENTORY_FITMENT_COLUMN_SQL = [
+  `ALTER TABLE inventory ADD COLUMN IF NOT EXISTS compatible_vehicles text`,
+];
+
 function isRenderDeployment() {
   return process.env.RENDER === "true" || Boolean(process.env.RENDER_SERVICE_ID);
 }
@@ -43,7 +47,11 @@ export async function runRenderSchemaMigrations() {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock($1)", [RENDER_SCHEMA_LOCK]);
 
-    for (const statement of [...ESTIMATE_TAX_COLUMN_SQL, ...SHOP_PROFILE_COLUMN_SQL]) {
+    for (const statement of [
+      ...ESTIMATE_TAX_COLUMN_SQL,
+      ...SHOP_PROFILE_COLUMN_SQL,
+      ...INVENTORY_FITMENT_COLUMN_SQL,
+    ]) {
       await client.query(statement);
     }
 

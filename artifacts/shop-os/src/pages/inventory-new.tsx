@@ -83,8 +83,12 @@ export default function InventoryNew() {
           toast({ title: "Item added to inventory" });
           setLocation("/inventory");
         },
-        onError: () => {
-          toast({ title: "Failed to add item", variant: "destructive" });
+        onError: (error: any) => {
+          toast({
+            title: "Failed to add item",
+            description: error?.message || "The inventory item could not be saved.",
+            variant: "destructive",
+          });
         },
       }
     );

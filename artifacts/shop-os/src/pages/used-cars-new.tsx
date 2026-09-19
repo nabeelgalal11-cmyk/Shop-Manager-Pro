@@ -139,6 +139,16 @@ export default function UsedCarsNew() {
       qc.invalidateQueries({ queryKey: [API] });
       setLocation("/used-cars");
     },
+    onError: (error: any) => {
+      let description = error instanceof Error ? error.message : "The vehicle could not be saved.";
+      try {
+        const parsed = JSON.parse(description);
+        description = parsed.error || parsed.message || description;
+      } catch {
+        // Keep the original API error when it is not JSON.
+      }
+      toast({ title: "Could not add vehicle to inventory", description, variant: "destructive" });
+    },
   });
 
   function set(key: keyof typeof empty, val: string | number) {
