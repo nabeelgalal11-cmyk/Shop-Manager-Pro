@@ -226,7 +226,17 @@ export default function VehicleDetail() {
         <Card className="shadow-sm border-border md:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Service History</CardTitle>
-            <Button size="sm" variant="outline" onClick={() => setLocation("/repair-orders/new")}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const query = new URLSearchParams({
+                  vehicleId: String(vehicle.id),
+                  ...(vehicle.customerId ? { customerId: String(vehicle.customerId) } : {}),
+                });
+                setLocation(`/repair-orders/new?${query.toString()}`);
+              }}
+            >
               <Wrench className="h-4 w-4 mr-2" /> New RO
             </Button>
           </CardHeader>

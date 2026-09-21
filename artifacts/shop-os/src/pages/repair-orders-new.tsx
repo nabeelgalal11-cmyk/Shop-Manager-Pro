@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useCreateRepairOrder, useGetCustomers, getGetCustomersQueryKey, useGetVehicles, getGetVehiclesQueryKey, useGetEmployees, getGetEmployeesQueryKey, type RepairOrderInput } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
@@ -26,6 +26,10 @@ const formSchema = z.object({
 export default function RepairOrdersNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialCustomerId = Number(searchParams.get("customerId")) || undefined;
+  const initialVehicleId = Number(searchParams.get("vehicleId")) || undefined;
+  const skipInitialVehicleReset = useRef(true);
 
   const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
   const { data: employees } = useGetEmployees({ role: "technician" }, { query: { queryKey: getGetEmployeesQueryKey({ role: "technician" }) } });
@@ -33,6 +37,8 @@ export default function RepairOrdersNew() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      customerId: initialCustomerId,
+      vehicleId: initialVehicleId,
       priority: "normal",
       complaint: "",
     },
@@ -48,6 +54,10 @@ export default function RepairOrdersNew() {
   });
 
   useEffect(() => {
+    if (skipInitialVehicleReset.current) {
+      skipInitialVehicleReset.current = false;
+      return;
+    }
     form.resetField("vehicleId");
   }, [selectedCustomerId, form]);
 
