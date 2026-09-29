@@ -18,6 +18,7 @@
     "typescript": "~5.9.2"
   },
   "dependencies": {
+    "@replit/connectors-sdk": "^0.4.3",
     "drizzle-orm": "0.45.2"
   },
   "overrides": {

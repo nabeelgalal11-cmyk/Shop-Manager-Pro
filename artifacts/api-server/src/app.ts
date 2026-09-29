@@ -11,6 +11,7 @@ import { sessionMiddleware, attachUser } from "./lib/auth.js";
 import { seedDefaultPermissions, bootstrapAdmin } from "./lib/permissions.js";
 import { stripeWebhookHandler } from "./routes/stripe-webhook.js";
 import { squareWebhookHandler } from "./routes/square-webhook.js";
+import { handleBackupUpload } from "./routes/backup-upload.js";
 
 const app: Express = express();
 
@@ -50,6 +51,7 @@ app.use(cors({ origin: true, credentials: true }));
 // and the signature check will fail.
 app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), stripeWebhookHandler);
 app.post("/api/square/webhook", express.raw({ type: "application/json" }), squareWebhookHandler);
+app.post("/api/backups/upload", handleBackupUpload);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

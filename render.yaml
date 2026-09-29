@@ -1,0 +1,14 @@
+services:
+  - type: cron
+    name: 915motors-daily-database-backup
+    runtime: docker
+    dockerfilePath: ./scripts/database-backup/Dockerfile
+    dockerContext: ./scripts/database-backup
+    schedule: "0 6 * * *"
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: BACKUP_UPLOAD_TOKEN
+        sync: false
+      - key: BACKUP_UPLOAD_URL
+        value: https://shop-manager-pro.replit.app/api/backups/upload
