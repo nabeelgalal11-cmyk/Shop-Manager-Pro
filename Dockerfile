@@ -33,6 +33,17 @@ RUN pnpm run build
 FROM base
 WORKDIR /app
 
+# The production login-triggered backup runs pg_dump in this service process.
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y ca-certificates curl gnupg && \
+    install -d /usr/share/postgresql-common/pgdg && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg && \
+    . /etc/os-release && \
+    echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update -qq && \
+    apt-get install --no-install-recommends -y postgresql-client-16 && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy built artifacts
 COPY --from=build /app /app
 

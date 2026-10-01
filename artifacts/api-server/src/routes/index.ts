@@ -43,6 +43,7 @@ import suppliersRouter from "./suppliers.js";
 import exportsRouter from "./exports.js";
 import squareRouter from "./square.js";
 import ownerFundingRouter from "./owner-funding.js";
+import backupsRouter from "./backups.js";
 
 const router: IRouter = Router();
 
@@ -88,6 +89,7 @@ router.use("/attachments", attachmentsRouter);
 router.use("/vin", vinRouter);
 router.use("/canned-jobs", cannedJobsRouter);
 router.use("/settings", settingsRouter);
+router.use("/backups", backupsRouter);
 router.use("/user-preferences", userPreferencesRouter);
 router.use("/messages", messagesRouter);
 router.use("/activity", activityRouter);

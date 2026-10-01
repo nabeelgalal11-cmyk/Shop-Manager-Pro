@@ -24,6 +24,12 @@ const SHOP_PROFILE_COLUMN_SQL = [
   `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS ein text`,
   `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS website text`,
   `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS additional_info text`,
+  `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS production_backup_success_date date`,
+  `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS production_backup_lock_token text`,
+  `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS production_backup_lock_date date`,
+  `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS production_backup_lock_until timestamptz`,
+  `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS production_backup_last_attempt_at timestamptz`,
+  `ALTER TABLE shop_settings ADD COLUMN IF NOT EXISTS production_backup_last_error text`,
 ];
 
 const INVENTORY_FITMENT_COLUMN_SQL = [

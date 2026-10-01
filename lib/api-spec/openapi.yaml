@@ -53,6 +53,8 @@ tags:
     description: Parts suppliers / vendors
   - name: exports
     description: CSV / ZIP exports for bookkeeping (QuickBooks Online)
+  - name: backups
+    description: Development database snapshots and explicitly confirmed restores
   - name: square
     description: Square payment, Terminal, refund, and conservative synchronization operations
 
@@ -2525,6 +2527,77 @@ paths:
         content: { application/json: { schema: { $ref: "#/components/schemas/SquareWebhookEvent" } } }
       responses:
         "200": { description: Webhook accepted }
+
+  /backups/development:
+    get:
+      operationId: getDevelopmentBackupStatus
+      tags: [backups]
+      summary: Verify whether development database backup tools are enabled
+      responses:
+        "200":
+          description: Development backup availability and safe target details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevelopmentBackupStatus"
+  /backups/development/download:
+    get:
+      operationId: downloadDevelopmentBackup
+      tags: [backups]
+      summary: Download a verified custom-format development database backup
+      responses:
+        "200":
+          description: PostgreSQL custom-format archive
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403": { description: Backup is disabled outside development }
+  /backups/production-status:
+    get:
+      operationId: getProductionBackupStatus
+      tags: [backups]
+      summary: Read the latest automatic production backup result
+      responses:
+        "200":
+          description: Backup configuration and latest attempt status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductionBackupStatus"
+        "503": { description: Status is temporarily unavailable }
+  /backups/development/restore:
+    post:
+      operationId: restoreDevelopmentBackup
+      tags: [backups]
+      summary: Restore an archive to the development database after explicit confirmation
+      parameters:
+        - name: X-Backup-Filename
+          in: header
+          required: true
+          schema: { type: string, pattern: "^[A-Za-z0-9._-]{1,180}\\.dump$" }
+        - name: X-Restore-Confirmation
+          in: header
+          required: true
+          schema: { type: string, enum: ["RESTORE DEVELOPMENT DATABASE"] }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Development database restore completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevelopmentBackupRestoreResult"
+        "400": { description: Invalid archive or missing confirmation }
+        "403": { description: Restore is disabled outside development }
+        "413": { description: Archive exceeds the upload limit }
 
 components:
   parameters:
@@ -5438,3 +5511,37 @@ components:
         workItems: { type: array, items: { $ref: "#/components/schemas/RepairOrderWorkItem" } }
         invoice: { oneOf: [{ $ref: "#/components/schemas/WorkflowInvoiceDetail" }, { type: "null" }] }
         events: { type: array, items: { $ref: "#/components/schemas/RepairOrderEvent" } }
+    DevelopmentBackupTarget:
+      type: object
+      required: [host, database]
+      properties:
+        host: { type: string }
+        database: { type: string }
+    DevelopmentBackupStatus:
+      type: object
+      required: [enabled, target]
+      properties:
+        enabled: { type: boolean }
+        environment: { type: string }
+        reason: { type: string }
+        target:
+          oneOf:
+            - $ref: "#/components/schemas/DevelopmentBackupTarget"
+            - type: "null"
+    DevelopmentBackupRestoreResult:
+      type: object
+      required: [ok, target, fileName]
+      properties:
+        ok: { type: boolean }
+        target: { $ref: "#/components/schemas/DevelopmentBackupTarget" }
+        fileName: { type: string }
+    ProductionBackupStatus:
+      type: object
+      required: [available, configured, lastSuccessDate, lastAttemptAt, lastError]
+      properties:
+        available: { type: boolean }
+        reason: { type: string }
+        configured: { type: boolean }
+        lastSuccessDate: { type: [string, "null"], format: date }
+        lastAttemptAt: { type: [string, "null"], format: date-time }
+        lastError: { type: [string, "null"] }

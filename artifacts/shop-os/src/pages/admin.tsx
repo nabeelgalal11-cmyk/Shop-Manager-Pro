@@ -5,6 +5,7 @@ import {
   Bell,
   BriefcaseBusiness,
   CreditCard,
+  Database,
   Mail,
   Receipt,
   Settings2,
@@ -20,6 +21,7 @@ type AdminLink = {
   description: string;
   icon: any;
   resource: string;
+  adminOnly?: boolean;
 };
 
 type AdminSection = {
@@ -53,6 +55,7 @@ const sections: AdminSection[] = [
       { name: "Email Templates", href: "/email-templates", description: "Customize the messages sent by the shop.", icon: Mail, resource: "permissions" },
       { name: "Payments (Stripe)", href: "/settings/payments", description: "Configure online payment settings and webhooks.", icon: CreditCard, resource: "permissions" },
       { name: "Messaging (SMS)", href: "/settings/messaging", description: "Configure outgoing text messages.", icon: Mail, resource: "permissions" },
+      { name: "Database Backups", href: "/settings/backups", description: "Download a development backup or restore one into the development database.", icon: Database, resource: "permissions", adminOnly: true },
     ],
   },
   {
@@ -67,7 +70,7 @@ const sections: AdminSection[] = [
 ];
 
 export default function Admin() {
-  const { can } = useAuth();
+  const { can, isAdmin } = useAuth();
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
@@ -85,7 +88,7 @@ export default function Admin() {
 
       <div className="grid gap-5 md:grid-cols-2">
         {sections.map((section) => {
-          const items = section.items.filter((item) => can(item.resource as any, "view"));
+          const items = section.items.filter((item) => can(item.resource as any, "view") && (!item.adminOnly || isAdmin));
           if (items.length === 0) return null;
 
           return (

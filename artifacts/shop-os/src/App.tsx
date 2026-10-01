@@ -65,6 +65,7 @@ import CannedJobs from "@/pages/canned-jobs";
 import SettingsPayments from "@/pages/settings-payments";
 import SettingsMessaging from "@/pages/settings-messaging";
 import SettingsShop from "@/pages/settings-shop";
+import SettingsBackups from "@/pages/settings-backups";
 import Admin from "@/pages/admin";
 import PayInvoice from "@/pages/pay";
 import InspectionPublic from "@/pages/inspection-public";
@@ -217,6 +218,7 @@ function Router() {
         <Route path="/settings/payments" component={SettingsPayments} />
         <Route path="/settings/messaging" component={SettingsMessaging} />
         <Route path="/settings/shop" component={SettingsShop} />
+        <Route path="/settings/backups" component={SettingsBackups} />
         <Route path="/admin" component={Admin} />
 
         <Route component={NotFound} />

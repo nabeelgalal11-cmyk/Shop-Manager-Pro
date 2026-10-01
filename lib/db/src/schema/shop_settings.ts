@@ -1,4 +1,4 @@
-import { pgTable, serial, numeric, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, numeric, text, timestamp, boolean, date } from "drizzle-orm/pg-core";
 
 export const shopSettingsTable = pgTable("shop_settings", {
   id: serial("id").primaryKey(),
@@ -27,6 +27,12 @@ export const shopSettingsTable = pgTable("shop_settings", {
   twilioAccountSid: text("twilio_account_sid"),
   twilioAuthToken: text("twilio_auth_token"),
   twilioFromNumber: text("twilio_from_number"),
+  productionBackupSuccessDate: date("production_backup_success_date", { mode: "string" }),
+  productionBackupLockToken: text("production_backup_lock_token"),
+  productionBackupLockDate: date("production_backup_lock_date", { mode: "string" }),
+  productionBackupLockUntil: timestamp("production_backup_lock_until", { withTimezone: true }),
+  productionBackupLastAttemptAt: timestamp("production_backup_last_attempt_at", { withTimezone: true }),
+  productionBackupLastError: text("production_backup_last_error"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

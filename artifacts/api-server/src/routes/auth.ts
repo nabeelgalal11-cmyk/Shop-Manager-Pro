@@ -7,6 +7,7 @@ import { getUser, issueMobileToken, recordLogin, requireAuth } from "../lib/auth
 import { getPermissionsForRoles, RESOURCES, ACTIONS } from "../lib/permissions.js";
 import { escapeHtml, sendTemplatedEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
+import { queueDailyProductionBackup } from "../lib/production-database-backup.js";
 
 const router: Router = Router();
 
@@ -181,6 +182,7 @@ router.post("/login", async (req, res) => {
     req.session.save((err) => (err ? reject(err) : resolve())),
   );
   await recordLogin(emp.id);
+  queueDailyProductionBackup();
 
   const roles = emp.roles && emp.roles.length > 0 ? emp.roles : [emp.role];
   const permsSet = await getPermissionsForRoles(roles);

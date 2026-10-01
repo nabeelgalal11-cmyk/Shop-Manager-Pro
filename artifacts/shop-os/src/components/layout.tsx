@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Car, FileText, FileSpreadsheet,
   Wrench, Package, ClipboardCheck, Calendar, CreditCard,
   UserCircle, Clock, Receipt, Bell, Search, BarChart2, BookOpen, Tags, CarFront, ShoppingCart, Settings2,
-  LogOut, Shield, KeyRound, Mail, Truck, AlertTriangle, Plus, Minus, HandCoins,
+  LogOut, Shield, KeyRound, Mail, Truck, AlertTriangle, Plus, Minus, HandCoins, Database,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem,
@@ -22,7 +22,7 @@ import { NotificationsBell } from "@/components/notifications-bell";
 import { MessagesBell } from "@/components/messages-bell";
 import { GlobalSearch } from "@/components/global-search";
 
-interface NavItem { name: string; href: string; icon: any; resource?: string }
+interface NavItem { name: string; href: string; icon: any; resource?: string; adminOnly?: boolean }
 interface NavGroup {
   label: string;
   items: NavItem[];
@@ -75,6 +75,7 @@ const navGroups: NavGroup[] = [
       { name: "Shop Settings", href: "/settings/shop", icon: Settings2, resource: "permissions" },
       { name: "Payments (Stripe)", href: "/settings/payments", icon: CreditCard, resource: "permissions" },
       { name: "Messaging (SMS)", href: "/settings/messaging", icon: Mail, resource: "permissions" },
+      { name: "Database Backups", href: "/settings/backups", icon: Database, adminOnly: true },
     ],
   },
 ];
@@ -111,7 +112,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const visibleGroups = navGroups
     .map((g) => ({
       ...g,
-      items: g.items.filter((i) => !i.resource || can(i.resource as any, "view")),
+      items: g.items.filter((i) => (!i.resource || can(i.resource as any, "view")) && (!i.adminOnly || isAdmin)),
     }))
     .filter((g) => g.items.length > 0);
 
