@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Download, FileSpreadsheet, Receipt, CreditCard, Package } from "lucide-react";
+import { BookOpen, Download, FileSpreadsheet, Receipt, CreditCard, Package, HandCoins } from "lucide-react";
 
 interface ExportButtonProps {
   icon: React.ReactNode;
@@ -128,7 +128,7 @@ export default function Bookkeeping() {
             Download bookkeeping.zip
           </a>
           <p className="text-xs text-muted-foreground mt-2">
-            Bundles all four CSVs below into one zip file.
+            Bundles the available bookkeeping CSVs below, including owner funding, into one zip file.
           </p>
         </CardContent>
       </Card>
@@ -161,6 +161,12 @@ export default function Bookkeeping() {
             title="COGS Journal"
             description="Daily journal entries debiting COGS and crediting Inventory Asset."
             href={`/api/exports/cogs-journal.csv${q}`}
+          />
+          <ExportButton
+            icon={<HandCoins className="h-5 w-5 text-primary" />}
+            title="Owner Funding"
+            description="Dated owner loans, contributions, and repayments; separate from purchases and expenses."
+            href={`/api/exports/owner-funding.csv${q}`}
           />
         </CardContent>
       </Card>

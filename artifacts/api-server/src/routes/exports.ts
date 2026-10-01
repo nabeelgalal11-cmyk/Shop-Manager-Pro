@@ -1,7 +1,8 @@
 import { Router } from "express";
 import archiver from "archiver";
 import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { ownerFundingEntriesTable } from "@workspace/db";
+import { and, desc, gte, lte, sql } from "drizzle-orm";
 import { requirePermission } from "../lib/auth.js";
 import { csvRow, moneyCell, dateCell } from "../lib/csv.js";
 
@@ -220,6 +221,34 @@ function expenseCsvRows(rows: any[]): string[] {
   ]));
 }
 
+const OWNER_FUNDING_HEADERS = [
+  "Date",
+  "EntryType",
+  "Description",
+  "Amount",
+  "Memo",
+];
+
+function ownerFundingCsvRows(rows: any[]): string[] {
+  return rows.map((r) => csvRow([
+    dateCell(r.entryDate),
+    r.type,
+    r.description,
+    moneyCell(r.amount),
+    r.notes ?? "",
+  ]));
+}
+
+async function fetchOwnerFunding(range: DateRange) {
+  const conditions = [];
+  if (range.from) conditions.push(gte(ownerFundingEntriesTable.entryDate, range.from));
+  if (range.to) conditions.push(lte(ownerFundingEntriesTable.entryDate, range.to));
+  const order = [desc(ownerFundingEntriesTable.entryDate), desc(ownerFundingEntriesTable.id)] as const;
+  return conditions.length
+    ? db.select().from(ownerFundingEntriesTable).where(and(...conditions)).orderBy(...order)
+    : db.select().from(ownerFundingEntriesTable).orderBy(...order);
+}
+
 const COGS_HEADERS = [
   "Date",
   "Account",
@@ -283,7 +312,16 @@ router.get("/cogs-journal.csv", async (req, res) => {
   res.end();
 });
 
-// Bundle all four CSVs into a single ZIP for one-click download.
+router.get("/owner-funding.csv", async (req, res) => {
+  const range = parseRange(req);
+  const rows = await fetchOwnerFunding(range);
+  setCsvHeaders(res, `owner-funding${rangeSuffix(range)}.csv`);
+  res.write(csvRow(OWNER_FUNDING_HEADERS));
+  for (const line of ownerFundingCsvRows(rows)) res.write(line);
+  res.end();
+});
+
+// Bundle the bookkeeping CSVs into a single ZIP for one-click download.
 router.get("/bookkeeping.zip", async (req, res) => {
   const range = parseRange(req);
   const suffix = rangeSuffix(range);
@@ -300,22 +338,25 @@ router.get("/bookkeeping.zip", async (req, res) => {
   });
   archive.pipe(res);
 
-  const [invoices, payments, expenses, cogs] = await Promise.all([
+  const [invoices, payments, expenses, cogs, ownerFunding] = await Promise.all([
     fetchInvoices(range),
     fetchPayments(range),
     fetchExpenses(range),
     fetchCogsJournal(range),
+    fetchOwnerFunding(range),
   ]);
 
   const invoicesCsv = csvRow(INVOICE_HEADERS) + invoiceCsvRows(invoices).join("");
   const paymentsCsv = csvRow(PAYMENT_HEADERS) + paymentCsvRows(payments).join("");
   const expensesCsv = csvRow(EXPENSE_HEADERS) + expenseCsvRows(expenses).join("");
   const cogsCsv = csvRow(COGS_HEADERS) + cogsCsvRows(cogs).join("");
+  const ownerFundingCsv = csvRow(OWNER_FUNDING_HEADERS) + ownerFundingCsvRows(ownerFunding).join("");
 
   archive.append(invoicesCsv, { name: `invoices${suffix}.csv` });
   archive.append(paymentsCsv, { name: `payments${suffix}.csv` });
   archive.append(expensesCsv, { name: `expenses${suffix}.csv` });
   archive.append(cogsCsv, { name: `cogs-journal${suffix}.csv` });
+  archive.append(ownerFundingCsv, { name: `owner-funding${suffix}.csv` });
 
   await archive.finalize();
 });

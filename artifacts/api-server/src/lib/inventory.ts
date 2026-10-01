@@ -28,6 +28,7 @@ export interface MovementSource {
   referenceLineId?: number | null;
   unitCost?: number | string | null;
   notes?: string;
+  effectiveDate?: string;
   createdById?: number | null;
 }
 
@@ -88,6 +89,7 @@ export async function applyStockMovement(m: MovementSource, executor: DbExecutor
     referenceLineId: m.referenceLineId ?? null,
     unitCost: m.unitCost != null ? String(m.unitCost) : null,
     notes: m.notes ?? null,
+    ...(m.effectiveDate ? { effectiveDate: m.effectiveDate } : {}),
     createdById: m.createdById ?? null,
   }).returning();
 

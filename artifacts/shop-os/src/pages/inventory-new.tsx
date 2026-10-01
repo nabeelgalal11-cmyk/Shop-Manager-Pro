@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCreateInventoryItem, useGetInventory, getGetInventoryQueryKey } from "@workspace/api-client-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,6 +17,11 @@ import { ArrowLeft, Plus, Car } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { SupplierPicker } from "@/components/supplier-picker";
 
+function localIsoDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 const formSchema = z.object({
   partNumber: z.string().optional(),
   name: z.string().min(1, "Name is required"),
@@ -25,8 +31,8 @@ const formSchema = z.object({
   category: z.string(),
   costPrice: z.coerce.number().min(0, "Must be 0 or more"),
   sellPrice: z.coerce.number().min(0, "Must be 0 or more"),
-  quantity: z.coerce.number().min(0, "Must be 0 or more"),
-  minQuantity: z.coerce.number().min(0, "Must be 0 or more"),
+  quantity: z.coerce.number().int("Must be a whole number").min(0, "Must be 0 or more"),
+  minQuantity: z.coerce.number().int("Must be a whole number").min(0, "Must be 0 or more"),
   vendor: z.string().optional(),
   preferredSupplierId: z.number().nullable().optional(),
   location: z.string().optional(),
@@ -40,7 +46,9 @@ const CUSTOM_KEY = "__custom__";
 
 export default function InventoryNew() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [openingStockDate, setOpeningStockDate] = useState(localIsoDate);
   const [categoryMode, setCategoryMode] = useState<"select" | "custom">("select");
   const [customCategory, setCustomCategory] = useState("");
 
@@ -80,9 +88,10 @@ export default function InventoryNew() {
       return;
     }
     createItem.mutate(
-      { data: { ...values, category: finalCategory } as any },
+      { data: { ...values, category: finalCategory, ...(values.quantity > 0 ? { openingStockDate } : {}) } as any },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetInventoryQueryKey() });
           toast({ title: "Item added to inventory" });
           setLocation("/inventory");
         },
@@ -317,7 +326,7 @@ export default function InventoryNew() {
                   name="quantity"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Current Stock</FormLabel>
+                      <FormLabel>Opening Quantity</FormLabel>
                       <FormControl>
                         <Input type="number" min="0" {...field} />
                       </FormControl>
@@ -338,6 +347,20 @@ export default function InventoryNew() {
                     </FormItem>
                   )}
                 />
+              </div>
+              <div className="rounded-md border border-primary/20 bg-primary/5 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="max-w-md">
+                    <p className="text-sm font-semibold">Opening stock date</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                      A positive opening quantity is recorded as an opening-balance movement on this date, not as a supplier purchase. Leave quantity at zero if the item has not arrived yet.
+                    </p>
+                  </div>
+                  <div className="w-full sm:w-52">
+                    <Label htmlFor="opening-stock-date" className="text-xs">Effective date</Label>
+                     <Input id="opening-stock-date" type="date" value={openingStockDate} onChange={(event) => setOpeningStockDate(event.target.value)} className="mt-1.5" required={Number(form.watch("quantity") ?? 0) > 0} data-testid="input-opening-stock-date" />
+                  </div>
+                </div>
               </div>
 
               <Separator />

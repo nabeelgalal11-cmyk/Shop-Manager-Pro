@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, numeric, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, numeric, timestamp, date, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { inventoryTable } from "./inventory";
 import { repairOrderWorkItemsTable } from "./repair_order_work_items";
@@ -11,6 +11,7 @@ export const stockMovementReasons = [
   "invoice_consumed",
   "invoice_unconsumed",
   "manual_adjustment",
+  "opening_balance",
 ] as const;
 
 export type StockMovementReason = typeof stockMovementReasons[number];
@@ -26,6 +27,7 @@ export const stockMovementsTable = pgTable("stock_movements", {
   workItemId: integer("work_item_id").references(() => repairOrderWorkItemsTable.id),
   unitCost: numeric("unit_cost", { precision: 10, scale: 2 }),
   notes: text("notes"),
+  effectiveDate: date("effective_date", { mode: "string" }).notNull().default(sql`CURRENT_DATE`),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   createdById: integer("created_by_id"),
 }, (t) => ({

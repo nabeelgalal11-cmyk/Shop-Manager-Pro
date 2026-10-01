@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -18,8 +18,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Edit2, Save, X, Trash2, Car, Package, Plus, History, ArrowUp, ArrowDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { CalendarDays, PackageCheck } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const CUSTOM_KEY = "__custom__";
+
+function localIsoDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
 
 export default function InventoryDetail() {
   const [match, params] = useRoute("/inventory/:id");
@@ -27,6 +34,7 @@ export default function InventoryDetail() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = useAuth();
 
   const { data: item, isLoading } = useGetInventoryItem(id, {
     query: { enabled: !!id, queryKey: getGetInventoryItemQueryKey(id) },
@@ -51,6 +59,12 @@ export default function InventoryDetail() {
   const [categoryMode, setCategoryMode] = useState<"select" | "custom">("select");
   const [customCategory, setCustomCategory] = useState("");
   const [form, setForm] = useState<Record<string, any>>({});
+  const [openingQty, setOpeningQty] = useState("");
+  const [openingCost, setOpeningCost] = useState("");
+  const [openingDate, setOpeningDate] = useState(localIsoDate);
+  const [openingNotes, setOpeningNotes] = useState("");
+  const [openingBusy, setOpeningBusy] = useState(false);
+  const [openingError, setOpeningError] = useState("");
 
   const startEdit = () => {
     if (!item) return;
@@ -109,6 +123,44 @@ export default function InventoryDetail() {
   };
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
+
+  const recordOpeningStock = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setOpeningError("");
+    if (!Number.isSafeInteger(Number(openingQty)) || Number(openingQty) <= 0) return setOpeningError("Quantity must be a positive whole number.");
+    if (!Number.isFinite(Number(openingCost)) || Number(openingCost) < 0) return setOpeningError("Unit cost cannot be negative.");
+    setOpeningBusy(true);
+    try {
+      const response = await fetch(`/api/inventory/${id}/opening-stock`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quantity: Number(openingQty),
+          unitCost: Number(openingCost),
+          effectiveDate: openingDate,
+          ...(openingNotes.trim() ? { notes: openingNotes.trim() } : {}),
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw Object.assign(new Error(body.error || body.message || "Opening stock could not be recorded."), { status: response.status });
+      }
+      await response.json();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getGetInventoryItemQueryKey(id) }),
+        queryClient.invalidateQueries({ queryKey: getGetInventoryQueryKey() }),
+        queryClient.invalidateQueries({ queryKey: getGetInventoryMovementsQueryKey(id) }),
+      ]);
+      toast({ title: "Opening stock recorded", description: `Effective ${new Date(`${openingDate}T12:00:00`).toLocaleDateString()}.` });
+      setOpeningQty(""); setOpeningCost(""); setOpeningNotes("");
+    } catch (error) {
+      const issue = error as Error & { status?: number };
+      setOpeningError(issue.status === 409 ? "Opening stock can only be recorded once, while this item has zero stock and no movement history." : issue.message);
+    } finally {
+      setOpeningBusy(false);
+    }
+  };
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="h-64 w-full" /></div>;
@@ -299,6 +351,31 @@ export default function InventoryDetail() {
             </CardContent>
           </Card>
 
+          {item.quantity === 0 && movements.length === 0 && !editing && can("inventory", "edit") && (
+            <Card className="border-primary/30">
+              <CardHeader className="border-b bg-primary/5 pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <PackageCheck className="h-4 w-4 text-primary" /> Record opening stock
+                </CardTitle>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Enter the quantity already on hand and when it became effective. This creates one opening-balance movement, not a purchase.
+                </p>
+              </CardHeader>
+              <CardContent className="pt-5">
+                <form onSubmit={recordOpeningStock} className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="space-y-1.5"><Label htmlFor="opening-quantity">Quantity</Label><Input id="opening-quantity" type="number" min="1" step="1" required value={openingQty} onChange={e => setOpeningQty(e.target.value)} placeholder="e.g. 8" data-testid="input-opening-quantity" /></div>
+                    <div className="space-y-1.5"><Label htmlFor="opening-unit-cost">Unit cost</Label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span><Input id="opening-unit-cost" type="number" min="0" step="0.01" required value={openingCost} onChange={e => setOpeningCost(e.target.value)} placeholder="0.00" className="pl-7 font-mono" data-testid="input-opening-unit-cost" /></div></div>
+                    <div className="space-y-1.5"><Label htmlFor="opening-effective-date" className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5" /> Effective date</Label><Input id="opening-effective-date" type="date" required value={openingDate} onChange={e => setOpeningDate(e.target.value)} data-testid="input-opening-effective-date" /></div>
+                  </div>
+                  <div className="space-y-1.5"><Label htmlFor="opening-notes">Audit note <span className="font-normal text-muted-foreground">(optional)</span></Label><Textarea id="opening-notes" rows={2} value={openingNotes} onChange={e => setOpeningNotes(e.target.value)} placeholder="Count source, condition, or other context" data-testid="input-opening-notes" /></div>
+                  {openingError && <p role="alert" className="rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">{openingError}</p>}
+                  <div className="flex justify-end"><Button type="submit" disabled={openingBusy} data-testid="button-record-opening-stock">{openingBusy ? "Recording…" : "Record opening balance"}</Button></div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Stock movement history */}
           <Card>
             <CardHeader className="bg-muted/20 border-b pb-3">
@@ -332,7 +409,8 @@ export default function InventoryDetail() {
                           <div className="min-w-0">
                             <p className="font-medium capitalize truncate">{m.reason.replace(/_/g, " ")}</p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(m.createdAt).toLocaleString()}
+                              {((m as any).effectiveDate ? `Effective ${new Date(`${String((m as any).effectiveDate).slice(0, 10)}T12:00:00`).toLocaleDateString()}` : new Date(m.createdAt).toLocaleString())}
+                              {(m as any).effectiveDate && <span className="text-muted-foreground"> · Entered {new Date(m.createdAt).toLocaleString()}</span>}
                               {refLabel && (
                                 <> · {refRoute ? (
                                   <Link href={refRoute} className="text-primary hover:underline">{refLabel}</Link>

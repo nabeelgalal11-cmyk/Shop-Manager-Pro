@@ -25,6 +25,7 @@ export * from "./inspections";
 export * from "./appointments";
 export * from "./time_entries";
 export * from "./expenses";
+export * from "./owner_funding";
 export * from "./reminders";
 export * from "./njmvc";
 export * from "./permissions";

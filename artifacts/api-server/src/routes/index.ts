@@ -42,6 +42,7 @@ import activityRouter from "./activity.js";
 import suppliersRouter from "./suppliers.js";
 import exportsRouter from "./exports.js";
 import squareRouter from "./square.js";
+import ownerFundingRouter from "./owner-funding.js";
 
 const router: IRouter = Router();
 
@@ -67,6 +68,7 @@ router.use("/inspections", inspectionsRouter);
 router.use("/appointments", appointmentsRouter);
 router.use("/time-entries", timeEntriesRouter);
 router.use("/expenses", expensesRouter);
+router.use("/owner-funding", ownerFundingRouter);
 router.use("/reminders", remindersRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/ai-estimate", aiEstimateRouter);

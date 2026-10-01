@@ -35,6 +35,8 @@ tags:
     description: Time tracking
   - name: expenses
     description: Expense tracking
+  - name: owner-funding
+    description: Owner loans, contributions, and repayments
   - name: dashboard
     description: Dashboard analytics
   - name: reminders
@@ -198,6 +200,24 @@ paths:
           content:
             text/csv:
               schema: { type: string }
+  /exports/owner-funding.csv:
+    get:
+      operationId: exportOwnerFundingCsv
+      tags: [exports]
+      summary: Download owner funding entries as CSV
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: CSV file
+          content:
+            text/csv:
+              schema: { type: string }
   /exports/bookkeeping.zip:
     get:
       operationId: exportBookkeepingZip
@@ -212,7 +232,7 @@ paths:
           schema: { type: string, format: date }
       responses:
         "200":
-          description: ZIP archive containing invoices, payments, expenses, and COGS journal CSVs
+          description: ZIP archive containing invoices, payments, expenses, owner funding, and COGS journal CSVs
           content:
             application/zip:
               schema: { type: string, format: binary }
@@ -1343,6 +1363,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/StockMovementListResponse"
 
+  /inventory/{id}/opening-stock:
+    post:
+      operationId: recordOpeningStock
+      tags: [inventory]
+      summary: Record an opening stock count for an existing inventory item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpeningStockInput"
+      responses:
+        "201":
+          description: Opening stock movement recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StockMovement"
+        "404":
+          description: Inventory item not found
+        "409":
+          description: Opening stock was already recorded for this item
+
   # ---- INSPECTIONS ----
   /inspections:
     get:
@@ -2038,6 +2087,40 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /owner-funding:
+    get:
+      operationId: getOwnerFunding
+      tags: [owner-funding]
+      summary: List owner funding entries and balances
+      responses:
+        "200":
+          description: Owner funding ledger and balances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerFundingListResponse"
+    post:
+      operationId: createOwnerFundingEntry
+      tags: [owner-funding]
+      summary: Record an owner loan, contribution, or loan repayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOwnerFundingInput"
+      responses:
+        "201":
+          description: Owner funding entry recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OwnerFundingEntry"
+        "400":
+          description: Invalid owner funding entry
+        "409":
+          description: Repayment exceeds the outstanding owner loan
 
   # ---- REMINDERS ----
   /reminders:
@@ -3806,6 +3889,9 @@ components:
           type: integer
         minQuantity:
           type: integer
+        openingStockDate:
+          type: string
+          format: date
         location:
           type: string
         notes:
@@ -3845,6 +3931,7 @@ components:
             - invoice_consumed
             - invoice_unconsumed
             - manual_adjustment
+            - opening_balance
         referenceTable:
           type: string
           nullable: true
@@ -3860,6 +3947,9 @@ components:
         notes:
           type: string
           nullable: true
+        effectiveDate:
+          type: string
+          format: date
         createdAt:
           type: string
           format: date-time
@@ -3868,6 +3958,7 @@ components:
         - inventoryId
         - delta
         - reason
+        - effectiveDate
         - createdAt
 
     StockMovementListResponse:
@@ -3879,6 +3970,22 @@ components:
             $ref: "#/components/schemas/StockMovement"
       required:
         - data
+
+    OpeningStockInput:
+      type: object
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+        unitCost:
+          type: number
+          minimum: 0
+        effectiveDate:
+          type: string
+          format: date
+        notes:
+          type: string
+      required: [quantity, unitCost, effectiveDate]
 
     InventoryListResponse:
       type: object
@@ -4376,6 +4483,72 @@ components:
         - total
         - page
         - limit
+
+    OwnerFundingEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [loan, contribution, repayment]
+        amount:
+          type: number
+        entryDate:
+          type: string
+          format: date
+        description:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, type, amount, entryDate, description, createdAt]
+
+    CreateOwnerFundingInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [loan, contribution, repayment]
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        entryDate:
+          type: string
+          format: date
+        description:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+      required: [type, amount, entryDate, description]
+
+    OwnerFundingSummary:
+      type: object
+      properties:
+        totalLoaned:
+          type: number
+        totalRepaid:
+          type: number
+        outstandingLoan:
+          type: number
+        totalContributed:
+          type: number
+      required: [totalLoaned, totalRepaid, outstandingLoan, totalContributed]
+
+    OwnerFundingListResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/OwnerFundingEntry"
+        summary:
+          $ref: "#/components/schemas/OwnerFundingSummary"
+      required: [entries, summary]
 
     Reminder:
       type: object

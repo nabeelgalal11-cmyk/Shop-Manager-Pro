@@ -9,6 +9,7 @@
     "dev": "NODE_ENV=development pnpm run build && pnpm run start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:backup": "node --import tsx --test test/google-drive-backup.test.ts test/backup-upload-route.test.ts",
+    "test:owner-funding": "node --import tsx --test test/owner-funding.test.ts",
     "test:repair": "NODE_ENV=test node --require tsx/cjs -e \"require('../../lib/db/test/domain_rules.test.ts')\" && NODE_ENV=test node --require tsx/cjs -e \"require('./test/repair-workflow.integration.test.ts')\" && NODE_ENV=test node --require tsx/cjs -e \"require('./test/repair-routes.test.ts')\""
   },
   "dependencies": {

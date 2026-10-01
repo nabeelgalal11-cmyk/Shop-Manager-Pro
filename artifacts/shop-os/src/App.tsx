@@ -47,6 +47,7 @@ import UsedCars from "@/pages/used-cars";
 import UsedCarsNew from "@/pages/used-cars-new";
 import Reports from "@/pages/reports";
 import Bookkeeping from "@/pages/bookkeeping";
+import OwnerFunding from "@/pages/owner-funding";
 import Purchases from "@/pages/purchases";
 import PurchasesNew from "@/pages/purchases-new";
 import PurchaseDetail from "@/pages/purchase-detail";
@@ -194,6 +195,7 @@ function Router() {
         <Route path="/used-cars/:id" component={UsedCarsNew} />
         <Route path="/reports" component={Reports} />
         <Route path="/reports/bookkeeping" component={Bookkeeping} />
+        <Route path="/owner-funding" component={OwnerFunding} />
         <Route path="/purchases" component={Purchases} />
         <Route path="/purchases/new" component={PurchasesNew} />
         <Route path="/purchases/:id" component={PurchaseDetail} />
