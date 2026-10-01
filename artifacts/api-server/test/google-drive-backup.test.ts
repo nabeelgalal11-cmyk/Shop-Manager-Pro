@@ -62,6 +62,7 @@ test("creates a private Drive folder and uploads a resumable backup", async () =
         const body = JSON.parse(String(options?.body));
         assert.equal(body.parents[0], "folder-1");
         assert.equal(body.appProperties.backupSha256, sha256);
+        assert.equal(body.appProperties.backupSource, "915motors-github-actions");
         return new Response(null, {
           status: 200,
           headers: {

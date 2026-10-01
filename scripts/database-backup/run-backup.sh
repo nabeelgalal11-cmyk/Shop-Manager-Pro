@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-: "${DATABASE_URL:?DATABASE_URL must be set on the Render Cron Job}"
-: "${BACKUP_UPLOAD_TOKEN:?BACKUP_UPLOAD_TOKEN must be set on the Render Cron Job}"
-: "${BACKUP_UPLOAD_URL:?BACKUP_UPLOAD_URL must be set on the Render Cron Job}"
+: "${DATABASE_URL:?DATABASE_URL must be provided to the backup runner}"
+: "${BACKUP_UPLOAD_TOKEN:?BACKUP_UPLOAD_TOKEN must be provided to the backup runner}"
+: "${BACKUP_UPLOAD_URL:?BACKUP_UPLOAD_URL must be provided to the backup runner}"
 
 case "$BACKUP_UPLOAD_URL" in
   https://shop-manager-pro.replit.app/api/backups/upload) ;;

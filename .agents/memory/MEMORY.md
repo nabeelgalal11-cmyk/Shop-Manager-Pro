@@ -17,4 +17,4 @@
 - [EAS Expo dependencies](eas-expo-dependencies.md) — standalone cloud builds must install Expo runtime packages as production dependencies, not only devDependencies
 - [Windows APK bundles](windows-apk-bundles.md) — include the workspace-root ignore file and exclude generated output so Git never indexes pnpm's deep node_modules paths
 - [Square Android intent handoff](square-android-intent.md) — native apps must launch Square with Android intent extras, not pass an intent URI through Linking.openURL
-- [Production backup boundary](production-backup-boundary.md) — Use Render Cron for production dumps; HostGator Shared lacks pg_dump/pg_restore, and Replit remains the Drive relay.
+- [Production backup boundary](production-backup-boundary.md) — Use private GitHub Actions for Render production dumps; GitHub handles the URL at run time, while Replit remains only the Drive relay.
