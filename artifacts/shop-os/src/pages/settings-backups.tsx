@@ -101,7 +101,7 @@ export default function SettingsBackups() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Database Backups</h1>
           <p className="mt-1 text-muted-foreground">
-            Create a local snapshot or restore a PostgreSQL archive to the verified development database.
+            Back up or restore only through a separate database endpoint that exactly matches an explicit allowlist.
           </p>
         </div>
       </header>
@@ -119,11 +119,11 @@ export default function SettingsBackups() {
         <>
           <Alert>
             <ShieldCheck className="h-4 w-4" />
-            <AlertTitle>Development database verified</AlertTitle>
+            <AlertTitle>Restore endpoint matches the allowlist</AlertTitle>
             <AlertDescription>
               Environment: <strong>{status.environment}</strong> · Host: <strong>{status.target.host}</strong> · Database: <strong>{status.target.database}</strong>
               <br />
-              Restores are blocked on production and on Render-hosted services.
+              The app's primary endpoint, production mode, and Render databases are blocked. Confirm in Neon that this is a disposable test branch; the app cannot determine whether a Neon branch is production or test.
             </AlertDescription>
           </Alert>
 
@@ -131,7 +131,7 @@ export default function SettingsBackups() {
             <CardHeader>
               <CardTitle>Download a backup</CardTitle>
               <CardDescription>
-                Saves a verified PostgreSQL custom-format snapshot of the development database to your device.
+                Saves a verified PostgreSQL custom-format snapshot of the allowlisted endpoint to your device.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -151,7 +151,7 @@ export default function SettingsBackups() {
                 Restore to development
               </CardTitle>
               <CardDescription>
-                This replaces matching database objects and data in the development database shown above. A failed restore may leave it partially changed.
+                This replaces matching objects and data at the allowlisted endpoint shown above. Confirm that it is a disposable test branch before continuing. A failed restore may leave it partially changed.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
@@ -167,7 +167,7 @@ export default function SettingsBackups() {
               </div>
               <label className="flex items-start gap-3 text-sm leading-5">
                 <Checkbox checked={acknowledged} onCheckedChange={(checked) => setAcknowledged(checked === true)} />
-                <span>I verified the development database target above and understand the restore will replace existing objects.</span>
+                <span>I verified this is a disposable development/test endpoint and understand the restore will replace existing objects.</span>
               </label>
               <div className="max-w-md space-y-2">
                 <Label htmlFor="restore-confirmation">Type {RESTORE_CONFIRMATION} to continue</Label>

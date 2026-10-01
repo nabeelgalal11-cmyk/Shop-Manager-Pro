@@ -18,3 +18,4 @@
 - [Windows APK bundles](windows-apk-bundles.md) — include the workspace-root ignore file and exclude generated output so Git never indexes pnpm's deep node_modules paths
 - [Square Android intent handoff](square-android-intent.md) — native apps must launch Square with Android intent extras, not pass an intent URI through Linking.openURL
 - [Production backup boundary](production-backup-boundary.md) — Use private GitHub Actions for Render production dumps; GitHub handles the URL at run time, while Replit remains only the Drive relay.
+- [Development restore isolation](development-restore-isolation.md) — Restores require a separate non-production connection and exact host/database allowlist; never target the app's primary database.
