@@ -120,3 +120,27 @@ test("advisor cannot create a revision on another advisor/admin aggregate", asyn
   }, advisor);
   assert.equal(denied.status, 403);
 });
+
+test("advisor without inventory write permissions cannot create, edit, adjust, or delete inventory", async () => {
+  const advisor = await login(advisorUsername);
+  const attempts: Array<[string, RequestInit]> = [
+    ["/api/inventory", { method: "POST", body: JSON.stringify({}) }],
+    ["/api/inventory/1", { method: "PUT", body: JSON.stringify({ quantity: 1 }) }],
+    ["/api/inventory/1/opening-stock", { method: "POST", body: JSON.stringify({}) }],
+    ["/api/inventory/1", { method: "DELETE" }],
+  ];
+
+  for (const [path, init] of attempts) {
+    const response = await request(path, init, advisor);
+    assert.equal(response.status, 403, `${init.method} ${path} must require inventory permissions`);
+  }
+});
+
+test("report export rejects impossible calendar dates instead of broadening the range", async () => {
+  const admin = await login(adminUsername);
+  const response = await request("/api/exports/invoices.csv?from=2026-02-30", {}, admin);
+
+  assert.equal(response.status, 400);
+  const body = await response.json() as { error: string };
+  assert.match(body.error, /from must be a valid calendar date/);
+});

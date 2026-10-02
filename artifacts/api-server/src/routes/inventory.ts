@@ -119,7 +119,7 @@ router.get("/", async (req, res) => {
   res.json({ data, total: hasVehicleFitment ? stockFiltered.length : Number(countResult.count), page, limit });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("inventory", "create"), async (req, res) => {
   const {
     partNumber, name, description, category, vendor, preferredSupplierId,
     costPrice, sellPrice, quantity, minQuantity, location, notes, compatibleVehicles,
@@ -267,7 +267,7 @@ router.post("/:id/opening-stock", requirePermission("inventory", "edit"), async 
   });
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requirePermission("inventory", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { partNumber, name, description, category, vendor, preferredSupplierId, costPrice, sellPrice, quantity, minQuantity, location, notes, compatibleVehicles, defaultWarrantyMonths, defaultWarrantyMiles } = req.body;
   const targetQuantity = Number(quantity);
@@ -320,7 +320,7 @@ router.put("/:id", async (req, res) => {
   res.json(item);
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requirePermission("inventory", "delete"), async (req, res) => {
   await db.delete(inventoryTable).where(eq(inventoryTable.id, Number(req.params.id)));
   res.status(204).send();
 });

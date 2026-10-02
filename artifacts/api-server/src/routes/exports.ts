@@ -1,28 +1,23 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import archiver from "archiver";
 import { db } from "@workspace/db";
 import { ownerFundingEntriesTable } from "@workspace/db";
 import { and, desc, gte, lte, sql } from "drizzle-orm";
 import { requirePermission } from "../lib/auth.js";
 import { csvRow, moneyCell, dateCell } from "../lib/csv.js";
+import { parseExportDateRange, type DateRange } from "../lib/export-date-range.js";
 
 const router: Router = Router();
 
 router.use(requirePermission("reports", "view"));
 
-interface DateRange {
-  from: string | null;
-  to: string | null;
-}
-
-function parseRange(req: any): DateRange {
-  const from = (req.query.from as string | undefined) || null;
-  const to = (req.query.to as string | undefined) || null;
-  const isIso = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
-  return {
-    from: from && isIso(from) ? from : null,
-    to: to && isIso(to) ? to : null,
-  };
+function parseRange(req: Request, res: Response): DateRange | null {
+  const result = parseExportDateRange(req.query.from, req.query.to);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return null;
+  }
+  return result.range;
 }
 
 function tsRange(range: DateRange) {
@@ -277,7 +272,8 @@ function setCsvHeaders(res: any, filename: string) {
 }
 
 router.get("/invoices.csv", async (req, res) => {
-  const range = parseRange(req);
+  const range = parseRange(req, res);
+  if (!range) return;
   const rows = await fetchInvoices(range);
   setCsvHeaders(res, `invoices${rangeSuffix(range)}.csv`);
   res.write(csvRow(INVOICE_HEADERS));
@@ -286,7 +282,8 @@ router.get("/invoices.csv", async (req, res) => {
 });
 
 router.get("/payments.csv", async (req, res) => {
-  const range = parseRange(req);
+  const range = parseRange(req, res);
+  if (!range) return;
   const rows = await fetchPayments(range);
   setCsvHeaders(res, `payments${rangeSuffix(range)}.csv`);
   res.write(csvRow(PAYMENT_HEADERS));
@@ -295,7 +292,8 @@ router.get("/payments.csv", async (req, res) => {
 });
 
 router.get("/expenses.csv", async (req, res) => {
-  const range = parseRange(req);
+  const range = parseRange(req, res);
+  if (!range) return;
   const rows = await fetchExpenses(range);
   setCsvHeaders(res, `expenses${rangeSuffix(range)}.csv`);
   res.write(csvRow(EXPENSE_HEADERS));
@@ -304,7 +302,8 @@ router.get("/expenses.csv", async (req, res) => {
 });
 
 router.get("/cogs-journal.csv", async (req, res) => {
-  const range = parseRange(req);
+  const range = parseRange(req, res);
+  if (!range) return;
   const rows = await fetchCogsJournal(range);
   setCsvHeaders(res, `cogs-journal${rangeSuffix(range)}.csv`);
   res.write(csvRow(COGS_HEADERS));
@@ -313,7 +312,8 @@ router.get("/cogs-journal.csv", async (req, res) => {
 });
 
 router.get("/owner-funding.csv", async (req, res) => {
-  const range = parseRange(req);
+  const range = parseRange(req, res);
+  if (!range) return;
   const rows = await fetchOwnerFunding(range);
   setCsvHeaders(res, `owner-funding${rangeSuffix(range)}.csv`);
   res.write(csvRow(OWNER_FUNDING_HEADERS));
@@ -323,7 +323,8 @@ router.get("/owner-funding.csv", async (req, res) => {
 
 // Bundle the bookkeeping CSVs into a single ZIP for one-click download.
 router.get("/bookkeeping.zip", async (req, res) => {
-  const range = parseRange(req);
+  const range = parseRange(req, res);
+  if (!range) return;
   const suffix = rangeSuffix(range);
   const filename = `bookkeeping${suffix}.zip`;
 
