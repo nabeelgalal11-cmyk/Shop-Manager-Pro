@@ -18,9 +18,10 @@ interface RequestOptions {
   contentLengthOverride?: number;
 }
 
-async function requestAsAdmin(
+async function requestAsRole(
   path: string,
   env: Record<string, string | undefined>,
+  role: string | null,
   headers: Record<string, string> = {},
   options: RequestOptions = {},
 ) {
@@ -33,16 +34,18 @@ async function requestAsAdmin(
 
   const app = express();
   app.use((req, _res, next) => {
-    (req as typeof req & { user?: { id: number; username: string; firstName: string; lastName: string; email: null; role: string; roles: string[]; active: boolean } }).user = {
-      id: 1,
-      username: "restore-test-admin",
-      firstName: "Restore",
-      lastName: "Test",
-      email: null,
-      role: "admin",
-      roles: ["admin"],
-      active: true,
-    };
+    if (role !== null) {
+      (req as typeof req & { user?: { id: number; username: string; firstName: string; lastName: string; email: null; role: string; roles: string[]; active: boolean } }).user = {
+        id: 1,
+        username: `restore-test-${role}`,
+        firstName: "Restore",
+        lastName: "Test",
+        email: null,
+        role,
+        roles: [role],
+        active: true,
+      };
+    }
     if (options.contentLengthOverride !== undefined) {
       req.headers["content-length"] = String(options.contentLengthOverride);
     }
@@ -142,23 +145,50 @@ const safeDevelopmentEnvironment = {
 };
 
 test("restore route rejects production and Render environments before upload", async () => {
-  const production = await requestAsAdmin(
+  const production = await requestAsRole(
     "/api/backups/development/restore",
     { ...safeDevelopmentEnvironment, NODE_ENV: "production" },
+    "admin",
   );
   assert.equal(production.status, 403);
 
-  const render = await requestAsAdmin(
+  const render = await requestAsRole(
     "/api/backups/development/restore",
     { ...safeDevelopmentEnvironment, RENDER_SERVICE_ID: "srv-test" },
+    "admin",
   );
   assert.equal(render.status, 403);
 });
 
+test("restore route rejects unauthenticated and non-admin uploads before processing the archive", async () => {
+  const mock = await createMockPgRestore();
+  try {
+    for (const [role, expectedStatus] of [
+      [null, 401],
+      ["sales", 403],
+    ] as const) {
+      const response = await requestAsRole(
+        "/api/backups/development/restore",
+        mockRestoreEnvironment(mock),
+        role,
+        restoreHeaders,
+        { body: validArchive },
+      );
+      assert.equal(response.status, expectedStatus);
+    }
+
+    assert.equal(await readFile(mock.databaseStatePath, "utf8"), "unchanged");
+    assert.equal(await readFile(mock.logPath, "utf8"), "");
+  } finally {
+    await rm(mock.directory, { recursive: true, force: true });
+  }
+});
+
 test("restore route requires the exact confirmation text before accepting an upload", async () => {
-  const response = await requestAsAdmin(
+  const response = await requestAsRole(
     "/api/backups/development/restore",
     safeDevelopmentEnvironment,
+    "admin",
     {
       "content-type": "application/octet-stream",
       "x-backup-filename": "fixture.dump",
@@ -172,9 +202,10 @@ test("restore route requires the exact confirmation text before accepting an upl
 });
 
 test("no production restore route is exposed", async () => {
-  const response = await requestAsAdmin(
+  const response = await requestAsRole(
     "/api/backups/production/restore",
     safeDevelopmentEnvironment,
+    "admin",
   );
   assert.equal(response.status, 404);
 });
@@ -193,9 +224,10 @@ test("restore rejects corrupt and truncated archives before applying objects", a
       await t.test(`${name} archive leaves the test database unchanged`, async () => {
         await writeFile(mock.logPath, "");
         await writeFile(mock.databaseStatePath, "unchanged");
-        const response = await requestAsAdmin(
+        const response = await requestAsRole(
           "/api/backups/development/restore",
           mockRestoreEnvironment(mock),
+          "admin",
           restoreHeaders,
           { body: archive },
         );
@@ -219,9 +251,10 @@ test("restore rejects corrupt and truncated archives before applying objects", a
 test("restore rejects a Content-Length mismatch without running pg_restore", async () => {
   const mock = await createMockPgRestore();
   try {
-    const response = await requestAsAdmin(
+    const response = await requestAsRole(
       "/api/backups/development/restore",
       mockRestoreEnvironment(mock),
+      "admin",
       restoreHeaders,
       {
         body: validArchive,
