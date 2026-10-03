@@ -70,6 +70,54 @@ function runAsync(command: string, args: string[], env = process.env) {
   });
 }
 
+function databaseUrlForApplication(database: string, applicationName: string) {
+  const url = new URL(database);
+  url.searchParams.set("application_name", applicationName);
+  return url.toString();
+}
+
+function startRenderStartup(database: string, applicationName: string) {
+  const startupCode = `
+    import { runRenderSchemaMigrations } from ${JSON.stringify(migrationBundlePath)};
+    import { startAfterSchemaMigrations } from "./src/lib/startup.ts";
+    let exitCode = 0;
+    await startAfterSchemaMigrations({
+      runMigrations: runRenderSchemaMigrations,
+      start: () => console.log("STARTUP_READY"),
+      logger: { error: (details, message) => console.error(message, details.err) },
+      exit: (code) => { exitCode = code; },
+    });
+    if (exitCode !== 0) process.exit(exitCode);
+  `;
+  const result = runAsync(
+    process.execPath,
+    ["--import", "tsx", "--input-type=module", "-e", startupCode],
+    {
+      ...process.env,
+      DATABASE_URL: databaseUrlForApplication(database, applicationName),
+      NODE_ENV: "production",
+      RENDER: "true",
+    },
+  ).then(
+    (output) => ({ ok: true as const, output }),
+    (error) => ({ ok: false as const, error }),
+  );
+  return result;
+}
+
+async function waitForDatabaseCondition(
+  sql: string,
+  database: string,
+  description: string,
+) {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    if (psql(sql, database) === "1") return;
+    await delay(25);
+  }
+  assert.equal(psql(sql, database), "1", description);
+}
+
 function delay(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -201,7 +249,7 @@ function declaredColumnsFromSql(sql: string) {
   return columns;
 }
 
-function legacyDataSnapshot() {
+function legacyDataSnapshot(database = databaseUrl) {
   return psql(`
     SELECT jsonb_build_object(
       'estimate', (SELECT to_jsonb(row_data) FROM
@@ -221,7 +269,7 @@ function legacyDataSnapshot() {
         (SELECT id, inventory_id, delta, reason, notes, created_at, legacy_value
          FROM stock_movements WHERE id = 11) row_data)
     )::text;
-  `);
+  `, database);
 }
 
 test("Render startup migrations apply the columns declared by both SQL migrations twice without changing existing rows", () => {
@@ -325,6 +373,176 @@ test("Render startup migrations apply the columns declared by both SQL migration
       )::text;
     `),
     afterFirstRun,
+  );
+});
+
+test("simultaneous Render startups serialize on the advisory lock and preserve existing rows", async () => {
+  const concurrencyDatabase = `postgresql://postgres@127.0.0.1:${pgPort}/migration_concurrency`;
+  const firstApplication = "render-migration-concurrency-first";
+  const secondApplication = "render-migration-concurrency-second";
+  const lockHolderApplication = "render-migration-concurrency-table-lock";
+  run("createdb", ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "postgres", "migration_concurrency"]);
+  psql(`
+    CREATE TABLE estimate_items (id integer PRIMARY KEY, description text, amount numeric);
+    CREATE TABLE repair_order_work_items (id integer PRIMARY KEY, description text, amount numeric);
+    CREATE TABLE invoice_items (id integer PRIMARY KEY, description text, amount numeric);
+    CREATE TABLE shop_settings (id integer PRIMARY KEY, legacy_value text);
+    CREATE TABLE inventory (
+      id integer PRIMARY KEY,
+      quantity integer NOT NULL,
+      cost_price numeric NOT NULL,
+      created_at timestamptz NOT NULL,
+      legacy_value text
+    );
+    CREATE TABLE stock_movements (
+      id serial PRIMARY KEY,
+      inventory_id integer NOT NULL,
+      delta integer NOT NULL,
+      reason text NOT NULL,
+      reference_table text,
+      reference_id integer,
+      unit_cost numeric,
+      notes text,
+      created_at timestamptz NOT NULL,
+      legacy_value text
+    );
+    INSERT INTO estimate_items VALUES (1, 'keep estimate', 123.45);
+    INSERT INTO repair_order_work_items VALUES (1, 'keep repair work', 67.89);
+    INSERT INTO invoice_items VALUES (1, 'keep invoice', 210.00);
+    INSERT INTO shop_settings VALUES (1, 'keep shop settings');
+    INSERT INTO inventory VALUES
+      (1, 3, 42.50, '2026-09-01T10:00:00Z', 'keep positive inventory'),
+      (2, 0, 15.00, '2026-09-02T10:00:00Z', 'keep zero inventory'),
+      (3, 7, 9.99, '2026-09-03T10:00:00Z', 'keep inventory with movement history'),
+      (4, -2, 18.75, '2026-09-04T10:00:00Z', 'keep negative inventory');
+    INSERT INTO stock_movements
+      (id, inventory_id, delta, reason, notes, created_at, legacy_value)
+    VALUES
+      (10, 2, -1, 'manual_adjustment', 'keep prior stock history',
+       '2026-08-01T10:00:00Z', 'keep movement'),
+      (11, 3, 2, 'purchase_received', 'existing positive-item history',
+       '2026-08-02T10:00:00Z', 'keep positive-item movement');
+  `, concurrencyDatabase);
+  const beforeMigration = legacyDataSnapshot(concurrencyDatabase);
+
+  const lockHolder = spawn(
+    "psql",
+    [
+      concurrencyDatabase,
+      "-X",
+      "-qAt",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-c",
+      "BEGIN; LOCK TABLE shop_settings IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(120);",
+    ],
+    {
+      cwd: apiRoot,
+      env: {
+        ...process.env,
+        PGAPPNAME: lockHolderApplication,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  const lockHolderExit = new Promise<{ code: number | null; error?: Error }>((resolve) => {
+    lockHolder.once("error", (error) => resolve({ code: null, error }));
+    lockHolder.once("close", (code) => resolve({ code }));
+  });
+
+  let firstStartup: ReturnType<typeof startRenderStartup> | undefined;
+  let secondStartup: ReturnType<typeof startRenderStartup> | undefined;
+  try {
+    await waitForDatabaseCondition(
+      `SELECT count(*) FROM pg_locks locks
+       JOIN pg_stat_activity activity ON activity.pid = locks.pid
+       JOIN pg_class relation ON relation.oid = locks.relation
+       WHERE activity.application_name = '${lockHolderApplication}'
+         AND relation.relname = 'shop_settings'
+         AND locks.mode = 'AccessExclusiveLock'
+         AND locks.granted;`,
+      concurrencyDatabase,
+      "the test lock holder acquired the shop_settings table lock",
+    );
+
+    firstStartup = startRenderStartup(concurrencyDatabase, firstApplication);
+    await waitForDatabaseCondition(
+      `SELECT count(*) FROM pg_stat_activity
+       WHERE application_name = '${firstApplication}'
+         AND state = 'active'
+         AND wait_event_type = 'Lock'
+         AND query LIKE 'ALTER TABLE shop_settings%';`,
+      concurrencyDatabase,
+      "the first startup holds the migration lock and is paused at shop_settings",
+    );
+
+    secondStartup = startRenderStartup(concurrencyDatabase, secondApplication);
+    await waitForDatabaseCondition(
+      `SELECT count(*) FROM pg_stat_activity
+       WHERE application_name = '${secondApplication}'
+         AND state = 'active'
+         AND wait_event_type = 'Lock'
+         AND wait_event = 'advisory'
+         AND query LIKE 'SELECT pg_advisory_lock%';`,
+      concurrencyDatabase,
+      "the second startup is waiting on the PostgreSQL advisory migration lock",
+    );
+  } finally {
+    try {
+      psql(
+        `SELECT pg_terminate_backend(pid)
+         FROM pg_stat_activity
+         WHERE application_name = '${lockHolderApplication}'
+           AND datname = current_database();`,
+        concurrencyDatabase,
+      );
+    } finally {
+      const [holderResult] = await Promise.all([
+        lockHolderExit,
+        ...(firstStartup ? [firstStartup] : []),
+        ...(secondStartup ? [secondStartup] : []),
+      ]);
+      if (holderResult.error) throw holderResult.error;
+    }
+  }
+
+  assert.ok(firstStartup, "the first independent startup process was launched");
+  assert.ok(secondStartup, "the second independent startup process was launched");
+  const [firstResult, secondResult] = await Promise.all([firstStartup, secondStartup]);
+  if (!firstResult.ok) assert.fail(`first startup failed: ${String(firstResult.error)}`);
+  if (!secondResult.ok) assert.fail(`second startup failed: ${String(secondResult.error)}`);
+  assert.match(firstResult.output, /STARTUP_READY/);
+  assert.match(secondResult.output, /STARTUP_READY/);
+
+  const expectedColumns = migrations.flatMap((migrationPath) =>
+    declaredColumnsFromSql(readFileSync(migrationPath, "utf8")),
+  );
+  const expectedColumnList = expectedColumns
+    .map(({ table, column }) => `('${table}', '${column}')`)
+    .join(", ");
+  assert.equal(
+    Number(psql(`
+      SELECT count(*)
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND (table_name, column_name) IN (${expectedColumnList});
+    `, concurrencyDatabase)),
+    expectedColumns.length,
+    "both startups leave all migration columns in place",
+  );
+  assert.equal(legacyDataSnapshot(concurrencyDatabase), beforeMigration);
+  assert.equal(
+    psql(`
+      SELECT count(*) FROM stock_movements
+      WHERE reason = 'opening_balance' AND inventory_id = 1;
+    `, concurrencyDatabase),
+    "1",
+    "the concurrent startups add the opening movement exactly once",
+  );
+  assert.equal(
+    psql("SELECT count(*) FROM stock_movements WHERE effective_date IS NULL;", concurrencyDatabase),
+    "0",
+    "all existing movements receive an effective date",
   );
 });
 
