@@ -13,6 +13,8 @@ import {
   HostgatorStorageError,
 } from "../lib/hostgatorStorage.js";
 import { recordActivity, type ActivityEntityType } from "../lib/activity.js";
+import { getUser } from "../lib/auth.js";
+import { getPermissionsForRoles, hasPermission, type Action, type Resource } from "../lib/permissions.js";
 
 const OWNER_TO_ACTIVITY_ENTITY: Partial<Record<string, ActivityEntityType>> = {
   repair_order: "repair_order",
@@ -21,6 +23,17 @@ const OWNER_TO_ACTIVITY_ENTITY: Partial<Record<string, ActivityEntityType>> = {
   invoice: "invoice",
   vehicle: "vehicle",
   customer: "customer",
+};
+const OWNER_TO_RESOURCE: Record<string, Resource> = {
+  repair_order: "repair_orders",
+  inspection: "inspections",
+  purchase: "purchases",
+  estimate: "estimates",
+  invoice: "invoices",
+  vehicle: "vehicles",
+  customer: "customers",
+  expense: "expenses",
+  used_car: "used_cars",
 };
 
 const router: IRouter = Router();
@@ -69,6 +82,27 @@ function validateOwnerType(t: unknown): asserts t is string {
   if (typeof t !== "string" || !ALLOWED_OWNER_TYPES.has(t)) {
     throw Object.assign(new Error("Invalid ownerType"), { status: 400 });
   }
+}
+
+async function authorizeOwnerAction(
+  req: Request,
+  res: Response,
+  ownerType: string,
+  action: Action,
+): Promise<boolean> {
+  const user = getUser(req);
+  const resource = OWNER_TO_RESOURCE[ownerType];
+  if (!user || !resource) {
+    res.status(user ? 400 : 401).json({ error: "Invalid attachment owner" });
+    return false;
+  }
+  if (user.roles.includes("admin")) return true;
+  const permissions = await getPermissionsForRoles(user.roles);
+  if (!hasPermission(permissions, resource, action)) {
+    res.status(403).json({ error: "Forbidden", resource, action });
+    return false;
+  }
+  return true;
 }
 
 async function resolveCustomerIdForOwner(
@@ -120,6 +154,7 @@ router.get("/", async (req: Request, res: Response) => {
     res.status(400).json({ error: e.message });
     return;
   }
+  if (!(await authorizeOwnerAction(req, res, ownerType, "view"))) return;
 
   const rows = await db
     .select({
@@ -165,6 +200,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
     res.status(400).json({ error: e.message });
     return;
   }
+  if (!(await authorizeOwnerAction(req, res, ownerType, "edit"))) return;
 
   try {
     const { storagePath } = await uploadBuffer({
@@ -185,7 +221,7 @@ router.post("/", upload.single("file"), async (req: Request, res: Response) => {
         size: file.size,
         storagePath,
         notes,
-        uploadedById: req.session?.userId ?? null,
+        uploadedById: getUser(req)?.id ?? null,
       })
       .returning();
 
@@ -231,6 +267,7 @@ router.get("/:id/download", async (req: Request, res: Response) => {
     res.status(400).json({ error: e.message });
     return;
   }
+  if (!(await authorizeOwnerAction(req, res, ownerType, "view"))) return;
   const [row] = await db
     .select()
     .from(attachmentsTable)
@@ -293,6 +330,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(400).json({ error: e.message });
     return;
   }
+  if (!(await authorizeOwnerAction(req, res, ownerType, "delete"))) return;
   const [row] = await db
     .select()
     .from(attachmentsTable)

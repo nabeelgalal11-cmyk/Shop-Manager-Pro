@@ -5,20 +5,29 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+
+const PAGE_SIZE = 50;
 
 export default function Appointments() {
   const [, setLocation] = useLocation();
-  const { data, isLoading } = useGetAppointments({ limit: 50 }, { query: { queryKey: getGetAppointmentsQueryKey({ limit: 50 }) } });
+  const [page, setPage] = useState(1);
+  const { can } = useAuth();
+  const { data, isLoading } = useGetAppointments({ limit: PAGE_SIZE, page }, { query: { queryKey: getGetAppointmentsQueryKey({ limit: PAGE_SIZE, page }) } });
   const items = Array.isArray(data) ? data : data?.data || [];
+  const total = Array.isArray(data) ? items.length : (data?.total ?? items.length);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Appointments</h1>
           <p className="text-muted-foreground">Schedule and manage bookings.</p>
         </div>
-        <Button onClick={() => setLocation("/appointments/new")}><Plus className="mr-2 h-4 w-4" /> New Appointment</Button>
+        {can("appointments", "create") && <Button onClick={() => setLocation("/appointments/new")}><Plus className="mr-2 h-4 w-4" /> New Appointment</Button>}
       </div>
       <Card className="shadow-sm border-border">
         <Table>
@@ -47,6 +56,17 @@ export default function Appointments() {
           </TableBody>
         </Table>
       </Card>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="text-muted-foreground">Page {page} of {totalPages} · {total} appointments</span>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1 || isLoading} onClick={() => setPage((current) => current - 1)}>
+            <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+          </Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading} onClick={() => setPage((current) => current + 1)}>
+            Next <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

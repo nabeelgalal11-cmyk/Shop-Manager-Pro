@@ -110,6 +110,8 @@ export default function RepairOrders() {
   const { toast } = useToast();
   const { can } = useAuth();
   const canViewReports = can("reports", "view");
+  const canCreateRepairOrders = can("repair_orders", "create");
+  const canPrintRepairOrders = can("repair_orders", "print");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [printing, setPrinting] = useState(false);
@@ -130,13 +132,16 @@ export default function RepairOrders() {
     { query: { queryKey: getGetRepairOrdersQueryKey({ limit: PAGE_SIZE, page }) } }
   );
 
-  const total = data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const startIdx = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const endIdx = Math.min(page * PAGE_SIZE, total);
-  const allRows = data?.data ?? [];
+  const response = data as unknown as any;
+  const allRows: any[] = Array.isArray(response) ? response : (response?.data ?? []);
+  const hasTotal = !Array.isArray(response) && typeof response?.total === "number";
+  const total = hasTotal ? response.total : (page - 1) * PAGE_SIZE + allRows.length;
+  const hasNext = hasTotal ? page * PAGE_SIZE < total : allRows.length === PAGE_SIZE;
+  const totalPages = hasTotal ? Math.max(1, Math.ceil(total / PAGE_SIZE)) : page + (hasNext ? 1 : 0);
+  const startIdx = allRows.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const endIdx = (page - 1) * PAGE_SIZE + allRows.length;
   const q = search.trim().toLowerCase();
-  const rows = q
+  const rows: any[] = q
     ? allRows.filter((ro: any) => {
         const customerName = ro.customer
           ? `${ro.customer.firstName || ""} ${ro.customer.lastName || ""}`
@@ -158,7 +163,7 @@ export default function RepairOrders() {
         );
       })
     : allRows;
-  const pageIds = rows.map((r) => r.id);
+  const pageIds: number[] = rows.map((r: any) => Number(r.id));
   const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const someOnPageSelected = pageIds.some((id) => selected.has(id));
 
@@ -279,9 +284,9 @@ export default function RepairOrders() {
               <LayoutGrid className="h-4 w-4 mr-1.5" /> Board
             </Button>
           </div>
-          <Button onClick={() => setLocation("/repair-orders/new")} className="shadow-sm font-medium">
+          {canCreateRepairOrders && <Button onClick={() => setLocation("/repair-orders/new")} className="shadow-sm font-medium">
             <Plus className="mr-2 h-4 w-4" /> New Repair Order
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -298,10 +303,10 @@ export default function RepairOrders() {
             />
           </div>
           <div className="flex gap-2 items-center">
-            {selected.size > 0 && (
+            {canPrintRepairOrders && selected.size > 0 && (
               <span className="text-sm text-muted-foreground">{selected.size} selected</span>
             )}
-            <Button
+            {canPrintRepairOrders && <Button
               variant="outline"
               size="sm"
               disabled={selected.size === 0 || printing}
@@ -309,15 +314,15 @@ export default function RepairOrders() {
             >
               <Printer className="h-4 w-4 mr-1.5" />
               {printing ? "Preparing…" : `Print Selected${selected.size > 0 ? ` (${selected.size})` : ""}`}
-            </Button>
-            <Button
+            </Button>}
+            {canPrintRepairOrders && <Button
               variant="outline"
               size="sm"
               disabled={rows.length === 0 || printing}
               onClick={printAllOnPage}
             >
               <Printer className="h-4 w-4 mr-1.5" /> Print Page
-            </Button>
+            </Button>}
             {selected.size > 0 && (
               <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Clear</Button>
             )}
@@ -327,11 +332,13 @@ export default function RepairOrders() {
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-[40px]">
+                {canPrintRepairOrders && <>
                 <Checkbox
                   checked={allOnPageSelected ? true : someOnPageSelected ? "indeterminate" : false}
                   onCheckedChange={toggleAllOnPage}
                   aria-label="Select all on this page"
                 />
+                </>}
               </TableHead>
               <TableHead className="w-[100px]">RO #</TableHead>
               <TableHead>Customer / Vehicle</TableHead>
@@ -357,18 +364,20 @@ export default function RepairOrders() {
                 </TableRow>
               ))
             ) : rows.length > 0 ? (
-              rows.map((ro) => (
+              rows.map((ro: any) => (
                 <TableRow
                   key={ro.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => setLocation(`/repair-orders/${ro.id}`)}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
+                    {canPrintRepairOrders && <>
                     <Checkbox
                       checked={selected.has(ro.id)}
                       onCheckedChange={() => toggleOne(ro.id)}
                       aria-label={`Select ${ro.orderNumber}`}
                     />
+                    </>}
                   </TableCell>
                   <TableCell className="font-mono font-medium text-sm">
                     <div>{ro.orderNumber}</div>
@@ -445,17 +454,17 @@ export default function RepairOrders() {
             )}
           </TableBody>
         </Table>
-        {total > 0 && (
+        {allRows.length > 0 && (
           <div className="flex items-center justify-between gap-4 px-4 py-3 border-t bg-muted/10 text-sm">
             <div className="text-muted-foreground">
-              Showing <span className="font-medium text-foreground">{startIdx}</span>–<span className="font-medium text-foreground">{endIdx}</span> of <span className="font-medium text-foreground">{total}</span>
+              Showing <span className="font-medium text-foreground">{startIdx}</span>–<span className="font-medium text-foreground">{endIdx}</span>{hasTotal && <> of <span className="font-medium text-foreground">{total}</span></>}
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" disabled={page <= 1 || isLoading} onClick={() => setPage(p => Math.max(1, p - 1))}>
                 <ChevronLeft className="h-4 w-4 mr-1" /> Previous
               </Button>
-              <span className="text-muted-foreground">Page {page} of {totalPages}</span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages || isLoading} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+              <span className="text-muted-foreground">{hasTotal ? `Page ${page} of ${totalPages}` : `Page ${page}`}</span>
+              <Button variant="outline" size="sm" disabled={!hasNext || isLoading} onClick={() => setPage(p => hasTotal ? Math.min(totalPages, p + 1) : p + 1)}>
                 Next <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>

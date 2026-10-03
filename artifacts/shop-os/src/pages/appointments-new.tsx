@@ -10,6 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+
+function localDateTimeValue(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 const formSchema = z.object({
   customerId: z.coerce.number().min(1, "Customer required"),
@@ -24,17 +29,20 @@ export default function AppointmentsNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const { data: customers } = useGetCustomers({ limit: 100 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 100 }) } });
-  const { data: vehicles } = useGetVehicles({ limit: 100 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 100 }) } });
+  const { data: customers } = useGetCustomers({ limit: 500 }, { query: { queryKey: getGetCustomersQueryKey({ limit: 500 }) } });
+  const { data: vehicles } = useGetVehicles({ limit: 500 }, { query: { queryKey: getGetVehiclesQueryKey({ limit: 500 }) } });
+  const { can } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       serviceType: "Oil Change",
-      scheduledAt: new Date().toISOString().slice(0, 16),
+      scheduledAt: localDateTimeValue(new Date()),
       estimatedDuration: 60,
     },
   });
+  const selectedCustomerId = form.watch("customerId");
+  const customerVehicles = vehicles?.data?.filter((vehicle) => vehicle.customerId === selectedCustomerId) ?? [];
 
   const createAppointment = useCreateAppointment();
 
@@ -45,13 +53,22 @@ export default function AppointmentsNew() {
         onSuccess: () => {
           toast({ title: "Appointment booked" });
           setLocation("/appointments");
-        }
+        },
+        onError: (error: any) => toast({
+          title: "Could not book appointment",
+          description: error?.message || "Check the selected customer, vehicle, and date.",
+          variant: "destructive",
+        }),
       }
     );
   }
 
+  if (!can("appointments", "create")) {
+    return <div className="p-4 sm:p-8 max-w-2xl mx-auto"><Card><CardContent className="py-10 text-center text-muted-foreground">You do not have permission to book appointments.</CardContent></Card></div>;
+  }
+
   return (
-    <div className="p-8 max-w-2xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => setLocation("/appointments")}><ArrowLeft className="h-5 w-5" /></Button>
         <h1 className="text-3xl font-bold">New Appointment</h1>
@@ -66,7 +83,10 @@ export default function AppointmentsNew() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Customer</FormLabel>
-                    <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
+                    <Select onValueChange={(val) => {
+                      field.onChange(Number(val));
+                      form.setValue("vehicleId", undefined);
+                    }} value={field.value ? String(field.value) : undefined}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Select a customer" /></SelectTrigger></FormControl>
                       <SelectContent>
                         {customers?.data?.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.firstName} {c.lastName}</SelectItem>)}
@@ -85,7 +105,7 @@ export default function AppointmentsNew() {
                     <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : undefined}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Select a vehicle" /></SelectTrigger></FormControl>
                       <SelectContent>
-                        {vehicles?.data?.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}</SelectItem>)}
+                        {customerVehicles.map(v => <SelectItem key={v.id} value={String(v.id)}>{v.year} {v.make} {v.model}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -95,7 +115,7 @@ export default function AppointmentsNew() {
               <FormField control={form.control} name="serviceType" render={({ field }) => (
                 <FormItem><FormLabel>Service Type</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField control={form.control} name="scheduledAt" render={({ field }) => (
                   <FormItem><FormLabel>Date & Time</FormLabel><FormControl><Input type="datetime-local" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />

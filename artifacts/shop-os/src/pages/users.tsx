@@ -38,7 +38,7 @@ async function api(url: string, opts?: RequestInit) {
 }
 
 export default function UsersPage() {
-  const { can } = useAuth();
+  const { can, isAdmin } = useAuth();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +106,7 @@ export default function UsersPage() {
   };
 
   const resetPassword = async () => {
-    if (!pwUserId || pwValue.length < 6) return;
+    if (!pwUserId || pwValue.length < 12) return;
     try {
       await api(`/api/users/${pwUserId}`, { method: "PUT", body: JSON.stringify({ password: pwValue }) });
       toast({ title: "Password reset" });
@@ -144,9 +144,9 @@ export default function UsersPage() {
     }
   };
 
-  const canCreate = can("users", "create");
-  const canEdit = can("users", "edit");
-  const canDelete = can("users", "delete");
+  const canCreate = isAdmin && can("users", "create");
+  const canEdit = isAdmin && can("users", "edit");
+  const canDelete = isAdmin && can("users", "delete");
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-6">
@@ -210,7 +210,7 @@ export default function UsersPage() {
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
-                <Button onClick={createUser} disabled={!form.username || form.password.length < 6 || !form.firstName || !form.lastName}>
+                <Button onClick={createUser} disabled={!form.username || form.password.length < 12 || !form.firstName || !form.lastName}>
                   Create
                 </Button>
               </DialogFooter>
@@ -289,11 +289,11 @@ export default function UsersPage() {
                         <DialogHeader><DialogTitle>Reset Password — {u.firstName} {u.lastName}</DialogTitle></DialogHeader>
                         <div className="space-y-2">
                           <Label>New password</Label>
-                          <Input type="password" value={pwValue} onChange={(e) => setPwValue(e.target.value)} placeholder="At least 6 characters" />
+                          <Input type="password" value={pwValue} onChange={(e) => setPwValue(e.target.value)} placeholder="At least 12 characters" />
                         </div>
                         <DialogFooter>
                           <Button variant="ghost" onClick={() => { setPwUserId(null); setPwValue(""); }}>Cancel</Button>
-                          <Button disabled={pwValue.length < 6} onClick={resetPassword}>Set Password</Button>
+                          <Button disabled={pwValue.length < 12} onClick={resetPassword}>Set Password</Button>
                         </DialogFooter>
                       </DialogContent>
                     </Dialog>

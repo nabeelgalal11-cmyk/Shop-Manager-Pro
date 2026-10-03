@@ -6,8 +6,10 @@ import {
   vehiclesTable, repairOrdersTable, employeesTable,
 } from "@workspace/db";
 import { eq, asc, desc, and, lte, gte, sql } from "drizzle-orm";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("njmvc", "view"));
 
 // ─── Seed Data ────────────────────────────────────────────────────────────────
 
@@ -233,7 +235,7 @@ export async function seedNjmvcTemplate() {
 // ─── Template API ─────────────────────────────────────────────────────────────
 
 // GET /api/njmvc/template — full template with nested items
-router.get("/template", async (_req, res) => {
+router.get("/template", requirePermission("njmvc_template", "view"), async (_req, res) => {
   const categories = await db.select().from(njmvcCategoriesTable).orderBy(asc(njmvcCategoriesTable.sortOrder));
   const items = await db.select().from(njmvcItemsTable).orderBy(asc(njmvcItemsTable.sortOrder));
 
@@ -245,7 +247,7 @@ router.get("/template", async (_req, res) => {
 });
 
 // GET /api/njmvc/categories — returns categories with nested items (sorted)
-router.get("/categories", async (_req, res) => {
+router.get("/categories", requirePermission("njmvc_template", "view"), async (_req, res) => {
   const categories = await db.select().from(njmvcCategoriesTable).orderBy(asc(njmvcCategoriesTable.sortOrder));
   const items = await db.select().from(njmvcItemsTable).orderBy(asc(njmvcItemsTable.sortOrder));
   const result = categories.map(cat => ({
@@ -256,7 +258,7 @@ router.get("/categories", async (_req, res) => {
 });
 
 // POST /api/njmvc/categories
-router.post("/categories", async (req, res) => {
+router.post("/categories", requirePermission("njmvc_template", "create"), async (req, res) => {
   const { name, sortOrder, active, notes } = req.body as {
     name: string; sortOrder?: number; active?: boolean; notes?: string;
   };
@@ -267,7 +269,7 @@ router.post("/categories", async (req, res) => {
 });
 
 // PUT /api/njmvc/categories/:id
-router.put("/categories/:id", async (req, res) => {
+router.put("/categories/:id", requirePermission("njmvc_template", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { name, sortOrder, active, notes } = req.body as {
     name: string; sortOrder: number; active: boolean; notes?: string;
@@ -281,7 +283,7 @@ router.put("/categories/:id", async (req, res) => {
 });
 
 // DELETE /api/njmvc/categories/:id — deactivates if results exist, otherwise hard-deletes
-router.delete("/categories/:id", async (req, res) => {
+router.delete("/categories/:id", requirePermission("njmvc_template", "delete"), async (req, res) => {
   const id = Number(req.params.id);
   const itemIds = await db.select({ id: njmvcItemsTable.id })
     .from(njmvcItemsTable)
@@ -305,7 +307,7 @@ router.delete("/categories/:id", async (req, res) => {
 });
 
 // GET /api/njmvc/items — all items or filtered by categoryId
-router.get("/items", async (req, res) => {
+router.get("/items", requirePermission("njmvc_template", "view"), async (req, res) => {
   const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
   const items = categoryId
     ? await db.select().from(njmvcItemsTable).where(eq(njmvcItemsTable.categoryId, categoryId)).orderBy(asc(njmvcItemsTable.sortOrder))
@@ -314,7 +316,7 @@ router.get("/items", async (req, res) => {
 });
 
 // POST /api/njmvc/items
-router.post("/items", async (req, res) => {
+router.post("/items", requirePermission("njmvc_template", "create"), async (req, res) => {
   const { categoryId, label, hasMeasurement, measurementUnit, sortOrder, active } = req.body as {
     categoryId: number; label: string; hasMeasurement?: boolean;
     measurementUnit?: string; sortOrder?: number; active?: boolean;
@@ -330,7 +332,7 @@ router.post("/items", async (req, res) => {
 });
 
 // PUT /api/njmvc/items/:id
-router.put("/items/:id", async (req, res) => {
+router.put("/items/:id", requirePermission("njmvc_template", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { label, hasMeasurement, measurementUnit, sortOrder, active } = req.body as {
     label: string; hasMeasurement: boolean; measurementUnit?: string;
@@ -345,7 +347,7 @@ router.put("/items/:id", async (req, res) => {
 });
 
 // DELETE /api/njmvc/items/:id — deactivates if results exist, otherwise hard-deletes
-router.delete("/items/:id", async (req, res) => {
+router.delete("/items/:id", requirePermission("njmvc_template", "delete"), async (req, res) => {
   const id = Number(req.params.id);
   const [{ count }] = await db.select({ count: sql<number>`count(*)` })
     .from(njmvcInspectionResultsTable)
@@ -409,7 +411,7 @@ router.get("/inspections", async (req, res) => {
 });
 
 // POST /api/njmvc/inspections
-router.post("/inspections", async (req, res) => {
+router.post("/inspections", requirePermission("njmvc", "create"), async (req, res) => {
   const {
     vehicleId, operatorName, address, mechanicNamePrint, mechanicNameSigned,
     reportNumber, fleetUnitNumber, mileage, vehicleType, vin, licensePlate,
@@ -480,7 +482,7 @@ async function getFullInspection(id: number) {
 }
 
 // PUT /api/njmvc/inspections/:id
-router.put("/inspections/:id", async (req, res) => {
+router.put("/inspections/:id", requirePermission("njmvc", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const {
     vehicleId, operatorName, address, mechanicNamePrint, mechanicNameSigned,
@@ -528,7 +530,7 @@ router.put("/inspections/:id", async (req, res) => {
 });
 
 // DELETE /api/njmvc/inspections/:id
-router.delete("/inspections/:id", async (req, res) => {
+router.delete("/inspections/:id", requirePermission("njmvc", "delete"), async (req, res) => {
   await db.delete(njmvcInspectionsTable).where(eq(njmvcInspectionsTable.id, Number(req.params.id)));
   res.status(204).send();
 });
@@ -561,7 +563,7 @@ async function queryRelatedRepairs(vehicleId: number, sinceDate: Date | null, un
 
 // GET /api/njmvc/vehicles/:vehicleId/related-repairs — for new inspections before saving
 // Query params: untilDate (ISO date string, defaults to now)
-router.get("/vehicles/:vehicleId/related-repairs", async (req, res) => {
+router.get("/vehicles/:vehicleId/related-repairs", requirePermission("repair_orders", "view"), async (req, res) => {
   const vehicleId = Number(req.params.vehicleId);
   const untilDate = req.query.untilDate ? new Date(req.query.untilDate as string) : new Date();
 
@@ -589,7 +591,7 @@ router.get("/vehicles/:vehicleId/related-repairs", async (req, res) => {
 
 // GET /api/njmvc/inspections/:id/related-repairs
 // Returns completed ROs with completedAt between previous and current inspection dates
-router.get("/inspections/:id/related-repairs", async (req, res) => {
+router.get("/inspections/:id/related-repairs", requirePermission("repair_orders", "view"), async (req, res) => {
   const id = Number(req.params.id);
   const [insp] = await db.select().from(njmvcInspectionsTable).where(eq(njmvcInspectionsTable.id, id));
   if (!insp) return res.status(404).json({ error: "Inspection not found" });

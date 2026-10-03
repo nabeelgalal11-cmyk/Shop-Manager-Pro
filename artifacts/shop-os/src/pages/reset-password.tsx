@@ -33,7 +33,7 @@ export default function ResetPasswordPage() {
     event.preventDefault();
     setError(null);
     if (!token) return setError("This reset link is missing its token. Request a new reset email.");
-    if (password.length < 6) return setError("Password must be at least 6 characters.");
+    if (password.length < 12) return setError("Password must be at least 12 characters.");
     if (password !== confirm) return setError("Passwords do not match.");
     setSubmitting(true);
     try {
@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
       <CardContent>
         {success ? <div className="space-y-4 text-center"><p className="text-sm" role="status">Your password has been reset successfully.</p><button type="button" onClick={returnToSignIn} className="text-primary hover:underline">Return to sign in</button></div> :
           <form onSubmit={submit} className="space-y-4">
-            <div className="space-y-2"><Label htmlFor="new-password">New password</Label><Input id="new-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
+            <div className="space-y-2"><Label htmlFor="new-password">New password</Label><Input id="new-password" type="password" autoComplete="new-password" minLength={12} value={password} onChange={(e) => setPassword(e.target.value)} required /><p className="text-xs text-muted-foreground">Use at least 12 characters.</p></div>
             <div className="space-y-2"><Label htmlFor="confirm-password">Confirm new password</Label><Input id="confirm-password" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></div>
             {error && <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded px-3 py-2" role="alert">{error}</div>}
             <Button type="submit" className="w-full" disabled={submitting}>{submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Reset password</Button>

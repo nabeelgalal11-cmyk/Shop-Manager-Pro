@@ -44,11 +44,18 @@ async function requireCommercialRevisionAccess(req: any, revisionId: number) {
 
 router.get("/", requirePermission("repair_orders", "view"), async (req, res): Promise<void> => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  const assignedTo = Number(req.query.assignedTo);
+  const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+  const conditions = [];
+  if (status) conditions.push(eq(repairOrdersTable.status, status as any));
+  if (Number.isSafeInteger(assignedTo) && assignedTo > 0) conditions.push(eq(repairOrdersTable.assignedToId, assignedTo));
+  const where = conditions.length ? and(...conditions) : undefined;
   const orders = await db.select().from(repairOrdersTable)
-    .where(status ? eq(repairOrdersTable.status, status as any) : undefined)
+    .where(where)
     .orderBy(desc(repairOrdersTable.openedAt))
-    .limit(limit);
+    .limit(limit)
+    .offset((page - 1) * limit);
   res.json(orders);
 });
 router.post("/", requirePermission("repair_orders", "create"), async (req, res): Promise<void> => {

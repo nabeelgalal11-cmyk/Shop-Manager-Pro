@@ -15,6 +15,10 @@ const forgotPasswordCooldownMs = 60_000;
 const forgotPasswordRequests = new Map<string, number>();
 const forgotPasswordMessage =
   "If this is an eligible account, follow the secure link sent by email; otherwise an administrator will review the request.";
+const MIN_PASSWORD_LENGTH = 12;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 10;
+const loginAttempts = new Map<string, { count: number; expiresAt: number }>();
 
 function isPrivileged(emp: { role: string; roles: string[] }, role: string): boolean {
   const roles = emp.roles?.length ? emp.roles : [emp.role];
@@ -22,25 +26,44 @@ function isPrivileged(emp: { role: string; roles: string[] }, role: string): boo
 }
 
 function getPublicOrigin(req: Request): string {
-  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const host = forwardedHost || req.get("host");
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const protocol = forwardedProto || req.protocol;
-  if (host) return `${protocol}://${host}`;
-
   const configuredBaseUrl = process.env.PUBLIC_BASE_URL?.trim();
   if (configuredBaseUrl) {
     try {
       const parsed = new URL(configuredBaseUrl);
-      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      if ((parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin !== "null") {
         return parsed.origin;
       }
     } catch {
-      // Fall through to the request protocol if the fallback is invalid.
+      // Production must not fall back to a request-controlled host.
     }
   }
 
-  return `${protocol}://localhost`;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("PUBLIC_BASE_URL must be configured for password reset links");
+  }
+
+  const host = req.get("host");
+  if (!host) throw new Error("Request host is unavailable");
+  return `${req.protocol}://${host}`;
+}
+
+function reserveLoginAttempt(ip: string): { allowed: boolean; retryAfterSeconds?: number } {
+  const now = Date.now();
+  const previous = loginAttempts.get(ip);
+  if (!previous || previous.expiresAt <= now) {
+    loginAttempts.set(ip, { count: 1, expiresAt: now + LOGIN_WINDOW_MS });
+    if (loginAttempts.size > 10_000) {
+      for (const [key, value] of loginAttempts) {
+        if (value.expiresAt <= now) loginAttempts.delete(key);
+      }
+    }
+    return { allowed: true };
+  }
+  if (previous.count >= LOGIN_MAX_ATTEMPTS) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((previous.expiresAt - now) / 1000) };
+  }
+  previous.count += 1;
+  return { allowed: true };
 }
 
 router.post("/forgot-password", async (req, res) => {
@@ -125,7 +148,7 @@ router.post("/forgot-password", async (req, res) => {
 router.post("/reset-password", async (req, res) => {
   const rawToken = typeof req.body?.token === "string" ? req.body.token : "";
   const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
-  if (newPassword.length < 6 || !rawToken) {
+  if (newPassword.length < MIN_PASSWORD_LENGTH || !rawToken) {
     return res.status(400).json({ error: "Invalid or expired reset request" });
   }
   const tokenHash = createHash("sha256").update(rawToken).digest("hex");
@@ -158,6 +181,12 @@ router.post("/reset-password", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   const { username, password, mobile } = req.body || {};
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const rateLimit = reserveLoginAttempt(ip);
+  if (!rateLimit.allowed) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
+    return res.status(429).json({ error: "Too many sign-in attempts. Try again later." });
+  }
   if (!username || !password) {
     return res.status(400).json({ error: "Username and password required" });
   }
@@ -172,6 +201,7 @@ router.post("/login", async (req, res) => {
 
   const ok = await bcrypt.compare(String(password), emp.passwordHash);
   if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+  loginAttempts.delete(ip);
 
   // Regenerate session ID to prevent session fixation
   await new Promise<void>((resolve, reject) =>
@@ -227,8 +257,8 @@ router.get("/me", requireAuth, async (req, res) => {
 router.post("/change-password", requireAuth, async (req, res) => {
   const u = getUser(req)!;
   const { currentPassword, newPassword } = req.body || {};
-  if (!currentPassword || !newPassword || String(newPassword).length < 6) {
-    return res.status(400).json({ error: "New password must be at least 6 characters" });
+  if (!currentPassword || !newPassword || String(newPassword).length < MIN_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `New password must be at least ${MIN_PASSWORD_LENGTH} characters` });
   }
   const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, u.id));
   if (!emp || !emp.passwordHash) return res.status(404).json({ error: "User not found" });

@@ -2,8 +2,10 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { customerCategoriesTable, customersTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("customers", "view"));
 
 router.get("/", async (_req, res) => {
   const categories = await db
@@ -22,7 +24,7 @@ router.get("/", async (_req, res) => {
   res.json(categories);
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("customer_categories", "create"), async (req, res) => {
   const { name, description, laborRate, partsMarkup } = req.body;
   const [category] = await db
     .insert(customerCategoriesTable)
@@ -40,7 +42,7 @@ router.get("/:id", async (req, res) => {
   res.json(category);
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requirePermission("customer_categories", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { name, description, laborRate, partsMarkup } = req.body;
   const [category] = await db
@@ -52,7 +54,7 @@ router.put("/:id", async (req, res) => {
   res.json(category);
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requirePermission("customer_categories", "delete"), async (req, res) => {
   await db.delete(customerCategoriesTable).where(eq(customerCategoriesTable.id, Number(req.params.id)));
   res.status(204).send();
 });

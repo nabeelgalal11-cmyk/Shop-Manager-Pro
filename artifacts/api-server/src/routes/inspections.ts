@@ -6,8 +6,10 @@ import { eq, sql, desc, and, isNull } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
 import { sendSms } from "../lib/sms.js";
 import { recordActivity } from "../lib/activity.js";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("inspections", "view"));
 
 // Per-item shape (forward-compatible — old data with {label, status, notes}
 // keeps working since extra fields are optional). status: pass | attention |
@@ -30,7 +32,11 @@ function normalizeItems(items: any): any[] {
 async function enrichInspection(inspection: any) {
   const [vehicle, inspector] = await Promise.all([
     db.select().from(vehiclesTable).where(eq(vehiclesTable.id, inspection.vehicleId)).then(r => r[0]),
-    inspection.inspectedById ? db.select().from(employeesTable).where(eq(employeesTable.id, inspection.inspectedById)).then(r => r[0]) : Promise.resolve(null),
+    inspection.inspectedById ? db.select({
+      id: employeesTable.id,
+      firstName: employeesTable.firstName,
+      lastName: employeesTable.lastName,
+    }).from(employeesTable).where(eq(employeesTable.id, inspection.inspectedById)).then(r => r[0]) : Promise.resolve(null),
   ]);
   return { ...inspection, vehicle, inspector };
 }
@@ -49,7 +55,7 @@ router.get("/", async (req, res) => {
   res.json({ data: enriched, total: Number(countResult.count), page, limit });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("inspections", "create"), async (req, res) => {
   const { vehicleId, repairOrderId, inspectedById, type, mileage, overallCondition, items, notes } = req.body;
   const [inspection] = await db.insert(inspectionsTable).values({
     vehicleId, repairOrderId, inspectedById, type, mileage, overallCondition,
@@ -65,7 +71,7 @@ router.get("/:id", async (req, res) => {
   res.json(await enrichInspection(inspection));
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requirePermission("inspections", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { vehicleId, repairOrderId, inspectedById, type, mileage, overallCondition, items, notes } = req.body;
   const [inspection] = await db.update(inspectionsTable).set({
@@ -93,7 +99,7 @@ async function ensurePublicToken(inspectionId: number): Promise<string> {
 }
 
 // Send the inspection to the customer over their preferred channel(s).
-router.post("/:id/send", async (req, res) => {
+router.post("/:id/send", requirePermission("inspections", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const [inspection] = await db.select().from(inspectionsTable).where(eq(inspectionsTable.id, id));
   if (!inspection) return res.status(404).json({ error: "Inspection not found" });
@@ -178,7 +184,7 @@ router.post("/:id/send", async (req, res) => {
 });
 
 // Generate (or fetch) the public link without sending — for "copy link" UI.
-router.post("/:id/public-link", async (req, res) => {
+router.post("/:id/public-link", requirePermission("inspections", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const [inspection] = await db.select({ id: inspectionsTable.id }).from(inspectionsTable).where(eq(inspectionsTable.id, id));
   if (!inspection) return res.status(404).json({ error: "Inspection not found" });

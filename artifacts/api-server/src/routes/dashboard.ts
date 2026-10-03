@@ -5,8 +5,10 @@ import {
   appointmentsTable, estimateRevisionsTable, expensesTable, paymentsTable, invoiceItemsTable,
 } from "@workspace/db";
 import { eq, sql, desc, gte, and, lte } from "drizzle-orm";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("dashboard", "view"));
 
 // Payments are an immutable ledger: a refund or void is a child reversal row,
 // so revenue must include the original success and subtract its reversal.

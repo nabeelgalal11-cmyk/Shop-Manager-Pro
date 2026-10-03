@@ -3,8 +3,10 @@ import { db } from "@workspace/db";
 import { vehiclesTable, customersTable, repairOrdersTable, appointmentsTable, remindersTable } from "@workspace/db";
 import { eq, ilike, or, sql, desc } from "drizzle-orm";
 import { findActiveWarrantiesForVehicle } from "../lib/warranty.js";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("vehicles", "view"));
 
 router.get("/", async (req, res) => {
   const page = Number(req.query.page) || 1;
@@ -42,7 +44,7 @@ router.get("/", async (req, res) => {
   res.json({ data: enriched, total: Number(countResult.count), page, limit });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("vehicles", "create"), async (req, res) => {
   const { customerId, vin, licensePlate, fleetNumber, year, make, model, trim, color, mileage, engineType, transmissionType, notes } = req.body;
   const [vehicle] = await db.insert(vehiclesTable).values({ customerId, vin, licensePlate, fleetNumber: fleetNumber || null, year, make, model, trim, color, mileage, engineType, transmissionType, notes }).returning();
   const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, customerId));
@@ -57,7 +59,7 @@ router.get("/:id", async (req, res) => {
   res.json({ ...vehicle, customer });
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requirePermission("vehicles", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { customerId, vin, licensePlate, fleetNumber, year, make, model, trim, color, mileage, engineType, transmissionType, notes } = req.body;
   const [vehicle] = await db.update(vehiclesTable).set({ customerId, vin, licensePlate, fleetNumber: fleetNumber || null, year, make, model, trim, color, mileage, engineType, transmissionType, notes, updatedAt: new Date() }).where(eq(vehiclesTable.id, id)).returning();
@@ -66,7 +68,7 @@ router.put("/:id", async (req, res) => {
   res.json({ ...vehicle, customer });
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requirePermission("vehicles", "delete"), async (req, res) => {
   const id = Number(req.params.id);
   try {
     await db.transaction(async (tx) => {

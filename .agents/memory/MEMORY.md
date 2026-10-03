@@ -20,3 +20,4 @@
 - [Production backup boundary](production-backup-boundary.md) — Use private GitHub Actions for Render production dumps; GitHub handles the URL at run time, while Replit remains only the Drive relay.
 - [Development restore isolation](development-restore-isolation.md) — Restores require a separate non-production connection and exact host/database allowlist; never target the app's primary database.
 - [Playwright Chromium path](playwright-chromium-path.md) — In this workspace, run browser tests with the installed Chromium path instead of downloading Playwright's pinned browser.
+- [Private inspection object storage](private-inspection-object-storage.md) — inspection photo URLs need inspection permissions; current upload flow does not populate the generic GCS ACL metadata.

@@ -29,7 +29,10 @@ import { useAuth } from "@/hooks/useAuth";
 type Status = "open" | "diagnosing" | "awaiting_approval" | "authorized" | "in_progress" | "completed" | "cancelled";
 type GroupMode = "status" | "technician";
 
-type BoardOrder = RepairOrder & { status: Status };
+type BoardOrder = RepairOrder & {
+  status: Status;
+  usedCar?: { year: number; make: string; model: string } | null;
+};
 type LaneCells = Record<Status, BoardOrder[]>;
 type Lane = {
   key: string;
@@ -98,6 +101,7 @@ const priorityDot = (priority: string) => {
 export default function RepairOrdersBoard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { can } = useAuth();
   const qc = useQueryClient();
   const [groupMode, setGroupMode] = useState<GroupMode>(() => {
     try {
@@ -217,7 +221,9 @@ export default function RepairOrdersBoard() {
   };
 
   const orders = useMemo<BoardOrder[]>(() => {
-    return (data?.data ?? []).map((ro): BoardOrder => {
+    const response = data as unknown as any;
+    const items = Array.isArray(response) ? response : (response?.data ?? []);
+    return items.map((ro: any): BoardOrder => {
       // Coerce unknown statuses
       const status = isStatus(ro.status) ? ro.status as Status : "open";
       return { ...ro, status };
@@ -380,9 +386,9 @@ export default function RepairOrdersBoard() {
               </div>
             </PopoverContent>
           </Popover>
-          <Button onClick={() => setLocation("/repair-orders/new")} className="shadow-sm font-medium">
+          {can("repair_orders", "create") && <Button onClick={() => setLocation("/repair-orders/new")} className="shadow-sm font-medium">
             <Plus className="mr-2 h-4 w-4" /> New Repair Order
-          </Button>
+          </Button>}
         </div>
       </div>
 

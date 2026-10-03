@@ -2,8 +2,10 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { customersTable, vehiclesTable, invoicesTable, repairOrdersTable, customerCategoriesTable } from "@workspace/db";
 import { eq, ilike, or, sql, desc, inArray } from "drizzle-orm";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("customers", "view"));
 
 router.get("/", async (req, res) => {
   const page = Number(req.query.page) || 1;
@@ -64,7 +66,7 @@ router.get("/", async (req, res) => {
   res.json({ data: enriched, total: Number(countResult[0].count), page, limit });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("customers", "create"), async (req, res) => {
   const { firstName, lastName, email, phone, address, city, state, zip, notes, categoryId, preferredChannel, smsOptOut, taxExempt, taxExemptNumber } = req.body;
   const [customer] = await db.insert(customersTable).values({
     firstName, lastName, email, phone, address, city, state, zip, notes,
@@ -88,7 +90,7 @@ router.get("/:id", async (req, res) => {
   res.json({ ...customer, vehicleCount: Number(vehicleCount.count), totalBilled, totalPaid });
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requirePermission("customers", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { firstName, lastName, email, phone, address, city, state, zip, notes, categoryId, preferredChannel, smsOptOut, taxExempt, taxExemptNumber } = req.body;
   const [customer] = await db.update(customersTable).set({
@@ -108,7 +110,7 @@ router.put("/:id", async (req, res) => {
   res.json({ ...customer, vehicleCount: Number(vehicleCount.count), totalBilled, totalPaid });
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requirePermission("customers", "delete"), async (req, res) => {
   const id = Number(req.params.id);
   await db.delete(customersTable).where(eq(customersTable.id, id));
   res.status(204).send();

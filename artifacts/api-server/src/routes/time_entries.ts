@@ -28,7 +28,12 @@ router.get("/", requirePermission("time_entries", "view"), async (req, res) => {
   const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(timeEntriesTable);
 
   const enriched = await Promise.all(entries.map(async (entry) => {
-    const [employee] = await db.select().from(employeesTable).where(eq(employeesTable.id, entry.employeeId));
+    const [employee] = await db.select({
+      id: employeesTable.id,
+      firstName: employeesTable.firstName,
+      lastName: employeesTable.lastName,
+      role: employeesTable.role,
+    }).from(employeesTable).where(eq(employeesTable.id, entry.employeeId));
     const repairOrder = entry.repairOrderId
       ? await db.select().from(repairOrdersTable).where(eq(repairOrdersTable.id, entry.repairOrderId)).then(r => r[0])
       : null;

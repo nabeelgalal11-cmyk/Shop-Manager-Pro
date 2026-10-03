@@ -1,17 +1,34 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.js";
+import { requirePermission } from "../lib/auth.js";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+const MAX_PHOTO_SIZE_BYTES = 20 * 1024 * 1024;
+const ALLOWED_PHOTO_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+  "image/heic",
+  "image/heif",
+  "image/bmp",
+  "image/tiff",
+]);
 
 /**
  * POST /storage/uploads/request-url
  * Request a presigned URL for direct-to-GCS upload.
  */
-router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
+router.post("/storage/uploads/request-url", requirePermission("inspections", "create"), async (req: Request, res: Response) => {
   const { name, size, contentType } = req.body || {};
-  if (!name || typeof size !== "number" || !contentType) {
+  if (
+    typeof name !== "string" || name.length === 0 || name.length > 255 ||
+    typeof size !== "number" || !Number.isFinite(size) || size <= 0 || size > MAX_PHOTO_SIZE_BYTES ||
+    typeof contentType !== "string" || !ALLOWED_PHOTO_TYPES.has(contentType.toLowerCase())
+  ) {
     res.status(400).json({ error: "Missing or invalid required fields: name, size, contentType" });
     return;
   }
@@ -57,13 +74,20 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
  * GET /storage/objects/*
  * Serve private uploaded objects.
  */
-router.get("/storage/objects/*path", async (req: Request, res: Response) => {
+router.get("/storage/objects/*path", requirePermission("inspections", "view"), async (req: Request, res: Response) => {
   try {
     const raw = req.params.path as string | string[];
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
     const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+    const [metadata] = await objectFile.getMetadata();
+    const storedContentType = String(metadata.contentType || "").split(";")[0].trim().toLowerCase();
+    if (!ALLOWED_PHOTO_TYPES.has(storedContentType)) {
+      res.status(415).json({ error: "Unsupported private object type" });
+      return;
+    }
     const response = await objectStorageService.downloadObject(objectFile);
+    res.setHeader("X-Content-Type-Options", "nosniff");
     res.status(response.status);
     response.headers.forEach((value: string, key: string) => res.setHeader(key, value));
     if (response.body) {

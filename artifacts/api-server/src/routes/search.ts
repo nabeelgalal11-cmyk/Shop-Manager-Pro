@@ -9,6 +9,8 @@ import {
   appointmentsTable,
 } from "@workspace/db";
 import { or, ilike, sql, eq, desc } from "drizzle-orm";
+import { getUser } from "../lib/auth.js";
+import { getPermissionsForRoles, hasPermission } from "../lib/permissions.js";
 
 const router: Router = Router();
 
@@ -141,7 +143,18 @@ router.get("/", async (req, res) => {
       .limit(LIMIT),
   ]);
 
-  res.json({ customers, vehicles, repairOrders, invoices, estimates, appointments });
+  const user = getUser(req)!;
+  const permissions = await getPermissionsForRoles(user.roles);
+  const canView = (resource: Parameters<typeof hasPermission>[1]) =>
+    user.roles.includes("admin") || hasPermission(permissions, resource, "view");
+  res.json({
+    customers: canView("customers") ? customers : [],
+    vehicles: canView("vehicles") ? vehicles : [],
+    repairOrders: canView("repair_orders") ? repairOrders : [],
+    invoices: canView("invoices") ? invoices : [],
+    estimates: canView("estimates") ? estimates : [],
+    appointments: canView("appointments") ? appointments : [],
+  });
 });
 
 export default router;

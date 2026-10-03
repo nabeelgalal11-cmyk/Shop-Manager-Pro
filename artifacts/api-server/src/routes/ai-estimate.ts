@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { requirePermission } from "../lib/auth.js";
 
 const router: IRouter = Router();
 
@@ -7,7 +8,7 @@ const gemini = process.env.GEMINI_API_KEY
   ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   : null;
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("estimates", "create"), async (req, res) => {
   const { vehicle, repair } = req.body;
 
   if (!vehicle || !repair) {

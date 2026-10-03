@@ -44,7 +44,38 @@ app.use(
 // and req.ip work correctly behind a load balancer.
 app.set("trust proxy", 1);
 
-app.use(cors({ origin: true, credentials: true }));
+const configuredCorsOrigins = new Set(
+  [process.env.PUBLIC_BASE_URL, ...(process.env.CORS_ALLOWED_ORIGINS || "").split(",")]
+    .map((value) => {
+      if (!value?.trim()) return null;
+      try {
+        return new URL(value.trim()).origin;
+      } catch {
+        return null;
+      }
+    })
+    .filter((origin): origin is string => !!origin),
+);
+
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+  if (!origin) return next();
+
+  let normalizedOrigin: string;
+  let requestOrigin: string;
+  try {
+    normalizedOrigin = new URL(origin).origin;
+    requestOrigin = new URL(`${req.protocol}://${req.get("host")}`).origin;
+  } catch {
+    return res.status(403).json({ error: "Origin not allowed" });
+  }
+
+  if (normalizedOrigin !== requestOrigin && !configuredCorsOrigins.has(normalizedOrigin)) {
+    return res.status(403).json({ error: "Origin not allowed" });
+  }
+
+  return cors({ origin: normalizedOrigin, credentials: true })(req, res, next);
+});
 
 // Stripe webhook needs the raw request body for signature verification — must
 // be mounted BEFORE express.json() or the body will be parsed and re-stringified

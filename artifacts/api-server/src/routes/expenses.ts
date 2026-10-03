@@ -2,8 +2,10 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { expensesTable } from "@workspace/db";
 import { eq, sql, desc, and, gte, lte } from "drizzle-orm";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("expenses", "view"));
 
 router.get("/", async (req, res) => {
   const page = Number(req.query.page) || 1;
@@ -25,7 +27,7 @@ router.get("/", async (req, res) => {
   res.json({ data: expenses, total: Number(countResult.count), page, limit });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("expenses", "create"), async (req, res) => {
   const { category, description, amount, vendor, receiptNumber, expenseDate, notes } = req.body;
   const [expense] = await db.insert(expensesTable).values({
     category, description, amount: amount.toString(), vendor, receiptNumber, expenseDate, notes,
@@ -39,7 +41,7 @@ router.get("/:id", async (req, res) => {
   res.json(expense);
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requirePermission("expenses", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { category, description, amount, vendor, receiptNumber, expenseDate, notes } = req.body;
   const [expense] = await db.update(expensesTable).set({
@@ -49,7 +51,7 @@ router.put("/:id", async (req, res) => {
   res.json(expense);
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requirePermission("expenses", "delete"), async (req, res) => {
   await db.delete(expensesTable).where(eq(expensesTable.id, Number(req.params.id)));
   res.status(204).send();
 });

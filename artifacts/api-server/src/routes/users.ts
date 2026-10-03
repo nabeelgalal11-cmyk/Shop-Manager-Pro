@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, employeesTable } from "@workspace/db";
 import { eq, sql, desc, isNotNull } from "drizzle-orm";
-import { requireAuth, requirePermission } from "../lib/auth.js";
+import { requireAuth, requirePermission, requireRole } from "../lib/auth.js";
 
 const router: Router = Router();
 
@@ -30,10 +30,10 @@ router.get("/", requirePermission("users", "view"), async (_req, res) => {
 });
 
 // Create user (links to an existing employee or creates new)
-router.post("/", requirePermission("users", "create"), async (req, res) => {
+router.post("/", requirePermission("users", "create"), requireRole("admin"), async (req, res) => {
   const { employeeId, firstName, lastName, email, username, password, roles } = req.body || {};
-  if (!username || !password || String(password).length < 6) {
-    return res.status(400).json({ error: "Username and password (>=6 chars) required" });
+  if (!username || !password || String(password).length < 12) {
+    return res.status(400).json({ error: "Username and password (at least 12 characters) required" });
   }
   const uname = String(username).toLowerCase().trim();
   const passwordHash = await bcrypt.hash(String(password), 10);
@@ -74,7 +74,7 @@ router.post("/", requirePermission("users", "create"), async (req, res) => {
 });
 
 // Update user (roles, active, optionally reset password)
-router.put("/:id", requirePermission("users", "edit"), async (req, res) => {
+router.put("/:id", requirePermission("users", "edit"), requireRole("admin"), async (req, res) => {
   const id = Number(req.params.id);
   const { roles, active, password, firstName, lastName, email } = req.body || {};
   const updates: Record<string, any> = {};
@@ -87,8 +87,8 @@ router.put("/:id", requirePermission("users", "edit"), async (req, res) => {
   if (typeof lastName === "string") updates.lastName = lastName;
   if (typeof email === "string") updates.email = email || null;
   if (password) {
-    if (String(password).length < 6) {
-      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    if (String(password).length < 12) {
+      return res.status(400).json({ error: "Password must be at least 12 characters" });
     }
     updates.passwordHash = await bcrypt.hash(String(password), 10);
   }
@@ -100,7 +100,7 @@ router.put("/:id", requirePermission("users", "edit"), async (req, res) => {
 });
 
 // Delete user (revoke login, keep employee record)
-router.delete("/:id", requirePermission("users", "delete"), async (req, res) => {
+router.delete("/:id", requirePermission("users", "delete"), requireRole("admin"), async (req, res) => {
   const id = Number(req.params.id);
   await db
     .update(employeesTable)

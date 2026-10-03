@@ -3,8 +3,10 @@ import { db } from "@workspace/db";
 import { remindersTable, customersTable, vehiclesTable } from "@workspace/db";
 import { eq, sql, desc, and, lte } from "drizzle-orm";
 import { sendTemplatedEmail } from "../lib/email.js";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("reminders", "view"));
 
 async function sendReminderEmail(reminder: any, req: any): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -62,7 +64,7 @@ router.get("/", async (req, res) => {
   res.json({ data: enriched, total: Number(countResult.count), page, limit });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("reminders", "create"), async (req, res) => {
   const { customerId, vehicleId, serviceType, dueDate, dueMileage, notes } = req.body;
   const [reminder] = await db.insert(remindersTable).values({
     customerId, vehicleId, serviceType, dueDate, dueMileage, notes, sent: false,
@@ -76,7 +78,7 @@ router.get("/:id", async (req, res) => {
   res.json(await enrichReminder(reminder));
 });
 
-router.put("/:id", async (req, res) => {
+router.put("/:id", requirePermission("reminders", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const { customerId, vehicleId, serviceType, dueDate, dueMileage, notes, sent } = req.body;
   const [reminder] = await db.update(remindersTable).set({
@@ -89,13 +91,13 @@ router.put("/:id", async (req, res) => {
   res.json(await enrichReminder(reminder));
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requirePermission("reminders", "delete"), async (req, res) => {
   await db.delete(remindersTable).where(eq(remindersTable.id, Number(req.params.id)));
   res.status(204).send();
 });
 
 // Manually send a single reminder email
-router.post("/:id/send", async (req, res) => {
+router.post("/:id/send", requirePermission("reminders", "edit"), async (req, res) => {
   const id = Number(req.params.id);
   const [reminder] = await db.select().from(remindersTable).where(eq(remindersTable.id, id));
   if (!reminder) return res.status(404).json({ error: "Reminder not found" });
@@ -108,7 +110,7 @@ router.post("/:id/send", async (req, res) => {
 });
 
 // Cron-style endpoint: send all due, unsent reminders
-router.post("/send-due", async (req, res) => {
+router.post("/send-due", requirePermission("reminders", "edit"), async (req, res) => {
   const today = new Date().toISOString().split("T")[0];
   const due = await db.select().from(remindersTable).where(and(eq(remindersTable.sent, false), lte(remindersTable.dueDate, today)));
   const results: Array<{ id: number; sent: boolean; error?: string }> = [];

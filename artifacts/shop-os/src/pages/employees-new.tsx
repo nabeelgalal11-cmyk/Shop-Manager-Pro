@@ -10,6 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
 import { RoleMultiSelect } from "@/components/role-multiselect";
+import { useAuth } from "@/hooks/useAuth";
 
 const formSchema = z.object({
   firstName: z.string().min(1, "Required"),
@@ -22,6 +23,7 @@ const formSchema = z.object({
 export default function EmployeesNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -35,8 +37,12 @@ export default function EmployeesNew() {
   const createEmployee = useCreateEmployee();
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    const { roles, ...employeeDetails } = values;
+    const data = isAdmin
+      ? { ...employeeDetails, roles, role: roles[0] }
+      : employeeDetails;
     createEmployee.mutate(
-      { data: { ...values, role: values.roles[0] } as any },
+      { data: data as any },
       {
         onSuccess: () => {
           toast({ title: "Employee created" });
@@ -68,7 +74,7 @@ export default function EmployeesNew() {
               <FormField control={form.control} name="email" render={({ field }) => (
                 <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
-              <Controller
+              {isAdmin && <Controller
                 control={form.control}
                 name="roles"
                 render={({ field, fieldState }) => (
@@ -80,7 +86,7 @@ export default function EmployeesNew() {
                     )}
                   </FormItem>
                 )}
-              />
+              />}
               <FormField control={form.control} name="hourlyRate" render={({ field }) => (
                 <FormItem><FormLabel>Hourly Rate ($)</FormLabel><FormControl><Input type="number" step="0.5" {...field} /></FormControl><FormMessage /></FormItem>
               )} />

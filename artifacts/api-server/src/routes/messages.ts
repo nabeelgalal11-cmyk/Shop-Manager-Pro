@@ -2,8 +2,10 @@ import { Router } from "express";
 import { db, messagesTable, customersTable } from "@workspace/db";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { sendSms, markCustomerThreadRead } from "../lib/sms.js";
+import { requirePermission } from "../lib/auth.js";
 
 const router: Router = Router();
+router.use(requirePermission("customers", "view"));
 
 // GET /api/messages?customerId=123  — full thread for one customer
 // GET /api/messages/unread-count    — total unread inbound messages
@@ -69,7 +71,7 @@ router.get("/", async (req, res) => {
   res.json({ messages: rows });
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission("customers", "edit"), async (req, res) => {
   const customerId = Number(req.body?.customerId);
   const body = String(req.body?.body ?? "").trim();
   if (!customerId || !body) {

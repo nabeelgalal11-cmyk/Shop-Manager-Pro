@@ -41,7 +41,7 @@ export default function Employees() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { can } = useAuth();
+  const { can, isAdmin } = useAuth();
 
   const { data, isLoading } = useGetEmployees({}, { query: { queryKey: getGetEmployeesQueryKey() } });
   const items = Array.isArray(data) ? data : (data as any)?.data || [];
@@ -67,8 +67,8 @@ export default function Employees() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: getGetEmployeesQueryKey() });
 
-  const canManageUsers = can("users", "create") || can("users", "edit");
-  const canRevokeUsers = can("users", "delete");
+  const canManageUsers = isAdmin;
+  const canRevokeUsers = isAdmin;
 
   // Clock in/out
   const handleClockIn = (id: number) => {
@@ -142,6 +142,10 @@ export default function Employees() {
 
   const saveAccess = async () => {
     if (!accessEmp) return;
+    if (!accessForm.username || (accessMode === "grant" && accessForm.password.length < 12) || (accessMode === "edit" && accessForm.password.length > 0 && accessForm.password.length < 12)) {
+      toast({ title: "Check login details", description: "Use a username and a password of at least 12 characters.", variant: "destructive" });
+      return;
+    }
     setAccessSaving(true);
     try {
       if (accessMode === "grant") {
@@ -158,7 +162,7 @@ export default function Employees() {
       } else {
         const payload: any = { roles: accessForm.roles, active: accessForm.active };
         if (accessForm.username) payload.username = accessForm.username;
-        if (accessForm.password.length >= 6) payload.password = accessForm.password;
+        if (accessForm.password.length >= 12) payload.password = accessForm.password;
         await userApi(`/api/users/${accessEmp.id}`, { method: "PUT", body: JSON.stringify(payload) });
         toast({ title: "Login access updated" });
       }
@@ -185,7 +189,7 @@ export default function Employees() {
     Array.isArray(emp.roles) && emp.roles.length > 0 ? emp.roles : (emp.role ? [emp.role] : []);
 
   const isGrantValid = accessMode === "grant"
-    ? accessForm.username.length >= 2 && accessForm.password.length >= 6 && accessForm.roles.length > 0
+    ? accessForm.username.length >= 2 && accessForm.password.length >= 12 && accessForm.roles.length > 0
     : accessForm.roles.length > 0;
 
   return (
@@ -407,7 +411,7 @@ export default function Employees() {
                 type="password"
                 value={accessForm.password}
                 onChange={e => setAccessForm(f => ({ ...f, password: e.target.value }))}
-                placeholder="At least 6 characters"
+                placeholder="At least 12 characters"
                 autoComplete="new-password"
               />
             </div>

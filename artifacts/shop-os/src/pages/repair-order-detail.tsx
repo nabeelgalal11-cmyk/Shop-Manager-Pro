@@ -9,8 +9,8 @@ import {
   useCancelRepairOrderWorkflow,
   useCreateRepairOrderFinalInvoice,
   usePerformRepairOrderWorkItem,
-  useGetCustomer,
-  useGetVehicle,
+  useGetCustomer, getGetCustomerQueryKey,
+  useGetVehicle, getGetVehicleQueryKey,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { useAuth } from "@/hooks/useAuth";
 
 function fmtUsd(n: number | string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(n));
@@ -33,6 +34,7 @@ export default function RepairOrderDetail() {
   const id = match ? parseInt(params.id) : 0;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user, can } = useAuth();
   const queryClient = useQueryClient();
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -41,11 +43,11 @@ export default function RepairOrderDetail() {
   });
 
   const { data: customer } = useGetCustomer(workflow?.repairOrder?.customerId as number, {
-    query: { enabled: !!workflow?.repairOrder?.customerId }
+    query: { enabled: !!workflow?.repairOrder?.customerId, queryKey: getGetCustomerQueryKey(workflow?.repairOrder?.customerId as number) }
   });
 
   const { data: vehicle } = useGetVehicle(workflow?.repairOrder?.vehicleId as number, {
-    query: { enabled: !!workflow?.repairOrder?.vehicleId }
+    query: { enabled: !!workflow?.repairOrder?.vehicleId, queryKey: getGetVehicleQueryKey(workflow?.repairOrder?.vehicleId as number) }
   });
 
   const updateIntake = useUpdateRepairOrderIntake();
@@ -80,6 +82,18 @@ export default function RepairOrderDetail() {
   }
 
   const { repairOrder, revisions, workItems, invoice } = workflow;
+  const managerOverride = !!user?.roles.some((role) => role === "admin" || role === "manager");
+  const canOperate = managerOverride || repairOrder.assignedToId === user?.id;
+  const canManageCommercial = managerOverride ||
+    (!!user?.roles.includes("advisor") && (repairOrder as any).createdById === user?.id);
+  const canEditIntake = can("repair_orders", "edit") &&
+    (canOperate || (repairOrder as any).createdById === user?.id);
+  const canCreateRevision = can("estimates", "create") && canManageCommercial;
+  const canComplete = can("repair_orders", "edit") && managerOverride;
+  const canCancel = can("repair_orders", "delete") && managerOverride;
+  const canPerformAuthorizedWork = can("repair_orders", "edit") && canOperate;
+  const canCreateInvoice = can("invoices", "create") &&
+    !!user?.roles.some((role) => role === "admin" || role === "manager" || role === "finance");
   const customerName = customer ? `${customer.firstName} ${customer.lastName}` : `Customer #${repairOrder.customerId}`;
   const vehicleName = vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : `Vehicle #${repairOrder.vehicleId}`;
 
@@ -207,17 +221,17 @@ export default function RepairOrderDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" onClick={handlePrint}>
+          {can("repair_orders", "print") && <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" /> Print
-          </Button>
+          </Button>}
           {repairOrder.status !== "completed" && repairOrder.status !== "cancelled" && (
             <>
-              <Button className="bg-green-600 hover:bg-green-700" onClick={handleComplete} disabled={completeWorkflow.isPending}>
+              {canComplete && <Button className="bg-green-600 hover:bg-green-700" onClick={handleComplete} disabled={completeWorkflow.isPending}>
                 <CheckCircle2 className="h-4 w-4 mr-2" /> Complete RO
-              </Button>
-              <Button variant="destructive" onClick={() => setCancelOpen(true)} disabled={cancelWorkflow.isPending}>
+              </Button>}
+              {canCancel && <Button variant="destructive" onClick={() => setCancelOpen(true)} disabled={cancelWorkflow.isPending}>
                 <XCircle className="h-4 w-4 mr-2" /> Cancel RO
-              </Button>
+              </Button>}
             </>
           )}
         </div>
@@ -231,9 +245,9 @@ export default function RepairOrderDetail() {
                 <div>
                   <CardTitle className="text-base">Estimates &amp; Revisions</CardTitle>
                 </div>
-                <Button size="sm" onClick={handleCreateRevision} disabled={createRevision.isPending}>
+                {canCreateRevision && <Button size="sm" onClick={handleCreateRevision} disabled={createRevision.isPending}>
                   <Plus className="h-4 w-4 mr-1.5" /> New Estimate
-                </Button>
+                </Button>}
               </div>
             </CardHeader>
             <CardContent className="pt-5 space-y-5">
@@ -284,7 +298,7 @@ export default function RepairOrderDetail() {
                         <Badge variant={item.status === "performed" ? "default" : "outline"} className="capitalize">
                           {item.status}
                         </Badge>
-                        {item.status === "authorized" && repairOrder.status !== "completed" && (
+                        {canPerformAuthorizedWork && item.status === "authorized" && repairOrder.status !== "completed" && (
                           <Button size="sm" variant="outline" onClick={() => handlePerformWork(item.id)} disabled={performWork.isPending}>
                             <CheckCircle2 className="h-4 w-4 mr-1.5" /> Mark Performed
                           </Button>
@@ -303,7 +317,7 @@ export default function RepairOrderDetail() {
             <CardHeader className="bg-muted/20 border-b pb-3">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-base">Final Invoice</CardTitle>
-                {!invoice && repairOrder.status === "completed" && (
+                {!invoice && repairOrder.status === "completed" && canCreateInvoice && (
                   <Button size="sm" onClick={handleCreateInvoice} disabled={createInvoice.isPending}>
                     <Receipt className="h-4 w-4 mr-1.5" /> Create Final Invoice
                   </Button>
@@ -364,15 +378,15 @@ export default function RepairOrderDetail() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase text-muted-foreground">Technician Diagnosis</label>
-                <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
+                <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} disabled={!canEditIntake} />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold uppercase text-muted-foreground">Internal Notes</label>
-                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} disabled={!canEditIntake} />
               </div>
-              <Button className="w-full" onClick={handleSaveIntake} disabled={updateIntake.isPending}>
+              {canEditIntake && <Button className="w-full" onClick={handleSaveIntake} disabled={updateIntake.isPending}>
                 <Save className="h-4 w-4 mr-2" /> {updateIntake.isPending ? "Saving..." : "Save Intake"}
-              </Button>
+              </Button>}
             </CardContent>
           </Card>
         </div>
