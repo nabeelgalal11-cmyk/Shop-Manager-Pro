@@ -18,6 +18,7 @@ export interface EstimateItem {
   quantity: string;
   /** @pattern ^\d+(\.\d{1,2})?$ */
   unitPrice: string;
+  /** For part items, the entered price already includes tax and is excluded from the tax calculation. */
   priceIncludesTax?: boolean;
   /** @nullable */
   readonly unitCost?: string | null;

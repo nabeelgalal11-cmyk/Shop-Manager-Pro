@@ -121,6 +121,14 @@ export const ExportCogsJournalCsvQueryParams = zod.object({
 });
 
 /**
+ * @summary Download owner funding entries as CSV
+ */
+export const ExportOwnerFundingCsvQueryParams = zod.object({
+  from: zod.date().optional(),
+  to: zod.date().optional(),
+});
+
+/**
  * @summary Download all bookkeeping CSVs bundled in a single ZIP
  */
 export const ExportBookkeepingZipQueryParams = zod.object({
@@ -884,6 +892,12 @@ export const GetEstimateResponse = zod
           unitPrice: zod
             .string()
             .regex(getEstimateResponseTwoItemsItemUnitPriceRegExp),
+          priceIncludesTax: zod
+            .boolean()
+            .optional()
+            .describe(
+              "For part items, the entered price already includes tax and is excluded from the tax calculation.",
+            ),
           unitCost: zod.string().nullish(),
           inventoryItemId: zod.number().nullish(),
           estimatedHours: zod.string().nullish(),
@@ -1174,6 +1188,7 @@ export const GetInvoiceResponse = zod
           description: zod.string(),
           quantity: zod.string(),
           unitPrice: zod.string(),
+          priceIncludesTax: zod.boolean().optional(),
           unitCost: zod.string().nullish(),
           lineTotal: zod.string(),
         }),
@@ -1563,6 +1578,12 @@ export const GetRepairOrderResponse = zod.object({
                 .regex(
                   getRepairOrderResponseRevisionsItemOneTwoItemsItemUnitPriceRegExp,
                 ),
+              priceIncludesTax: zod
+                .boolean()
+                .optional()
+                .describe(
+                  "For part items, the entered price already includes tax and is excluded from the tax calculation.",
+                ),
               unitCost: zod.string().nullish(),
               inventoryItemId: zod.number().nullish(),
               estimatedHours: zod.string().nullish(),
@@ -1616,6 +1637,7 @@ export const GetRepairOrderResponse = zod.object({
       description: zod.string(),
       quantity: zod.string(),
       unitPrice: zod.string(),
+      priceIncludesTax: zod.boolean().optional(),
       unitCost: zod.string().nullish(),
       estimatedHours: zod.string().nullish(),
       status: zod.enum(["authorized", "performed", "void"]),
@@ -1667,6 +1689,7 @@ export const GetRepairOrderResponse = zod.object({
               description: zod.string(),
               quantity: zod.string(),
               unitPrice: zod.string(),
+              priceIncludesTax: zod.boolean().optional(),
               unitCost: zod.string().nullish(),
               lineTotal: zod.string(),
             }),
@@ -2009,6 +2032,7 @@ export const ReplaceEstimateRevisionDraftItemsParams = zod.object({
   revisionId: zod.coerce.number(),
 });
 
+export const replaceEstimateRevisionDraftItemsBodyItemsItemPriceIncludesTaxDefault = false;
 export const replaceEstimateRevisionDraftItemsBodyItemsItemWarrantyMonthsMin = 0;
 
 export const replaceEstimateRevisionDraftItemsBodyItemsItemWarrantyMilesMin = 0;
@@ -2021,6 +2045,12 @@ export const ReplaceEstimateRevisionDraftItemsBody = zod.object({
       description: zod.string().min(1),
       quantity: zod.union([zod.string(), zod.number()]),
       unitPrice: zod.union([zod.string(), zod.number()]),
+      priceIncludesTax: zod
+        .boolean()
+        .default(
+          replaceEstimateRevisionDraftItemsBodyItemsItemPriceIncludesTaxDefault,
+        )
+        .describe("Only applies to part items."),
       unitCost: zod.union([zod.string(), zod.number(), zod.null()]).optional(),
       inventoryItemId: zod.number().nullish(),
       estimatedHours: zod
@@ -2078,38 +2108,94 @@ export const SendEstimateRevisionParams = zod.object({
   revisionId: zod.coerce.number(),
 });
 
-export const sendEstimateRevisionResponseTaxRateBpsMin = 0;
-export const sendEstimateRevisionResponseTaxRateBpsMax = 10000;
+export const sendEstimateRevisionResponseOneTaxRateBpsMin = 0;
+export const sendEstimateRevisionResponseOneTaxRateBpsMax = 10000;
 
-export const SendEstimateRevisionResponse = zod.object({
-  id: zod.number(),
-  repairOrderId: zod.number(),
-  revisionNo: zod.number(),
-  kind: zod.enum(["estimate", "supplement"]),
-  status: zod.enum([
-    "draft",
-    "sent",
-    "approved",
-    "partially_approved",
-    "declined",
-    "superseded",
-  ]),
-  notes: zod.string().nullish(),
-  customerSnapshot: zod.record(zod.string(), zod.unknown()),
-  vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
-  subtotal: zod.string(),
-  taxRateBps: zod
-    .number()
-    .min(sendEstimateRevisionResponseTaxRateBpsMin)
-    .max(sendEstimateRevisionResponseTaxRateBpsMax),
-  taxAmount: zod.string(),
-  total: zod.string(),
-  publicToken: zod.string().nullish(),
-  sentAt: zod.coerce.date().nullish(),
-  createdById: zod.number(),
-  createdAt: zod.coerce.date(),
-  updatedAt: zod.coerce.date(),
+export const SendEstimateRevisionResponse = zod
+  .object({
+    id: zod.number(),
+    repairOrderId: zod.number(),
+    revisionNo: zod.number(),
+    kind: zod.enum(["estimate", "supplement"]),
+    status: zod.enum([
+      "draft",
+      "sent",
+      "approved",
+      "partially_approved",
+      "declined",
+      "superseded",
+    ]),
+    notes: zod.string().nullish(),
+    customerSnapshot: zod.record(zod.string(), zod.unknown()),
+    vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+    subtotal: zod.string(),
+    taxRateBps: zod
+      .number()
+      .min(sendEstimateRevisionResponseOneTaxRateBpsMin)
+      .max(sendEstimateRevisionResponseOneTaxRateBpsMax),
+    taxAmount: zod.string(),
+    total: zod.string(),
+    publicToken: zod.string().nullish(),
+    sentAt: zod.coerce.date().nullish(),
+    createdById: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      emailSent: zod.boolean(),
+      emailError: zod.string().nullable(),
+      emailProvider: zod.string().nullable(),
+    }),
+  );
+
+/**
+ * @summary Resend a sent revision while it awaits customer decision
+ */
+export const ResendEstimateRevisionParams = zod.object({
+  revisionId: zod.coerce.number(),
 });
+
+export const resendEstimateRevisionResponseOneTaxRateBpsMin = 0;
+export const resendEstimateRevisionResponseOneTaxRateBpsMax = 10000;
+
+export const ResendEstimateRevisionResponse = zod
+  .object({
+    id: zod.number(),
+    repairOrderId: zod.number(),
+    revisionNo: zod.number(),
+    kind: zod.enum(["estimate", "supplement"]),
+    status: zod.enum([
+      "draft",
+      "sent",
+      "approved",
+      "partially_approved",
+      "declined",
+      "superseded",
+    ]),
+    notes: zod.string().nullish(),
+    customerSnapshot: zod.record(zod.string(), zod.unknown()),
+    vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+    subtotal: zod.string(),
+    taxRateBps: zod
+      .number()
+      .min(resendEstimateRevisionResponseOneTaxRateBpsMin)
+      .max(resendEstimateRevisionResponseOneTaxRateBpsMax),
+    taxAmount: zod.string(),
+    total: zod.string(),
+    publicToken: zod.string().nullish(),
+    sentAt: zod.coerce.date().nullish(),
+    createdById: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      emailSent: zod.boolean(),
+      emailError: zod.string().nullable(),
+      emailProvider: zod.string().nullable(),
+    }),
+  );
 
 /**
  * @summary Mark an authorized work item performed
@@ -2127,6 +2213,7 @@ export const PerformRepairOrderWorkItemResponse = zod.object({
   description: zod.string(),
   quantity: zod.string(),
   unitPrice: zod.string(),
+  priceIncludesTax: zod.boolean().optional(),
   unitCost: zod.string().nullish(),
   estimatedHours: zod.string().nullish(),
   status: zod.enum(["authorized", "performed", "void"]),
@@ -2275,6 +2362,12 @@ export const GetPublicEstimateRevisionResponse = zod.object({
       unitPrice: zod
         .string()
         .regex(getPublicEstimateRevisionResponseItemsItemUnitPriceRegExp),
+      priceIncludesTax: zod
+        .boolean()
+        .optional()
+        .describe(
+          "For part items, the entered price already includes tax and is excluded from the tax calculation.",
+        ),
       unitCost: zod.string().nullish(),
       inventoryItemId: zod.number().nullish(),
       estimatedHours: zod.string().nullish(),
@@ -2378,6 +2471,48 @@ export const IssueWorkflowInvoiceResponse = zod.object({
   }),
   paymentUrl: zod.string().url().nullable(),
 });
+
+/**
+ * @summary Email an issued invoice and payment link to the customer
+ */
+export const SendWorkflowInvoiceEmailParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const SendWorkflowInvoiceEmailResponse = zod
+  .object({
+    id: zod.number(),
+    invoiceNumber: zod.string(),
+    repairOrderId: zod.number(),
+    customerSnapshot: zod.record(zod.string(), zod.unknown()),
+    vehicleSnapshot: zod.record(zod.string(), zod.unknown()),
+    status: zod.enum(["draft", "issued", "partially_paid", "paid", "void"]),
+    notes: zod.string().nullish(),
+    subtotal: zod.string(),
+    taxRateBps: zod.number(),
+    taxAmount: zod.string(),
+    total: zod.string(),
+    amountPaid: zod.string(),
+    balance: zod.string(),
+    taxExempt: zod.boolean(),
+    taxExemptNumber: zod.string().nullish(),
+    publicToken: zod.string().nullish(),
+    issuedAt: zod.coerce.date().nullish(),
+    issuedById: zod.number().nullish(),
+    voidedAt: zod.coerce.date().nullish(),
+    voidedById: zod.number().nullish(),
+    voidReason: zod.string().nullish(),
+    version: zod.number(),
+    createdAt: zod.coerce.date(),
+    updatedAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      emailSent: zod.boolean(),
+      emailError: zod.string().nullable(),
+      emailProvider: zod.string().nullable(),
+    }),
+  );
 
 /**
  * @summary Void an invoice with no unreversed payments
@@ -2632,6 +2767,7 @@ export const CreateInventoryItemBody = zod.object({
   sellPrice: zod.number(),
   quantity: zod.number(),
   minQuantity: zod.number(),
+  openingStockDate: zod.coerce.date().optional(),
   location: zod.string().optional(),
   notes: zod.string().optional(),
   compatibleVehicles: zod.string().optional(),
@@ -2686,6 +2822,7 @@ export const UpdateInventoryItemBody = zod.object({
   sellPrice: zod.number(),
   quantity: zod.number(),
   minQuantity: zod.number(),
+  openingStockDate: zod.coerce.date().optional(),
   location: zod.string().optional(),
   notes: zod.string().optional(),
   compatibleVehicles: zod.string().optional(),
@@ -2743,15 +2880,33 @@ export const GetInventoryMovementsResponse = zod.object({
         "invoice_consumed",
         "invoice_unconsumed",
         "manual_adjustment",
+        "opening_balance",
       ]),
       referenceTable: zod.string().nullish(),
       referenceId: zod.number().nullish(),
       referenceLineId: zod.number().nullish(),
       unitCost: zod.number().nullish(),
       notes: zod.string().nullish(),
+      effectiveDate: zod.coerce.date(),
       createdAt: zod.coerce.date(),
     }),
   ),
+});
+
+/**
+ * @summary Record an opening stock count for an existing inventory item
+ */
+export const RecordOpeningStockParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const recordOpeningStockBodyUnitCostMin = 0;
+
+export const RecordOpeningStockBody = zod.object({
+  quantity: zod.number().min(1),
+  unitCost: zod.number().min(recordOpeningStockBodyUnitCostMin),
+  effectiveDate: zod.coerce.date(),
+  notes: zod.string().optional(),
 });
 
 /**
@@ -4277,6 +4432,42 @@ export const DeleteExpenseParams = zod.object({
 });
 
 /**
+ * @summary List owner funding entries and balances
+ */
+export const GetOwnerFundingResponse = zod.object({
+  entries: zod.array(
+    zod.object({
+      id: zod.number(),
+      type: zod.enum(["loan", "contribution", "repayment"]),
+      amount: zod.number(),
+      entryDate: zod.coerce.date(),
+      description: zod.string(),
+      notes: zod.string().nullish(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  summary: zod.object({
+    totalLoaned: zod.number(),
+    totalRepaid: zod.number(),
+    outstandingLoan: zod.number(),
+    totalContributed: zod.number(),
+  }),
+});
+
+/**
+ * @summary Record an owner loan, contribution, or loan repayment
+ */
+export const createOwnerFundingEntryBodyAmountExclusiveMin = 0;
+
+export const CreateOwnerFundingEntryBody = zod.object({
+  type: zod.enum(["loan", "contribution", "repayment"]),
+  amount: zod.number().gt(createOwnerFundingEntryBodyAmountExclusiveMin),
+  entryDate: zod.coerce.date(),
+  description: zod.string().min(1),
+  notes: zod.string().optional(),
+});
+
+/**
  * @summary List service reminders
  */
 export const getRemindersQueryPageDefault = 1;
@@ -4884,4 +5075,59 @@ export const ApplySquareSyncResponse = zod.object({
 export const ReceiveSquareWebhookBody = zod.object({
   event_id: zod.string(),
   type: zod.string(),
+});
+
+/**
+ * @summary Verify whether backup tools are enabled for an allowlisted test database
+ */
+export const GetDevelopmentBackupStatusResponse = zod.object({
+  enabled: zod
+    .boolean()
+    .describe(
+      "True only when a separate test connection and exact host\/database allowlist are configured.",
+    ),
+  environment: zod.string().optional(),
+  reason: zod.string().optional(),
+  target: zod.union([
+    zod.object({
+      host: zod.string(),
+      database: zod.string(),
+    }),
+    zod.null(),
+  ]),
+});
+
+/**
+ * @summary Read the latest automatic production backup result
+ */
+export const GetProductionBackupStatusResponse = zod.object({
+  available: zod.boolean(),
+  reason: zod.string().optional(),
+  configured: zod.boolean(),
+  lastSuccessDate: zod.coerce.date().nullable(),
+  lastAttemptAt: zod.coerce.date().nullable(),
+  lastError: zod.string().nullable(),
+});
+
+/**
+ * @summary Restore an archive to the development database after explicit confirmation
+ */
+export const restoreDevelopmentBackupHeaderXBackupFilenameRegExp = new RegExp(
+  "^[A-Za-z0-9._-]{1,180}\\.dump$",
+);
+
+export const RestoreDevelopmentBackupHeader = zod.object({
+  "X-Backup-Filename": zod
+    .string()
+    .regex(restoreDevelopmentBackupHeaderXBackupFilenameRegExp),
+  "X-Restore-Confirmation": zod.enum(["RESTORE DEVELOPMENT DATABASE"]),
+});
+
+export const RestoreDevelopmentBackupResponse = zod.object({
+  ok: zod.boolean(),
+  target: zod.object({
+    host: zod.string(),
+    database: zod.string(),
+  }),
+  fileName: zod.string(),
 });

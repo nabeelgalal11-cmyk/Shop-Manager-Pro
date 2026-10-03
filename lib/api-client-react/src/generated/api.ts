@@ -32,6 +32,7 @@ import type {
   CreateInspectionInput,
   CreateInventoryItemInput,
   CreateInvoiceInput,
+  CreateOwnerFundingInput,
   CreatePurchaseFromReorder201,
   CreateReminderInput,
   CreateSupplierInput,
@@ -41,6 +42,8 @@ import type {
   CustomerListResponse,
   CustomerStatement,
   DashboardSummary,
+  DevelopmentBackupRestoreResult,
+  DevelopmentBackupStatus,
   Employee,
   Estimate,
   EstimateDecisionInput,
@@ -48,6 +51,7 @@ import type {
   EstimateRevision,
   EstimateRevisionCreateInput,
   EstimateRevisionDetail,
+  EstimateRevisionEmailResult,
   EstimateRevisionItemsUpdate,
   Expense,
   ExpenseListResponse,
@@ -55,6 +59,7 @@ import type {
   ExportCogsJournalCsvParams,
   ExportExpensesCsvParams,
   ExportInvoicesCsvParams,
+  ExportOwnerFundingCsvParams,
   ExportPaymentsCsvParams,
   ForgotPasswordInput,
   ForgotPasswordResponse,
@@ -88,9 +93,13 @@ import type {
   LoginInput,
   MobileLoginResponse,
   NotFoundErrorResponse,
+  OpeningStockInput,
+  OwnerFundingEntry,
+  OwnerFundingListResponse,
   PaymentInput,
   PaymentInvoiceResult,
   PaymentReversalInput,
+  ProductionBackupStatus,
   PublicEstimateRevision,
   PublicWorkflowInvoice,
   ReasonInput,
@@ -125,6 +134,7 @@ import type {
   SquareTerminalCheckoutResult,
   SquareWebhookEvent,
   StatusCount,
+  StockMovement,
   StockMovementListResponse,
   Supplier,
   SupplierDetail,
@@ -142,6 +152,7 @@ import type {
   WorkflowConflictResponse,
   WorkflowInvoice,
   WorkflowInvoiceDetail,
+  WorkflowInvoiceEmailResult,
   WorkflowPayment,
   WorkflowRepairOrder,
 } from "./api.schemas";
@@ -874,6 +885,109 @@ export function useExportCogsJournalCsv<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getExportCogsJournalCsvQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Download owner funding entries as CSV
+ */
+export const getExportOwnerFundingCsvUrl = (
+  params?: ExportOwnerFundingCsvParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/exports/owner-funding.csv?${stringifiedParams}`
+    : `/api/exports/owner-funding.csv`;
+};
+
+export const exportOwnerFundingCsv = async (
+  params?: ExportOwnerFundingCsvParams,
+  options?: RequestInit,
+): Promise<string> => {
+  return customFetch<string>(getExportOwnerFundingCsvUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getExportOwnerFundingCsvQueryKey = (
+  params?: ExportOwnerFundingCsvParams,
+) => {
+  return [
+    `/api/exports/owner-funding.csv`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getExportOwnerFundingCsvQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportOwnerFundingCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportOwnerFundingCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportOwnerFundingCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportOwnerFundingCsvQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportOwnerFundingCsv>>
+  > = ({ signal }) =>
+    exportOwnerFundingCsv(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportOwnerFundingCsv>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ExportOwnerFundingCsvQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportOwnerFundingCsv>>
+>;
+export type ExportOwnerFundingCsvQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Download owner funding entries as CSV
+ */
+
+export function useExportOwnerFundingCsv<
+  TData = Awaited<ReturnType<typeof exportOwnerFundingCsv>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ExportOwnerFundingCsvParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof exportOwnerFundingCsv>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getExportOwnerFundingCsvQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -4054,11 +4168,14 @@ export const getSendEstimateRevisionUrl = (revisionId: number) => {
 export const sendEstimateRevision = async (
   revisionId: number,
   options?: RequestInit,
-): Promise<EstimateRevision> => {
-  return customFetch<EstimateRevision>(getSendEstimateRevisionUrl(revisionId), {
-    ...options,
-    method: "POST",
-  });
+): Promise<EstimateRevisionEmailResult> => {
+  return customFetch<EstimateRevisionEmailResult>(
+    getSendEstimateRevisionUrl(revisionId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
 };
 
 export const getSendEstimateRevisionMutationOptions = <
@@ -4138,15 +4255,18 @@ export const getResendEstimateRevisionUrl = (revisionId: number) => {
 export const resendEstimateRevision = async (
   revisionId: number,
   options?: RequestInit,
-): Promise<EstimateRevision> => {
-  return customFetch<EstimateRevision>(getResendEstimateRevisionUrl(revisionId), {
-    ...options,
-    method: "POST",
-  });
+): Promise<EstimateRevisionEmailResult> => {
+  return customFetch<EstimateRevisionEmailResult>(
+    getResendEstimateRevisionUrl(revisionId),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
 };
 
 export const getResendEstimateRevisionMutationOptions = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<WorkflowConflictResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -4187,13 +4307,14 @@ export type ResendEstimateRevisionMutationResult = NonNullable<
   Awaited<ReturnType<typeof resendEstimateRevision>>
 >;
 
-export type ResendEstimateRevisionMutationError = ErrorType<unknown>;
+export type ResendEstimateRevisionMutationError =
+  ErrorType<WorkflowConflictResponse>;
 
 /**
  * @summary Resend a sent revision while it awaits customer decision
  */
 export const useResendEstimateRevision = <
-  TError = ErrorType<unknown>,
+  TError = ErrorType<WorkflowConflictResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -5101,11 +5222,14 @@ export const getSendWorkflowInvoiceEmailUrl = (id: number) => {
 export const sendWorkflowInvoiceEmail = async (
   id: number,
   options?: RequestInit,
-): Promise<WorkflowInvoice> => {
-  return customFetch<WorkflowInvoice>(getSendWorkflowInvoiceEmailUrl(id), {
-    ...options,
-    method: "POST",
-  });
+): Promise<WorkflowInvoiceEmailResult> => {
+  return customFetch<WorkflowInvoiceEmailResult>(
+    getSendWorkflowInvoiceEmailUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
 };
 
 export const getSendWorkflowInvoiceEmailMutationOptions = <
@@ -5139,6 +5263,7 @@ export const getSendWorkflowInvoiceEmailMutationOptions = <
     { id: number }
   > = (props) => {
     const { id } = props ?? {};
+
     return sendWorkflowInvoiceEmail(id, requestOptions);
   };
 
@@ -5148,6 +5273,7 @@ export const getSendWorkflowInvoiceEmailMutationOptions = <
 export type SendWorkflowInvoiceEmailMutationResult = NonNullable<
   Awaited<ReturnType<typeof sendWorkflowInvoiceEmail>>
 >;
+
 export type SendWorkflowInvoiceEmailMutationError =
   ErrorType<WorkflowConflictResponse>;
 
@@ -6271,6 +6397,93 @@ export function useGetInventoryMovements<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Record an opening stock count for an existing inventory item
+ */
+export const getRecordOpeningStockUrl = (id: number) => {
+  return `/api/inventory/${id}/opening-stock`;
+};
+
+export const recordOpeningStock = async (
+  id: number,
+  openingStockInput: OpeningStockInput,
+  options?: RequestInit,
+): Promise<StockMovement> => {
+  return customFetch<StockMovement>(getRecordOpeningStockUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(openingStockInput),
+  });
+};
+
+export const getRecordOpeningStockMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordOpeningStock>>,
+    TError,
+    { id: number; data: BodyType<OpeningStockInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordOpeningStock>>,
+  TError,
+  { id: number; data: BodyType<OpeningStockInput> },
+  TContext
+> => {
+  const mutationKey = ["recordOpeningStock"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordOpeningStock>>,
+    { id: number; data: BodyType<OpeningStockInput> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return recordOpeningStock(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordOpeningStockMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordOpeningStock>>
+>;
+export type RecordOpeningStockMutationBody = BodyType<OpeningStockInput>;
+export type RecordOpeningStockMutationError = ErrorType<void>;
+
+/**
+ * @summary Record an opening stock count for an existing inventory item
+ */
+export const useRecordOpeningStock = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordOpeningStock>>,
+    TError,
+    { id: number; data: BodyType<OpeningStockInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof recordOpeningStock>>,
+  TError,
+  { id: number; data: BodyType<OpeningStockInput> },
+  TContext
+> => {
+  return useMutation(getRecordOpeningStockMutationOptions(options));
+};
 
 /**
  * @summary List inspections
@@ -9156,6 +9369,168 @@ export const useDeleteExpense = <
 };
 
 /**
+ * @summary List owner funding entries and balances
+ */
+export const getGetOwnerFundingUrl = () => {
+  return `/api/owner-funding`;
+};
+
+export const getOwnerFunding = async (
+  options?: RequestInit,
+): Promise<OwnerFundingListResponse> => {
+  return customFetch<OwnerFundingListResponse>(getGetOwnerFundingUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOwnerFundingQueryKey = () => {
+  return [`/api/owner-funding`] as const;
+};
+
+export const getGetOwnerFundingQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOwnerFunding>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOwnerFunding>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetOwnerFundingQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getOwnerFunding>>> = ({
+    signal,
+  }) => getOwnerFunding({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOwnerFunding>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOwnerFundingQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOwnerFunding>>
+>;
+export type GetOwnerFundingQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List owner funding entries and balances
+ */
+
+export function useGetOwnerFunding<
+  TData = Awaited<ReturnType<typeof getOwnerFunding>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOwnerFunding>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOwnerFundingQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Record an owner loan, contribution, or loan repayment
+ */
+export const getCreateOwnerFundingEntryUrl = () => {
+  return `/api/owner-funding`;
+};
+
+export const createOwnerFundingEntry = async (
+  createOwnerFundingInput: CreateOwnerFundingInput,
+  options?: RequestInit,
+): Promise<OwnerFundingEntry> => {
+  return customFetch<OwnerFundingEntry>(getCreateOwnerFundingEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createOwnerFundingInput),
+  });
+};
+
+export const getCreateOwnerFundingEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOwnerFundingEntry>>,
+    TError,
+    { data: BodyType<CreateOwnerFundingInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createOwnerFundingEntry>>,
+  TError,
+  { data: BodyType<CreateOwnerFundingInput> },
+  TContext
+> => {
+  const mutationKey = ["createOwnerFundingEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createOwnerFundingEntry>>,
+    { data: BodyType<CreateOwnerFundingInput> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createOwnerFundingEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateOwnerFundingEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createOwnerFundingEntry>>
+>;
+export type CreateOwnerFundingEntryMutationBody =
+  BodyType<CreateOwnerFundingInput>;
+export type CreateOwnerFundingEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Record an owner loan, contribution, or loan repayment
+ */
+export const useCreateOwnerFundingEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOwnerFundingEntry>>,
+    TError,
+    { data: BodyType<CreateOwnerFundingInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createOwnerFundingEntry>>,
+  TError,
+  { data: BodyType<CreateOwnerFundingInput> },
+  TContext
+> => {
+  return useMutation(getCreateOwnerFundingEntryMutationOptions(options));
+};
+
+/**
  * @summary List service reminders
  */
 export const getGetRemindersUrl = (params?: GetRemindersParams) => {
@@ -11259,4 +11634,330 @@ export const useReceiveSquareWebhook = <
   TContext
 > => {
   return useMutation(getReceiveSquareWebhookMutationOptions(options));
+};
+
+/**
+ * @summary Verify whether backup tools are enabled for an allowlisted test database
+ */
+export const getGetDevelopmentBackupStatusUrl = () => {
+  return `/api/backups/development`;
+};
+
+export const getDevelopmentBackupStatus = async (
+  options?: RequestInit,
+): Promise<DevelopmentBackupStatus> => {
+  return customFetch<DevelopmentBackupStatus>(
+    getGetDevelopmentBackupStatusUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetDevelopmentBackupStatusQueryKey = () => {
+  return [`/api/backups/development`] as const;
+};
+
+export const getGetDevelopmentBackupStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getDevelopmentBackupStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDevelopmentBackupStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetDevelopmentBackupStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getDevelopmentBackupStatus>>
+  > = ({ signal }) => getDevelopmentBackupStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getDevelopmentBackupStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetDevelopmentBackupStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getDevelopmentBackupStatus>>
+>;
+export type GetDevelopmentBackupStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Verify whether backup tools are enabled for an allowlisted test database
+ */
+
+export function useGetDevelopmentBackupStatus<
+  TData = Awaited<ReturnType<typeof getDevelopmentBackupStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getDevelopmentBackupStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetDevelopmentBackupStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Download a verified custom-format development database backup
+ */
+export const getDownloadDevelopmentBackupUrl = () => {
+  return `/api/backups/development/download`;
+};
+
+export const downloadDevelopmentBackup = async (
+  options?: RequestInit,
+): Promise<Blob> => {
+  return customFetch<Blob>(getDownloadDevelopmentBackupUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getDownloadDevelopmentBackupQueryKey = () => {
+  return [`/api/backups/development/download`] as const;
+};
+
+export const getDownloadDevelopmentBackupQueryOptions = <
+  TData = Awaited<ReturnType<typeof downloadDevelopmentBackup>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof downloadDevelopmentBackup>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getDownloadDevelopmentBackupQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof downloadDevelopmentBackup>>
+  > = ({ signal }) => downloadDevelopmentBackup({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof downloadDevelopmentBackup>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type DownloadDevelopmentBackupQueryResult = NonNullable<
+  Awaited<ReturnType<typeof downloadDevelopmentBackup>>
+>;
+export type DownloadDevelopmentBackupQueryError = ErrorType<void>;
+
+/**
+ * @summary Download a verified custom-format development database backup
+ */
+
+export function useDownloadDevelopmentBackup<
+  TData = Awaited<ReturnType<typeof downloadDevelopmentBackup>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof downloadDevelopmentBackup>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getDownloadDevelopmentBackupQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Read the latest automatic production backup result
+ */
+export const getGetProductionBackupStatusUrl = () => {
+  return `/api/backups/production-status`;
+};
+
+export const getProductionBackupStatus = async (
+  options?: RequestInit,
+): Promise<ProductionBackupStatus> => {
+  return customFetch<ProductionBackupStatus>(
+    getGetProductionBackupStatusUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetProductionBackupStatusQueryKey = () => {
+  return [`/api/backups/production-status`] as const;
+};
+
+export const getGetProductionBackupStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProductionBackupStatus>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getProductionBackupStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProductionBackupStatusQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProductionBackupStatus>>
+  > = ({ signal }) => getProductionBackupStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProductionBackupStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProductionBackupStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProductionBackupStatus>>
+>;
+export type GetProductionBackupStatusQueryError = ErrorType<void>;
+
+/**
+ * @summary Read the latest automatic production backup result
+ */
+
+export function useGetProductionBackupStatus<
+  TData = Awaited<ReturnType<typeof getProductionBackupStatus>>,
+  TError = ErrorType<void>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getProductionBackupStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProductionBackupStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Restore an archive to the development database after explicit confirmation
+ */
+export const getRestoreDevelopmentBackupUrl = () => {
+  return `/api/backups/development/restore`;
+};
+
+export const restoreDevelopmentBackup = async (
+  restoreDevelopmentBackupBody: Blob,
+  options?: RequestInit,
+): Promise<DevelopmentBackupRestoreResult> => {
+  return customFetch<DevelopmentBackupRestoreResult>(
+    getRestoreDevelopmentBackupUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        ...options?.headers,
+      },
+      body: JSON.stringify(restoreDevelopmentBackupBody),
+    },
+  );
+};
+
+export const getRestoreDevelopmentBackupMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof restoreDevelopmentBackup>>,
+    TError,
+    { data: BodyType<Blob> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof restoreDevelopmentBackup>>,
+  TError,
+  { data: BodyType<Blob> },
+  TContext
+> => {
+  const mutationKey = ["restoreDevelopmentBackup"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof restoreDevelopmentBackup>>,
+    { data: BodyType<Blob> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return restoreDevelopmentBackup(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RestoreDevelopmentBackupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof restoreDevelopmentBackup>>
+>;
+export type RestoreDevelopmentBackupMutationBody = BodyType<Blob>;
+export type RestoreDevelopmentBackupMutationError = ErrorType<void>;
+
+/**
+ * @summary Restore an archive to the development database after explicit confirmation
+ */
+export const useRestoreDevelopmentBackup = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof restoreDevelopmentBackup>>,
+    TError,
+    { data: BodyType<Blob> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof restoreDevelopmentBackup>>,
+  TError,
+  { data: BodyType<Blob> },
+  TContext
+> => {
+  return useMutation(getRestoreDevelopmentBackupMutationOptions(options));
 };

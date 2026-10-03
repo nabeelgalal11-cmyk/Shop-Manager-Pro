@@ -15,6 +15,7 @@ export interface EstimateItemInput {
   description: string;
   quantity: string | number;
   unitPrice: string | number;
+  /** Only applies to part items. */
   priceIncludesTax?: boolean;
   unitCost?: string | number | null;
   /** @nullable */

@@ -17,6 +17,7 @@ export interface CreateInventoryItemInput {
   sellPrice: number;
   quantity: number;
   minQuantity: number;
+  openingStockDate?: Date;
   location?: string;
   notes?: string;
   compatibleVehicles?: string;

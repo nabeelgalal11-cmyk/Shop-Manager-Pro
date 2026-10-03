@@ -17,5 +17,6 @@ export interface StockMovement {
   referenceLineId?: number | null;
   unitCost?: number | null;
   notes?: string | null;
+  effectiveDate: Date;
   createdAt: Date;
 }

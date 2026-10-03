@@ -17,4 +17,5 @@ export const StockMovementReason = {
   invoice_consumed: "invoice_consumed",
   invoice_unconsumed: "invoice_unconsumed",
   manual_adjustment: "manual_adjustment",
+  opening_balance: "opening_balance",
 } as const;

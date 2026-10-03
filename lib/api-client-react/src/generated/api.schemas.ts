@@ -854,6 +854,7 @@ export interface CreateInventoryItemInput {
   sellPrice: number;
   quantity: number;
   minQuantity: number;
+  openingStockDate?: string;
   location?: string;
   notes?: string;
   compatibleVehicles?: string;
@@ -872,6 +873,7 @@ export const StockMovementReason = {
   invoice_consumed: "invoice_consumed",
   invoice_unconsumed: "invoice_unconsumed",
   manual_adjustment: "manual_adjustment",
+  opening_balance: "opening_balance",
 } as const;
 
 export interface StockMovement {
@@ -884,11 +886,21 @@ export interface StockMovement {
   referenceLineId?: number | null;
   unitCost?: number | null;
   notes?: string | null;
+  effectiveDate: string;
   createdAt: string;
 }
 
 export interface StockMovementListResponse {
   data: StockMovement[];
+}
+
+export interface OpeningStockInput {
+  /** @minimum 1 */
+  quantity: number;
+  /** @minimum 0 */
+  unitCost: number;
+  effectiveDate: string;
+  notes?: string;
 }
 
 export interface InventoryListResponse {
@@ -1139,6 +1151,56 @@ export interface ExpenseListResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+export type OwnerFundingEntryType =
+  (typeof OwnerFundingEntryType)[keyof typeof OwnerFundingEntryType];
+
+export const OwnerFundingEntryType = {
+  loan: "loan",
+  contribution: "contribution",
+  repayment: "repayment",
+} as const;
+
+export interface OwnerFundingEntry {
+  id: number;
+  type: OwnerFundingEntryType;
+  amount: number;
+  entryDate: string;
+  description: string;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export type CreateOwnerFundingInputType =
+  (typeof CreateOwnerFundingInputType)[keyof typeof CreateOwnerFundingInputType];
+
+export const CreateOwnerFundingInputType = {
+  loan: "loan",
+  contribution: "contribution",
+  repayment: "repayment",
+} as const;
+
+export interface CreateOwnerFundingInput {
+  type: CreateOwnerFundingInputType;
+  /** @exclusiveMinimum 0 */
+  amount: number;
+  entryDate: string;
+  /** @minLength 1 */
+  description: string;
+  notes?: string;
+}
+
+export interface OwnerFundingSummary {
+  totalLoaned: number;
+  totalRepaid: number;
+  outstandingLoan: number;
+  totalContributed: number;
+}
+
+export interface OwnerFundingListResponse {
+  entries: OwnerFundingEntry[];
+  summary: OwnerFundingSummary;
 }
 
 export interface Reminder {
@@ -1642,6 +1704,7 @@ export interface EstimateItem {
   quantity: string;
   /** @pattern ^\d+(\.\d{1,2})?$ */
   unitPrice: string;
+  /** For part items, the entered price already includes tax and is excluded from the tax calculation. */
   priceIncludesTax?: boolean;
   /** @nullable */
   readonly unitCost?: string | null;
@@ -1673,6 +1736,7 @@ export interface EstimateItemInput {
   description: string;
   quantity: string | number;
   unitPrice: string | number;
+  /** Only applies to part items. */
   priceIncludesTax?: boolean;
   unitCost?: string | number | null;
   /** @nullable */
@@ -1771,6 +1835,14 @@ export interface EstimateRevision {
   readonly createdAt: string;
   readonly updatedAt: string;
 }
+
+export type EstimateRevisionEmailResult = EstimateRevision & {
+  readonly emailSent: boolean;
+  /** @nullable */
+  readonly emailError: string | null;
+  /** @nullable */
+  readonly emailProvider: string | null;
+};
 
 export type EstimateRevisionDetail = EstimateRevision & {
   items: EstimateItem[];
@@ -1873,7 +1945,7 @@ export interface RepairOrderWorkItem {
   readonly description: string;
   readonly quantity: string;
   readonly unitPrice: string;
-  readonly priceIncludesTax: boolean;
+  readonly priceIncludesTax?: boolean;
   /** @nullable */
   readonly unitCost?: string | null;
   /** @nullable */
@@ -1910,7 +1982,7 @@ export interface WorkflowInvoiceItem {
   readonly description: string;
   readonly quantity: string;
   readonly unitPrice: string;
-  readonly priceIncludesTax: boolean;
+  readonly priceIncludesTax?: boolean;
   /** @nullable */
   readonly unitCost?: string | null;
   readonly lineTotal: string;
@@ -2010,6 +2082,14 @@ export interface WorkflowInvoice {
 export type WorkflowInvoiceDetail = WorkflowInvoice & {
   items: WorkflowInvoiceItem[];
   payments: WorkflowPayment[];
+};
+
+export type WorkflowInvoiceEmailResult = WorkflowInvoice & {
+  readonly emailSent: boolean;
+  /** @nullable */
+  readonly emailError: string | null;
+  /** @nullable */
+  readonly emailProvider: string | null;
 };
 
 export interface IssuedInvoiceResult {
@@ -2137,6 +2217,37 @@ export interface RepairOrderWorkflow {
   events: RepairOrderEvent[];
 }
 
+export interface DevelopmentBackupTarget {
+  host: string;
+  database: string;
+}
+
+export interface DevelopmentBackupStatus {
+  /** True only when a separate test connection and exact host/database allowlist are configured. */
+  enabled: boolean;
+  environment?: string;
+  reason?: string;
+  target: DevelopmentBackupTarget | null;
+}
+
+export interface DevelopmentBackupRestoreResult {
+  ok: boolean;
+  target: DevelopmentBackupTarget;
+  fileName: string;
+}
+
+export interface ProductionBackupStatus {
+  available: boolean;
+  reason?: string;
+  configured: boolean;
+  /** @nullable */
+  lastSuccessDate: string | null;
+  /** @nullable */
+  lastAttemptAt: string | null;
+  /** @nullable */
+  lastError: string | null;
+}
+
 /**
  * Requested resource was not found
  */
@@ -2163,6 +2274,11 @@ export type ExportExpensesCsvParams = {
 };
 
 export type ExportCogsJournalCsvParams = {
+  from?: string;
+  to?: string;
+};
+
+export type ExportOwnerFundingCsvParams = {
   from?: string;
   to?: string;
 };
