@@ -136,34 +136,39 @@ router.post("/", requirePermission("inventory", "create"), async (req, res) => {
     return;
   }
 
-  const item = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(inventoryTable).values({
-      partNumber, name, description, category, vendor,
-      preferredSupplierId: preferredSupplierId ? Number(preferredSupplierId) : null,
-      costPrice: itemCost.toFixed(2), sellPrice: Number(sellPrice || 0).toFixed(2),
-      quantity: 0, minQuantity, location, notes, compatibleVehicles,
-      defaultWarrantyMonths: defaultWarrantyMonths === "" || defaultWarrantyMonths == null ? null : Number(defaultWarrantyMonths),
-      defaultWarrantyMiles: defaultWarrantyMiles === "" || defaultWarrantyMiles == null ? null : Number(defaultWarrantyMiles),
-    }).returning();
+  try {
+    const item = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(inventoryTable).values({
+        partNumber, name, description, category, vendor,
+        preferredSupplierId: preferredSupplierId ? Number(preferredSupplierId) : null,
+        costPrice: itemCost.toFixed(2), sellPrice: Number(sellPrice || 0).toFixed(2),
+        quantity: 0, minQuantity, location, notes, compatibleVehicles,
+        defaultWarrantyMonths: defaultWarrantyMonths === "" || defaultWarrantyMonths == null ? null : Number(defaultWarrantyMonths),
+        defaultWarrantyMiles: defaultWarrantyMiles === "" || defaultWarrantyMiles == null ? null : Number(defaultWarrantyMiles),
+      }).returning();
 
-    if (initialQuantity > 0) {
-      await applyStockMovement({
-        inventoryId: created.id,
-        delta: initialQuantity,
-        reason: "opening_balance",
-        referenceTable: "inventory",
-        referenceId: created.id,
-        unitCost: itemCost,
-        ...(openingStockDate ? { effectiveDate: openingStockDate } : {}),
-        notes: "Opening stock",
-        createdById: getUser(req)?.id,
-      }, tx);
-    }
+      if (initialQuantity > 0) {
+        await applyStockMovement({
+          inventoryId: created.id,
+          delta: initialQuantity,
+          reason: "opening_balance",
+          referenceTable: "inventory",
+          referenceId: created.id,
+          unitCost: itemCost,
+          ...(openingStockDate ? { effectiveDate: openingStockDate } : {}),
+          notes: "Opening stock",
+          createdById: getUser(req)?.id,
+        }, tx);
+      }
 
-    const [saved] = await tx.select().from(inventoryTable).where(eq(inventoryTable.id, created.id));
-    return saved;
-  });
-  res.status(201).json(item);
+      const [saved] = await tx.select().from(inventoryTable).where(eq(inventoryTable.id, created.id));
+      return saved;
+    });
+    res.status(201).json(item);
+  } catch (error) {
+    req.log?.error({ err: error }, "Inventory item create failed");
+    res.status(500).json({ error: "The inventory item could not be saved. Please try again." });
+  }
 });
 
 router.get("/:id", async (req, res) => {

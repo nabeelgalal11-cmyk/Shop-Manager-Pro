@@ -12,6 +12,9 @@ export default defineConfig({
   use: {
     ...devices["Desktop Chrome"],
     baseURL,
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+      : undefined,
     // Authentication request payloads include the test password; do not persist traces or recordings.
     trace: "off",
     screenshot: "off",

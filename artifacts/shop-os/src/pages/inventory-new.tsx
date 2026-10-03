@@ -51,6 +51,7 @@ export default function InventoryNew() {
   const [openingStockDate, setOpeningStockDate] = useState(localIsoDate);
   const [categoryMode, setCategoryMode] = useState<"select" | "custom">("select");
   const [customCategory, setCustomCategory] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { data: inventoryData } = useGetInventory(
     { limit: 200 },
@@ -82,6 +83,7 @@ export default function InventoryNew() {
   const createItem = useCreateInventoryItem();
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    setSaveError(null);
     const finalCategory = categoryMode === "custom" ? customCategory.trim() : values.category;
     if (!finalCategory) {
       toast({ title: "Category is required", variant: "destructive" });
@@ -96,9 +98,17 @@ export default function InventoryNew() {
           setLocation("/inventory");
         },
         onError: (error: any) => {
+          const message = error?.status === 401
+            ? "Your sign-in expired. Sign in again before adding inventory."
+            : error?.status === 403
+              ? "You don't have permission to add inventory items."
+              : error?.data && typeof error.data === "object"
+                ? error.data.error || error.data.message || "The inventory item could not be saved. Please try again."
+                : "The inventory item could not be saved. Please try again.";
+          setSaveError(message);
           toast({
             title: "Failed to add item",
-            description: error?.message || "The inventory item could not be saved.",
+            description: message,
             variant: "destructive",
           });
         },
@@ -441,6 +451,11 @@ export default function InventoryNew() {
                   {createItem.isPending ? "Saving..." : "Add to Inventory"}
                 </Button>
               </div>
+              {saveError && (
+                <p role="alert" className="rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  {saveError}
+                </p>
+              )}
             </form>
           </Form>
         </CardContent>

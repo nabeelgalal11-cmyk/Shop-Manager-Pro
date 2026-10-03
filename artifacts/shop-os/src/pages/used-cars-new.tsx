@@ -22,7 +22,19 @@ const API = "/api/used-cars";
 
 async function apiFetch(url: string, opts?: RequestInit) {
   const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) {
+    const body = await r.text();
+    let message = body;
+    try {
+      const parsed = JSON.parse(body);
+      message = parsed.error || parsed.message || body;
+    } catch {
+      // Keep the original response text when it is not JSON.
+    }
+    const error = new Error(message || `Request failed (${r.status})`);
+    Object.assign(error, { status: r.status });
+    throw error;
+  }
   if (r.status === 204) return null;
   return r.json();
 }
@@ -65,6 +77,7 @@ export default function UsedCarsNew() {
   });
   const { toast } = useToast();
   const [decoding, setDecoding] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function decodeVin() {
     const vin = (form.vin || "").trim();
@@ -140,14 +153,17 @@ export default function UsedCarsNew() {
       setLocation("/used-cars");
     },
     onError: (error: any) => {
-      let description = error instanceof Error ? error.message : "The vehicle could not be saved.";
-      try {
-        const parsed = JSON.parse(description);
-        description = parsed.error || parsed.message || description;
-      } catch {
-        // Keep the original API error when it is not JSON.
-      }
-      toast({ title: "Could not add vehicle to inventory", description, variant: "destructive" });
+      const description = error?.status === 401
+        ? "Your sign-in expired. Sign in again before saving this vehicle."
+        : error?.status === 403
+          ? "You don't have permission to save used-car inventory."
+          : error?.status >= 500
+            ? "The vehicle could not be saved. Please try again."
+          : error instanceof Error && error.message
+            ? error.message
+            : "The vehicle could not be saved. Please try again.";
+      setSaveError(description);
+      toast({ title: "Could not save vehicle", description, variant: "destructive" });
     },
   });
 
@@ -157,6 +173,7 @@ export default function UsedCarsNew() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setSaveError(null);
     save.mutate({
       ...form,
       year: Number(form.year),
@@ -576,6 +593,11 @@ export default function UsedCarsNew() {
             {save.isPending ? "Saving..." : isEdit ? "Save Changes" : "Add to Inventory"}
           </Button>
         </div>
+        {saveError && (
+          <p role="alert" className="rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {saveError}
+          </p>
+        )}
       </form>
 
       {/* Photos — edit mode only (requires car ID for upload) */}

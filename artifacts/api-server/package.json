@@ -12,6 +12,7 @@
     "test:export-date-range": "node --import tsx --test test/export-date-range.test.ts",
     "test:owner-funding": "node --import tsx --test test/owner-funding.test.ts",
     "test:render-migrations": "node --import tsx --test test/render-migrations.test.ts",
+    "test:inventory": "NODE_ENV=test node --require tsx/cjs -e \"require('./test/inventory-routes.test.ts')\"",
     "test:repair": "NODE_ENV=test node --require tsx/cjs -e \"require('../../lib/db/test/domain_rules.test.ts')\" && NODE_ENV=test node --require tsx/cjs -e \"require('./test/repair-workflow.integration.test.ts')\" && NODE_ENV=test node --require tsx/cjs -e \"require('./test/repair-routes.test.ts')\""
   },
   "dependencies": {

@@ -20,6 +20,10 @@ const migrations = [
     workspaceRoot,
     "lib/db/migrations/2026-09-07_shop_business_information.sql",
   ),
+  path.join(
+    workspaceRoot,
+    "lib/db/migrations/2026-09-18_inventory_fitment.sql",
+  ),
 ];
 
 let dataDirectory: string;
