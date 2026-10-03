@@ -36,25 +36,11 @@ const INVENTORY_FITMENT_COLUMN_SQL = [
   `ALTER TABLE inventory ADD COLUMN IF NOT EXISTS compatible_vehicles text`,
 ];
 
-const OPENING_STOCK_AND_OWNER_FUNDING_SQL = [
+const OPENING_STOCK_PREPARE_SQL = [
   `ALTER TABLE stock_movements
      ADD COLUMN IF NOT EXISTS effective_date date`,
-  `UPDATE stock_movements
-     SET effective_date = created_at::date
-     WHERE effective_date IS NULL`,
   `ALTER TABLE stock_movements
      ALTER COLUMN effective_date SET DEFAULT CURRENT_DATE`,
-  `ALTER TABLE stock_movements
-     ALTER COLUMN effective_date SET NOT NULL`,
-  `INSERT INTO stock_movements
-     (inventory_id, delta, reason, reference_table, reference_id, unit_cost, notes, effective_date, created_at)
-   SELECT i.id, i.quantity, 'opening_balance', 'inventory', i.id, i.cost_price,
-          'Opening stock carried forward from inventory record', i.created_at::date, i.created_at
-   FROM inventory i
-   WHERE i.quantity > 0
-     AND NOT EXISTS (
-       SELECT 1 FROM stock_movements sm WHERE sm.inventory_id = i.id
-     )`,
   `CREATE TABLE IF NOT EXISTS owner_funding_entries (
      id serial PRIMARY KEY,
      type text NOT NULL CHECK (type IN ('loan', 'contribution', 'repayment')),
@@ -69,8 +55,127 @@ const OPENING_STOCK_AND_OWNER_FUNDING_SQL = [
      ON owner_funding_entries (entry_date, id)`,
 ];
 
+const OPENING_STOCK_NOT_NULL_CONSTRAINT = "stock_movements_effective_date_not_null_check";
+const OPENING_STOCK_BACKFILL_BATCH_SIZE = 100_000;
+const OPENING_STOCK_BACKFILL_YIELD_MS = 25;
+
 function isRenderDeployment() {
   return process.env.RENDER === "true" || Boolean(process.env.RENDER_SERVICE_ID);
+}
+
+type RenderMigrationClient = {
+  query: (text: string, values?: any[]) => Promise<any>;
+};
+
+async function withTransaction(
+  client: RenderMigrationClient,
+  run: () => Promise<void>,
+) {
+  await client.query("BEGIN");
+  try {
+    await run();
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  }
+}
+
+async function backfillEffectiveDates(client: RenderMigrationClient) {
+  // Keep this data rewrite outside the DDL transaction and commit in bounded
+  // batches. UPDATE takes ROW EXCLUSIVE (compatible with normal reads and
+  // writes), unlike the ACCESS EXCLUSIVE lock from ALTER TABLE.
+  let lastUpdatedId = 0;
+  for (;;) {
+    let nextLastUpdatedId: number | null = null;
+    await withTransaction(client, async () => {
+      const result = await client.query(
+        `WITH batch AS (
+           SELECT id
+           FROM stock_movements
+           WHERE id > $1 AND effective_date IS NULL
+           ORDER BY id
+           LIMIT $2
+           FOR UPDATE
+         ),
+         updated AS (
+           UPDATE stock_movements AS sm
+           SET effective_date = sm.created_at::date
+           FROM batch
+           WHERE sm.id = batch.id
+           RETURNING sm.id
+         )
+         SELECT max(id) AS last_id, count(*)::text AS row_count
+         FROM updated`,
+        [lastUpdatedId, OPENING_STOCK_BACKFILL_BATCH_SIZE],
+      );
+      if (Number(result.rows[0]?.row_count ?? 0) > 0) {
+        nextLastUpdatedId = result.rows[0].last_id;
+      }
+    });
+    if (nextLastUpdatedId === null) break;
+    lastUpdatedId = nextLastUpdatedId;
+    // Leave brief windows for other database sessions between write batches.
+    await client.query(`SELECT pg_sleep(${OPENING_STOCK_BACKFILL_YIELD_MS / 1000})`);
+  }
+}
+
+async function ensureEffectiveDateNotNull(client: RenderMigrationClient) {
+  await withTransaction(client, async () => {
+    const existingConstraint = await client.query(
+      `SELECT 1
+       FROM pg_constraint
+       WHERE conrelid = 'stock_movements'::regclass
+         AND conname = $1`,
+      [OPENING_STOCK_NOT_NULL_CONSTRAINT],
+    );
+    if (existingConstraint.rowCount === 0) {
+      await client.query(
+        `ALTER TABLE stock_movements
+         ADD CONSTRAINT ${OPENING_STOCK_NOT_NULL_CONSTRAINT}
+         CHECK (effective_date IS NOT NULL) NOT VALID`,
+      );
+    }
+  });
+
+  // PostgreSQL validates a CHECK constraint with a lock that permits normal
+  // reads and writes. Keeping this scan outside the DDL transaction avoids
+  // holding an ACCESS EXCLUSIVE lock while a large movement table is scanned.
+  await client.query(
+    `ALTER TABLE stock_movements
+     VALIDATE CONSTRAINT ${OPENING_STOCK_NOT_NULL_CONSTRAINT}`,
+  );
+
+  await withTransaction(client, async () => {
+    await client.query(
+      `ALTER TABLE stock_movements
+       ALTER COLUMN effective_date SET NOT NULL`,
+    );
+    await client.query(
+      `ALTER TABLE stock_movements
+       DROP CONSTRAINT ${OPENING_STOCK_NOT_NULL_CONSTRAINT}`,
+    );
+  });
+}
+
+async function insertOpeningStockMovements(client: RenderMigrationClient) {
+  await withTransaction(client, async () => {
+    // Prevent a concurrent legacy writer from adding the first movement for
+    // an item between the existence check and opening-row insert. SHARE still
+    // permits reads; only stock-movement writers pause for this short step.
+    await client.query("LOCK TABLE stock_movements IN SHARE MODE");
+    await client.query(
+      `INSERT INTO stock_movements
+         (inventory_id, delta, reason, reference_table, reference_id, unit_cost, notes, effective_date, created_at)
+       SELECT i.id, i.quantity, 'opening_balance', 'inventory', i.id, i.cost_price,
+              'Opening stock carried forward from inventory record', i.created_at::date, i.created_at
+       FROM inventory i
+       WHERE i.quantity > 0
+         AND NOT EXISTS (
+           SELECT 1 FROM stock_movements sm WHERE sm.inventory_id = i.id
+         )`,
+    );
+  });
 }
 
 /**
@@ -82,26 +187,35 @@ export async function runRenderSchemaMigrations() {
   if (!isRenderDeployment() || process.env.NODE_ENV === "test") return;
 
   const client = await pool.connect();
+  let advisoryLockAcquired = false;
   try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock($1)", [RENDER_SCHEMA_LOCK]);
+    // Keep migration runs from multiple starting instances serialized even
+    // though the large data backfill now commits in bounded batches.
+    await client.query("SELECT pg_advisory_lock($1)", [RENDER_SCHEMA_LOCK]);
+    advisoryLockAcquired = true;
 
-    for (const statement of [
-      ...ESTIMATE_TAX_COLUMN_SQL,
-      ...SHOP_PROFILE_COLUMN_SQL,
-      ...INVENTORY_FITMENT_COLUMN_SQL,
-      ...OPENING_STOCK_AND_OWNER_FUNDING_SQL,
-    ]) {
-      await client.query(statement);
-    }
+    await withTransaction(client, async () => {
+      for (const statement of [
+        ...ESTIMATE_TAX_COLUMN_SQL,
+        ...SHOP_PROFILE_COLUMN_SQL,
+        ...INVENTORY_FITMENT_COLUMN_SQL,
+        ...OPENING_STOCK_PREPARE_SQL,
+      ]) {
+        await client.query(statement);
+      }
+    });
 
-    await client.query("COMMIT");
+    await backfillEffectiveDates(client);
+    await ensureEffectiveDateNotNull(client);
+    await insertOpeningStockMovements(client);
     logger.info("Render schema migrations verified");
   } catch (error) {
-    await client.query("ROLLBACK").catch(() => undefined);
     logger.error({ err: error }, "Render schema migration failed");
     throw error;
   } finally {
+    if (advisoryLockAcquired) {
+      await client.query("SELECT pg_advisory_unlock($1)", [RENDER_SCHEMA_LOCK]).catch(() => undefined);
+    }
     client.release();
   }
 }

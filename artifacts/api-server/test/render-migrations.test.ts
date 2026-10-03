@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -24,6 +24,10 @@ const migrations = [
     workspaceRoot,
     "lib/db/migrations/2026-09-18_inventory_fitment.sql",
   ),
+  path.join(
+    workspaceRoot,
+    "lib/db/migrations/2026-10-01_opening_stock_owner_funding.sql",
+  ),
 ];
 
 let dataDirectory: string;
@@ -45,6 +49,29 @@ function run(command: string, args: string[], env = process.env) {
 
 function psql(sql: string, database = databaseUrl) {
   return run("psql", [database, "-X", "-qAt", "-v", "ON_ERROR_STOP=1", "-c", sql]);
+}
+
+function runAsync(command: string, args: string[], env = process.env) {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: apiRoot,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
+    child.once("error", reject);
+    child.once("close", (code) => {
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(`${command} exited ${code}: ${stderr}`));
+    });
+  });
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function allocatePort() {
@@ -137,12 +164,16 @@ before(async () => {
     INSERT INTO shop_settings VALUES (1, 'keep shop settings');
     INSERT INTO inventory VALUES
       (1, 3, 42.50, '2026-09-01T10:00:00Z', 'keep positive inventory'),
-      (2, 0, 15.00, '2026-09-02T10:00:00Z', 'keep zero inventory');
+      (2, 0, 15.00, '2026-09-02T10:00:00Z', 'keep zero inventory'),
+      (3, 7, 9.99, '2026-09-03T10:00:00Z', 'keep inventory with movement history'),
+      (4, -2, 18.75, '2026-09-04T10:00:00Z', 'keep negative inventory');
     INSERT INTO stock_movements
       (id, inventory_id, delta, reason, notes, created_at, legacy_value)
     VALUES
       (10, 2, -1, 'manual_adjustment', 'keep prior stock history',
-       '2026-08-01T10:00:00Z', 'keep movement');
+       '2026-08-01T10:00:00Z', 'keep movement'),
+      (11, 3, 2, 'purchase_received', 'existing positive-item history',
+       '2026-08-02T10:00:00Z', 'keep positive-item movement');
   `);
 });
 
@@ -185,7 +216,10 @@ function legacyDataSnapshot() {
         (SELECT id, quantity, cost_price, created_at, legacy_value FROM inventory) row_data),
       'stockMovement', (SELECT to_jsonb(row_data) FROM
         (SELECT id, inventory_id, delta, reason, notes, created_at, legacy_value
-         FROM stock_movements WHERE id = 10) row_data)
+         FROM stock_movements WHERE id = 10) row_data),
+      'positiveItemMovement', (SELECT to_jsonb(row_data) FROM
+        (SELECT id, inventory_id, delta, reason, notes, created_at, legacy_value
+         FROM stock_movements WHERE id = 11) row_data)
     )::text;
   `);
 }
@@ -242,6 +276,32 @@ test("Render startup migrations apply the columns declared by both SQL migration
     FROM stock_movements
     WHERE reason = 'opening_balance' AND inventory_id = 1;
   `), "1");
+  assert.equal(
+    psql(`
+      SELECT delta || '|' || unit_cost::text || '|' || effective_date::text || '|'
+        || reference_table || '|' || reference_id::text || '|' || created_at::date::text
+      FROM stock_movements
+      WHERE reason = 'opening_balance' AND inventory_id = 1;
+    `),
+    "3|42.50|2026-09-01|inventory|1|2026-09-01",
+    "opening stock preserves quantity, cost, inventory reference, and the inventory creation date",
+  );
+  assert.equal(
+    psql(`
+      SELECT string_agg(id::text || ':' || effective_date::text, ',' ORDER BY id)
+      FROM stock_movements WHERE id IN (10, 11);
+    `),
+    "10:2026-08-01,11:2026-08-02",
+    "existing movement rows receive their own creation date",
+  );
+  assert.equal(
+    psql(`
+      SELECT count(*) FROM stock_movements
+      WHERE reason = 'opening_balance' AND inventory_id IN (2, 3, 4);
+    `),
+    "0",
+    "zero, negative, and already-historied items do not receive synthetic opening movements",
+  );
 
   run(
     process.execPath,
@@ -265,6 +325,240 @@ test("Render startup migrations apply the columns declared by both SQL migration
       )::text;
     `),
     afterFirstRun,
+  );
+});
+
+test("the standalone SQL migration matches the opening-stock behavior", () => {
+  run("createdb", ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "postgres", "opening_sql"]);
+  const sqlDatabaseUrl = `postgresql://postgres@127.0.0.1:${pgPort}/opening_sql`;
+  psql(`
+    CREATE TABLE inventory (
+      id integer PRIMARY KEY,
+      quantity integer NOT NULL,
+      cost_price numeric(10, 2) NOT NULL,
+      created_at timestamp NOT NULL
+    );
+    CREATE TABLE stock_movements (
+      id serial PRIMARY KEY,
+      inventory_id integer NOT NULL,
+      delta integer NOT NULL,
+      reason text NOT NULL,
+      reference_table text,
+      reference_id integer,
+      unit_cost numeric(10, 2),
+      notes text,
+      created_at timestamp NOT NULL
+    );
+    INSERT INTO inventory VALUES
+      (1, 4, 17.25, '2026-05-01 08:30:00'),
+      (2, 8, 11.00, '2026-05-02 09:30:00'),
+      (3, 0, 3.00, '2026-05-03 10:30:00');
+    INSERT INTO stock_movements (inventory_id, delta, reason, created_at)
+    VALUES (2, 2, 'purchase_received', '2026-04-29 12:00:00');
+  `, sqlDatabaseUrl);
+  run("psql", [
+    sqlDatabaseUrl,
+    "-X",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-f",
+    migrations[migrations.length - 1],
+  ]);
+  run("psql", [
+    sqlDatabaseUrl,
+    "-X",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-f",
+    migrations[migrations.length - 1],
+  ]);
+
+  assert.equal(
+    psql(`
+      SELECT count(*) || '|' || min(delta)::text || '|' || min(unit_cost)::text || '|'
+        || min(effective_date)::text
+      FROM stock_movements WHERE reason = 'opening_balance';
+    `, sqlDatabaseUrl),
+    "1|4|17.25|2026-05-01",
+  );
+  assert.equal(
+    psql("SELECT effective_date::text FROM stock_movements WHERE inventory_id = 2", sqlDatabaseUrl),
+    "2026-04-29",
+    "existing history is retained and gets its original date",
+  );
+});
+
+test("the Render backfill completes on 100k synthetic inventory and 1M movement rows", async (t) => {
+  run("createdb", ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "postgres", "migration_scale"]);
+  const scaleDatabaseUrl = `postgresql://postgres@127.0.0.1:${pgPort}/migration_scale`;
+  psql(`
+    CREATE TABLE estimate_items (id integer PRIMARY KEY);
+    CREATE TABLE repair_order_work_items (id integer PRIMARY KEY);
+    CREATE TABLE invoice_items (id integer PRIMARY KEY);
+    CREATE TABLE shop_settings (id integer PRIMARY KEY);
+    CREATE TABLE inventory (
+      id integer PRIMARY KEY,
+      quantity integer NOT NULL,
+      cost_price numeric(10, 2) NOT NULL,
+      created_at timestamp NOT NULL
+    );
+    CREATE TABLE stock_movements (
+      id serial PRIMARY KEY,
+      inventory_id integer NOT NULL,
+      delta integer NOT NULL,
+      reason text NOT NULL,
+      reference_table text,
+      reference_id integer,
+      reference_line_id integer,
+      unit_cost numeric(10, 2),
+      notes text,
+      created_at timestamp NOT NULL
+    );
+    CREATE INDEX stock_movements_inventory_id_idx ON stock_movements(inventory_id);
+    CREATE INDEX stock_movements_reference_idx ON stock_movements(reference_table, reference_id);
+    CREATE INDEX stock_movements_source_idx
+      ON stock_movements(inventory_id, reference_table, reference_id, reference_line_id, reason);
+
+    INSERT INTO inventory
+    SELECT id,
+           CASE WHEN id % 17 = 0 THEN 0 ELSE 1 + id % 19 END,
+           (id % 10000)::numeric / 100,
+           timestamp '2020-01-01 00:00:00' + id * interval '1 hour'
+    FROM generate_series(1, 100000) AS id;
+
+    INSERT INTO stock_movements
+      (inventory_id, delta, reason, reference_table, reference_id, reference_line_id,
+       unit_cost, notes, created_at)
+    SELECT 2 + ((n - 1) / 20) * 2,
+           CASE WHEN n % 2 = 0 THEN 1 ELSE -1 END,
+           CASE WHEN n % 2 = 0 THEN 'purchase_received' ELSE 'manual_adjustment' END,
+           'benchmark', ((n - 1) / 20) + 1, n % 20,
+           ((n % 10000)::numeric / 100),
+           'synthetic benchmark history',
+           timestamp '2024-01-01 00:00:00' + n * interval '1 minute'
+    FROM generate_series(1, 1000000) AS n;
+    ANALYZE inventory;
+    ANALYZE stock_movements;
+  `, scaleDatabaseUrl);
+
+  const baselineStart = Date.now();
+  const lookupPlan = psql(
+    "EXPLAIN (FORMAT TEXT) SELECT count(*) FROM stock_movements WHERE id = 1",
+    scaleDatabaseUrl,
+  );
+  run("psql", [
+    scaleDatabaseUrl,
+    "-X",
+    "-qAt",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-c",
+    "SELECT /* opening-stock-lock-probe */ count(*) FROM stock_movements WHERE id = 1",
+  ]);
+  const baselineReadMs = Date.now() - baselineStart;
+
+  const migrationCode = `
+    import { runRenderSchemaMigrations } from ${JSON.stringify(migrationBundlePath)};
+    await runRenderSchemaMigrations();
+    process.exit(0);
+  `;
+  const migrationStart = Date.now();
+  let migrationFinished = false;
+  const migrationPromise = runAsync(
+    process.execPath,
+    ["--input-type=module", "-e", migrationCode],
+    {
+      ...process.env,
+      DATABASE_URL: scaleDatabaseUrl,
+      NODE_ENV: "production",
+      RENDER: "true",
+    },
+  ).then((output) => {
+    migrationFinished = true;
+    return output;
+  });
+
+  const updateDeadline = Date.now() + 120_000;
+  let sawBackfillUpdate = false;
+  while (Date.now() < updateDeadline && !migrationFinished) {
+    if (psql(`
+      SELECT count(*)
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND state = 'active'
+        AND query LIKE 'WITH batch AS%';
+    `, scaleDatabaseUrl) === "1") {
+      sawBackfillUpdate = true;
+      break;
+    }
+    await delay(10);
+  }
+  assert.ok(sawBackfillUpdate, "observed the movement-date backfill in progress");
+
+  const blockedReadStart = Date.now();
+  let readFinished = false;
+  let blockedReadDurationMs: number | null = null;
+  const probeEnvironment = {
+    ...process.env,
+    PGAPPNAME: "opening-stock-lock-probe",
+  };
+  const blockedReadPromise = runAsync("psql", [
+    scaleDatabaseUrl,
+    "-X",
+    "-qAt",
+    "-v",
+    "ON_ERROR_STOP=1",
+    "-c",
+    "SELECT /* opening-stock-lock-probe */ count(*) FROM stock_movements WHERE id = 1",
+  ], probeEnvironment).then((output) => {
+    blockedReadDurationMs = Date.now() - blockedReadStart;
+    readFinished = true;
+    return output;
+  });
+
+  let observedLockWait = false;
+  const observedWaitEvents = new Set<string>();
+  const lockDeadline = Date.now() + 60_000;
+  while (Date.now() < lockDeadline && !readFinished) {
+    const waitState = psql(`
+      SELECT coalesce(wait_event_type, 'none') || ':' || coalesce(wait_event, 'none')
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+        AND application_name = 'opening-stock-lock-probe'
+        AND state = 'active'
+      LIMIT 1;
+    `, scaleDatabaseUrl);
+    if (waitState) {
+      observedWaitEvents.add(waitState);
+      if (waitState.startsWith("Lock:")) observedLockWait = true;
+    }
+    await delay(10);
+  }
+
+  const [, blockedReadResult] = await Promise.all([migrationPromise, blockedReadPromise]);
+  const migrationMs = Date.now() - migrationStart;
+  const movementCounts = psql(`
+    SELECT (SELECT count(*) FROM stock_movements WHERE reason = 'opening_balance')
+      || '|' || (SELECT count(*) FROM stock_movements WHERE effective_date IS NULL)
+      || '|' || (SELECT count(*) FROM stock_movements);
+  `, scaleDatabaseUrl);
+  assert.equal(movementCounts, "47059|0|1047059");
+  assert.equal(Number(blockedReadResult), 1);
+  assert.ok(blockedReadDurationMs !== null);
+  assert.ok(
+    blockedReadDurationMs < 5_000,
+    `the indexed read should not stall behind the backfill (actual ${blockedReadDurationMs}ms)`,
+  );
+  assert.equal(
+    observedLockWait,
+    false,
+    "ordinary reads should not wait on a table lock during the date backfill",
+  );
+  t.diagnostic(
+    `synthetic scale: inventory=100000, prior movements=1000000; ` +
+    `startup migration=${migrationMs}ms; primary-key movement lookup baseline=${baselineReadMs}ms, ` +
+    `during migration=${blockedReadDurationMs}ms; PostgreSQL wait events=${[...observedWaitEvents].join(",") || "none"}; ` +
+    `lookup plan=${lookupPlan.replaceAll("\n", " / ")}`,
   );
 });
 
