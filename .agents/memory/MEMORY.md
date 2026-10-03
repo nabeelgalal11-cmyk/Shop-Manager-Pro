@@ -19,5 +19,6 @@
 - [Square Android intent handoff](square-android-intent.md) — native apps must launch Square with Android intent extras, not pass an intent URI through Linking.openURL
 - [Production backup boundary](production-backup-boundary.md) — Use private GitHub Actions for Render production dumps; GitHub handles the URL at run time, while Replit remains only the Drive relay.
 - [Development restore isolation](development-restore-isolation.md) — Restores require a separate non-production connection and exact host/database allowlist; never target the app's primary database.
+- [Custom archive validation](backup-archive-validation.md) — `pg_restore --list` checks the TOC, not all compressed payload data; fully read archives before destructive restore.
 - [Playwright Chromium path](playwright-chromium-path.md) — In this workspace, run browser tests with the installed Chromium path instead of downloading Playwright's pinned browser.
 - [Private inspection object storage](private-inspection-object-storage.md) — inspection photo URLs need inspection permissions; current upload flow does not populate the generic GCS ACL metadata.

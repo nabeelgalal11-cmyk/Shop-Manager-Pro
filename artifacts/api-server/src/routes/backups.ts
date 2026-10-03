@@ -240,11 +240,11 @@ router.post("/development/restore", async (req: Request, res: Response) => {
     return;
   }
 
+  let bytesReceived = 0;
   try {
     const { target } = destination;
     const directory = await mkdtemp(path.join(tmpdir(), "915motors-restore-"));
     const filePath = path.join(directory, "uploaded.dump");
-    let bytesReceived = 0;
     const countAndLimit = new Transform({
       transform(chunk: Buffer, _encoding, callback) {
         bytesReceived += chunk.length;
@@ -268,6 +268,15 @@ router.post("/development/restore", async (req: Request, res: Response) => {
       const restoreEnvironment = databaseToolEnvironment(destination.connectionString);
       const archiveEntries = await runPgRestore(["--list", filePath], restoreEnvironment);
       if (!archiveEntries.trim()) {
+        sendError(res, 400, "The uploaded file does not contain a valid PostgreSQL archive.");
+        return;
+      }
+      try {
+        await runPgRestore(
+          ["--exit-on-error", "--no-owner", "--no-acl", "--file=/dev/null", filePath],
+          restoreEnvironment,
+        );
+      } catch {
         sendError(res, 400, "The uploaded file does not contain a valid PostgreSQL archive.");
         return;
       }
@@ -298,7 +307,11 @@ router.post("/development/restore", async (req: Request, res: Response) => {
       { err: error instanceof Error ? error.message : "unknown error" },
       "Development database restore failed",
     );
-    if (!res.headersSent && !req.destroyed) {
+    if (!res.headersSent && !res.destroyed) {
+      if (bytesReceived !== contentLength || !req.complete) {
+        sendError(res, 400, "Backup size did not match Content-Length.");
+        return;
+      }
       sendError(res, 400, "Restore failed. The development database may have been partially changed; review the error logs before retrying.");
     }
   }
