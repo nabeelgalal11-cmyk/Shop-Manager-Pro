@@ -7,14 +7,13 @@ import { spawn } from "node:child_process";
 import { pipeline } from "node:stream/promises";
 import { Readable, Transform, type Writable } from "node:stream";
 import { pool } from "@workspace/db";
+import { isAllowedBackupUploadUrl } from "./backup-upload-config.js";
 import { logger } from "./logger.js";
 
 const BACKUP_LOCK_ID = 91520261001;
 const BACKUP_LOCK_MS = 4 * 60 * 60 * 1000;
 const MAX_BACKUP_BYTES = 2 * 1024 * 1024 * 1024;
 const TIME_ZONE = "America/New_York";
-const UPLOAD_URL = "https://shop-manager-pro.replit.app/api/backups/upload";
-
 let runningBackup: Promise<void> | null = null;
 let lastAttemptAt = 0;
 let lastAttemptDate: string | null = null;
@@ -50,7 +49,7 @@ function isProductionRuntime(): boolean {
 function configuredUploadUrl(): string | null {
   const token = process.env.BACKUP_UPLOAD_TOKEN?.trim();
   const value = process.env.BACKUP_UPLOAD_URL?.trim();
-  if (!token || token.length < 32 || value !== UPLOAD_URL) return null;
+  if (!token || token.length < 32 || !value || !isAllowedBackupUploadUrl(value)) return null;
   return value;
 }
 

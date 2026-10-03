@@ -8,7 +8,7 @@
     "start": "node --enable-source-maps dist/index.mjs",
     "dev": "NODE_ENV=development pnpm run build && pnpm run start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:backup": "node --import tsx --test test/google-drive-backup.test.ts test/backup-upload-route.test.ts test/development-backup-target.test.ts && NODE_ENV=test node --require tsx/cjs -e \"require('./test/development-backup-restore-route.test.ts')\"",
+    "test:backup": "node --import tsx --test test/backup-upload-config.test.ts test/google-drive-backup.test.ts test/backup-upload-route.test.ts test/development-backup-target.test.ts && NODE_ENV=test node --require tsx/cjs -e \"require('./test/development-backup-restore-route.test.ts')\"",
     "test:export-date-range": "node --import tsx --test test/export-date-range.test.ts",
     "test:owner-funding": "node --import tsx --test test/owner-funding.test.ts",
     "test:render-migrations": "node --import tsx --test test/render-migrations.test.ts",

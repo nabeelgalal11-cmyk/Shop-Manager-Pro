@@ -9,6 +9,7 @@ import { spawn } from "node:child_process";
 import { pool } from "@workspace/db";
 import { resolveDevelopmentBackupTarget } from "../lib/development-backup-target.js";
 import { requireRole } from "../lib/auth.js";
+import { isAllowedBackupUploadUrl } from "../lib/backup-upload-config.js";
 import { logger } from "../lib/logger.js";
 
 const router: IRouter = Router();
@@ -124,7 +125,7 @@ router.get("/production-status", async (_req, res) => {
         process.env.DATABASE_URL &&
         uploadToken &&
         uploadToken.length >= 32 &&
-        uploadUrl === "https://shop-manager-pro.replit.app/api/backups/upload",
+        isAllowedBackupUploadUrl(uploadUrl),
       ),
       lastSuccessDate: row?.production_backup_success_date ?? null,
       lastAttemptAt: row?.production_backup_last_attempt_at?.toISOString() ?? null,
