@@ -1,12 +1,16 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "wouter";
-import { ArrowDownLeft, ArrowUpRight, CircleDollarSign, Download, HandCoins, Landmark, RotateCcw, ShieldCheck } from "lucide-react";
-import { useCreateFundingEntry, useOwnerFunding, type FundingType } from "@/hooks/use-owner-funding";
+import { ArrowDownLeft, ArrowUpRight, CircleDollarSign, Download, HandCoins, Landmark, RotateCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { useCreateFundingEntry, useDeleteFundingEntry, useOwnerFunding, type FundingType, type OwnerFundingEntry } from "@/hooks/use-owner-funding";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value) || 0);
 const today = () => {
@@ -19,13 +23,17 @@ export default function OwnerFunding() {
   const { data, isLoading, isError, refetch } = useOwnerFunding();
   const { can } = useAuth();
   const canRecordFunding = can("expenses", "create");
+  const canDeleteFunding = can("expenses", "delete");
   const createEntry = useCreateFundingEntry();
+  const deleteEntry = useDeleteFundingEntry();
   const [type, setType] = useState<FundingType>("loan");
   const [amount, setAmount] = useState("");
   const [entryDate, setEntryDate] = useState(today);
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<OwnerFundingEntry | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const summary = data?.summary;
   const entries = useMemo(() => [...(data?.entries ?? [])].sort((a, b) => b.entryDate.localeCompare(a.entryDate) || b.id - a.id), [data?.entries]);
   const formatDate = (value: string) => new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -45,6 +53,17 @@ export default function OwnerFunding() {
     } catch (error) {
       const issue = error as Error & { status?: number };
       setFormError(issue.status === 409 ? "This repayment is higher than the current outstanding loan. Refresh the ledger and try again." : issue.message);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleteError("");
+    try {
+      await deleteEntry.mutateAsync({ id: deleteTarget.id });
+      setDeleteTarget(null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Could not delete this entry.");
     }
   }
 
@@ -84,8 +103,8 @@ export default function OwnerFunding() {
         isError ? <div className="p-10 text-center"><p className="font-semibold">Ledger unavailable</p><p className="mt-1 text-sm text-muted-foreground">No entry was changed. Check your connection and retry.</p><Button variant="outline" className="mt-4" onClick={() => refetch()}>Retry</Button></div> :
         entries.length === 0 ? <div className="px-6 py-14 text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary"><CircleDollarSign className="h-6 w-6" /></div><h3 className="mt-4 font-bold">No owner funding recorded</h3><p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">Record a loan, contribution, or repayment to start a separate, date-based audit trail.</p></div> :
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[660px] text-left text-sm">
-            <thead className="bg-muted/60 text-[10px] uppercase tracking-[.13em] text-muted-foreground"><tr><th className="px-5 py-3 font-bold">Effective date</th><th className="px-4 py-3 font-bold">Entry</th><th className="px-4 py-3 font-bold">Description</th><th className="px-5 py-3 text-right font-bold">Amount</th></tr></thead>
+          <table className={`w-full ${canDeleteFunding ? "min-w-[720px]" : "min-w-[660px]"} text-left text-sm`}>
+            <thead className="bg-muted/60 text-[10px] uppercase tracking-[.13em] text-muted-foreground"><tr><th className="px-5 py-3 font-bold">Effective date</th><th className="px-4 py-3 font-bold">Entry</th><th className="px-4 py-3 font-bold">Description</th><th className="px-5 py-3 text-right font-bold">Amount</th>{canDeleteFunding && <th className="px-4 py-3 text-right font-bold">Actions</th>}</tr></thead>
             <tbody className="divide-y divide-border">
               {entries.map((entry) => {
                 const repayment = entry.type === "repayment";
@@ -95,6 +114,20 @@ export default function OwnerFunding() {
                   <td className="px-4 py-4 align-top"><span className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-bold ${entry.type === "loan" ? "bg-primary/10 text-primary" : repayment ? "bg-orange-100 text-orange-900" : "bg-amber-100 text-amber-900"}`}>{repayment ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownLeft className="h-3 w-3" />}{labels[entry.type]}</span></td>
                   <td className="max-w-[340px] px-4 py-4 align-top"><p className="font-semibold">{entry.description}</p>{entry.notes && <p className="mt-1 text-xs text-muted-foreground">{entry.notes}</p>}<p className="mt-1 font-mono text-[10px] text-muted-foreground">Entered {new Date(entry.createdAt).toLocaleString()}</p></td>
                   <td className={`whitespace-nowrap px-5 py-4 text-right align-top font-mono font-semibold ${positive ? "text-primary" : "text-orange-800"}`}>{repayment ? "−" : "+"}{money(entry.amount)}</td>
+                  {canDeleteFunding && <td className="px-4 py-3 text-right align-top">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10"
+                      aria-label={`Delete ${labels[entry.type]} entry: ${entry.description}`}
+                      title="Delete entry"
+                      onClick={() => { setDeleteError(""); setDeleteTarget(entry); }}
+                      data-testid={`button-delete-funding-${entry.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </td>}
                 </tr>;
               })}
             </tbody>
@@ -123,5 +156,37 @@ export default function OwnerFunding() {
         <p className="mt-2 text-sm text-muted-foreground">You can review owner funding records. A manager must grant expense-creation access to add or repay entries.</p>
       </aside>}
     </section>
+    <AlertDialog
+      open={Boolean(deleteTarget)}
+      onOpenChange={(open) => {
+        if (!open && !deleteEntry.isPending) {
+          setDeleteTarget(null);
+          setDeleteError("");
+        }
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete owner funding entry?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {deleteTarget && <>
+              Remove the {labels[deleteTarget.type].toLowerCase()} of {money(deleteTarget.amount)} for “{deleteTarget.description}”?
+              This permanently deletes the ledger entry and recalculates the funding totals. Only delete entries made in error; if the funding actually happened, keep the audit trail and add a correcting record instead.
+            </>}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {deleteError && <p role="alert" className="rounded border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{deleteError}</p>}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleteEntry.isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={deleteEntry.isPending}
+            onClick={(event) => { event.preventDefault(); void confirmDelete(); }}
+            className="bg-destructive text-destructive-foreground"
+          >
+            {deleteEntry.isPending ? "Deleting…" : "Delete entry"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </main>;
 }

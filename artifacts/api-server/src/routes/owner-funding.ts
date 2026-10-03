@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, ownerFundingEntriesTable, ownerFundingTypes } from "@workspace/db";
-import { desc, sql } from "drizzle-orm";
+import { DeleteOwnerFundingEntryParams } from "@workspace/api-zod";
+import { desc, eq, sql } from "drizzle-orm";
 import { getUser, requirePermission } from "../lib/auth.js";
 import { canRepayOwnerLoan, summarizeOwnerFunding } from "../lib/owner-funding.js";
 
@@ -82,6 +83,28 @@ router.post("/", requirePermission("expenses", "create"), async (req, res): Prom
     return;
   }
   res.status(201).json(presentEntry(result.entry));
+});
+
+router.delete("/:id", requirePermission("expenses", "delete"), async (req, res): Promise<void> => {
+  const params = DeleteOwnerFundingEntryParams.safeParse(req.params);
+  if (!params.success || !Number.isSafeInteger(params.data?.id)) {
+    res.status(400).json({ error: params.success ? "Entry id must be an integer." : params.error.message });
+    return;
+  }
+
+  const deleted = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${OWNER_FUNDING_LOCK_ID})`);
+    const [entry] = await tx.delete(ownerFundingEntriesTable)
+      .where(eq(ownerFundingEntriesTable.id, params.data.id))
+      .returning({ id: ownerFundingEntriesTable.id });
+    return entry;
+  });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Owner funding entry not found." });
+    return;
+  }
+  res.sendStatus(204);
 });
 
 export default router;

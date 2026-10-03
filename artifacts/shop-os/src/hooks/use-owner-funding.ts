@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDeleteOwnerFundingEntry } from "@workspace/api-client-react";
 
 export type FundingType = "loan" | "contribution" | "repayment";
 export interface OwnerFundingEntry {
@@ -61,5 +62,14 @@ export function useCreateFundingEntry() {
         body: JSON.stringify(data),
       }),
     onSuccess: () => client.invalidateQueries({ queryKey: ownerFundingKey }),
+  });
+}
+
+export function useDeleteFundingEntry() {
+  const client = useQueryClient();
+  return useDeleteOwnerFundingEntry({
+    mutation: {
+      onSuccess: () => client.invalidateQueries({ queryKey: ownerFundingKey }),
+    },
   });
 }
