@@ -4468,6 +4468,14 @@ export const CreateOwnerFundingEntryBody = zod.object({
 });
 
 /**
+ * @summary Remove an owner funding entry entered in error
+ */
+
+export const DeleteOwnerFundingEntryParams = zod.object({
+  id: zod.coerce.number().min(1),
+});
+
+/**
  * @summary List service reminders
  */
 export const getRemindersQueryPageDefault = 1;

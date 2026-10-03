@@ -9531,6 +9531,90 @@ export const useCreateOwnerFundingEntry = <
 };
 
 /**
+ * @summary Remove an owner funding entry entered in error
+ */
+export const getDeleteOwnerFundingEntryUrl = (id: number) => {
+  return `/api/owner-funding/${id}`;
+};
+
+export const deleteOwnerFundingEntry = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteOwnerFundingEntryUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteOwnerFundingEntryMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOwnerFundingEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteOwnerFundingEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteOwnerFundingEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteOwnerFundingEntry>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteOwnerFundingEntry(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteOwnerFundingEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteOwnerFundingEntry>>
+>;
+
+export type DeleteOwnerFundingEntryMutationError = ErrorType<void>;
+
+/**
+ * @summary Remove an owner funding entry entered in error
+ */
+export const useDeleteOwnerFundingEntry = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOwnerFundingEntry>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteOwnerFundingEntry>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteOwnerFundingEntryMutationOptions(options));
+};
+
+/**
  * @summary List service reminders
  */
 export const getGetRemindersUrl = (params?: GetRemindersParams) => {

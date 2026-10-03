@@ -2124,6 +2124,28 @@ paths:
         "409":
           description: Repayment exceeds the outstanding owner loan
 
+  /owner-funding/{id}:
+    delete:
+      operationId: deleteOwnerFundingEntry
+      tags: [owner-funding]
+      summary: Remove an owner funding entry entered in error
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "204":
+          description: Owner funding entry deleted
+        "400":
+          description: Invalid entry identifier
+        "403":
+          description: User lacks owner funding delete permission
+        "404":
+          description: Owner funding entry not found
+
   # ---- REMINDERS ----
   /reminders:
     get:
