@@ -27,7 +27,7 @@ timeoutMs = 120000
 
 [nix]
 channel = "stable-25_05"
-packages = ["ghost-cli"]
+packages = ["ghost-cli", "glib", "nss", "nspr", "atk", "at-spi2-atk", "cups", "dbus", "expat", "libdrm", "gtk3", "pango", "cairo", "alsa-lib", "xorg.libX11", "xorg.libxcb", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libXScrnSaver", "xorg.libxshmfence", "mesa", "libgbm", "libxkbcommon"]
 
 [userenv]
 
