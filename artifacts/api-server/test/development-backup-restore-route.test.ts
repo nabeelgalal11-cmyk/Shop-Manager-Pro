@@ -86,7 +86,6 @@ test("restore route requires the exact confirmation text before accepting an upl
     safeDevelopmentEnvironment,
     {
       "content-type": "application/octet-stream",
-      "content-length": "1",
       "x-backup-filename": "fixture.dump",
       "x-restore-confirmation": "RESTORE PRODUCTION DATABASE",
     },
