@@ -17,7 +17,7 @@
 - [EAS Expo dependencies](eas-expo-dependencies.md) — standalone cloud builds must install Expo runtime packages as production dependencies, not only devDependencies
 - [Windows APK bundles](windows-apk-bundles.md) — include the workspace-root ignore file and exclude generated output so Git never indexes pnpm's deep node_modules paths
 - [Square Android intent handoff](square-android-intent.md) — native apps must launch Square with Android intent extras, not pass an intent URI through Linking.openURL
-- [Production backup boundary](production-backup-boundary.md) — Use private GitHub Actions for Render production dumps; GitHub handles the URL at run time, while Replit remains only the Drive relay.
+- [Production backup boundary](production-backup-boundary.md) — Use private GitHub Actions for production dumps and distinct authenticated tokens for Render and GitHub Drive provenance.
 - [Development restore isolation](development-restore-isolation.md) — Restores require a separate non-production connection and exact host/database allowlist; never target the app's primary database.
 - [Custom archive validation](backup-archive-validation.md) — `pg_restore --list` checks the TOC, not all compressed payload data; fully read archives before destructive restore.
 - [Playwright Chromium path](playwright-chromium-path.md) — In this workspace, run browser tests with the installed Chromium path instead of downloading Playwright's pinned browser.

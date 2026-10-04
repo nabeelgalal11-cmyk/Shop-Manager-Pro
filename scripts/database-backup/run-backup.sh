@@ -2,8 +2,10 @@
 set -eu
 
 : "${DATABASE_URL:?DATABASE_URL must be provided to the backup runner}"
-: "${BACKUP_UPLOAD_TOKEN:?BACKUP_UPLOAD_TOKEN must be provided to the backup runner}"
 : "${BACKUP_UPLOAD_URL:?BACKUP_UPLOAD_URL must be provided to the backup runner}"
+
+upload_token="${GITHUB_ACTIONS_BACKUP_UPLOAD_TOKEN:-${BACKUP_UPLOAD_TOKEN:-}}"
+: "${upload_token:?A source-specific backup upload token must be provided to the backup runner}"
 
 case "$BACKUP_UPLOAD_URL" in
   https://shop-manager-pro.replit.app/api/backups/upload) ;;
@@ -56,7 +58,7 @@ curl \
   --header "X-Backup-SHA256: ${sha256}" \
   --data-binary "@${backup_path}" \
   "$BACKUP_UPLOAD_URL" <<CURL_CONFIG
-header = "Authorization: Bearer ${BACKUP_UPLOAD_TOKEN}"
+header = "Authorization: Bearer ${upload_token}"
 CURL_CONFIG
 
 echo "Backup uploaded to Google Drive: ${file_name} (${size_bytes} bytes)"

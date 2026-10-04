@@ -33,80 +33,89 @@ async function withBackupFile<T>(
   }
 }
 
-test("creates a private Drive folder and uploads a resumable backup", async () => {
-  await withBackupFile(Buffer.from("test dump"), async (filePath, sha256) => {
-    const calls: Array<{ path: string; options?: DriveProxyOptions }> = [];
-    const proxy: DriveProxy = async (requestPath, options) => {
-      calls.push({ path: requestPath, options });
+for (const { source, sourceLabel } of [
+  { source: "render" as const, sourceLabel: "915motors-render" },
+  {
+    source: "github-actions" as const,
+    sourceLabel: "915motors-github-actions",
+  },
+]) {
+  test(`creates a resumable backup with the ${source} source label`, async () => {
+    await withBackupFile(Buffer.from("test dump"), async (filePath, sha256) => {
+      const calls: Array<{ path: string; options?: DriveProxyOptions }> = [];
+      const proxy: DriveProxy = async (requestPath, options) => {
+        calls.push({ path: requestPath, options });
 
-      if (requestPath.startsWith("/drive/v3/files?") && options?.method !== "POST") {
-        if (calls.length === 1) {
+        if (requestPath.startsWith("/drive/v3/files?") && options?.method !== "POST") {
+          if (calls.length === 1) {
+            return jsonResponse({ files: [] });
+          }
           return jsonResponse({ files: [] });
         }
-        return jsonResponse({ files: [] });
-      }
 
-      if (requestPath.startsWith("/drive/v3/files?") && options?.method === "POST") {
-        const body = JSON.parse(String(options.body));
-        assert.equal(body.name, folderName);
-        assert.equal(body.mimeType, "application/vnd.google-apps.folder");
-        assert.equal(body.parents, undefined);
-        return jsonResponse({ id: "folder-1", name: folderName, mimeType: body.mimeType });
-      }
+        if (requestPath.startsWith("/drive/v3/files?") && options?.method === "POST") {
+          const body = JSON.parse(String(options.body));
+          assert.equal(body.name, folderName);
+          assert.equal(body.mimeType, "application/vnd.google-apps.folder");
+          assert.equal(body.parents, undefined);
+          return jsonResponse({ id: "folder-1", name: folderName, mimeType: body.mimeType });
+        }
 
-      if (
-        requestPath.startsWith("/upload/drive/v3/files?") &&
-        options?.method === "POST"
-      ) {
-        assert.equal(options?.method, "POST");
-        const body = JSON.parse(String(options?.body));
-        assert.equal(body.parents[0], "folder-1");
-        assert.equal(body.appProperties.backupSha256, sha256);
-        assert.equal(body.appProperties.backupSource, "915motors-github-actions");
-        return new Response(null, {
-          status: 200,
-          headers: {
-            Location:
-              "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=test-session",
-          },
-        });
-      }
+        if (
+          requestPath.startsWith("/upload/drive/v3/files?") &&
+          options?.method === "POST"
+        ) {
+          assert.equal(options?.method, "POST");
+          const body = JSON.parse(String(options?.body));
+          assert.equal(body.parents[0], "folder-1");
+          assert.equal(body.appProperties.backupSha256, sha256);
+          assert.equal(body.appProperties.backupSource, sourceLabel);
+          return new Response(null, {
+            status: 200,
+            headers: {
+              Location:
+                "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=test-session",
+            },
+          });
+        }
 
-      if (
-        requestPath.startsWith("/upload/drive/v3/files?uploadType=resumable") &&
-        options?.method === "PUT"
-      ) {
-        assert.equal(options?.method, "PUT");
-        assert.equal(
-          options?.headers?.["Content-Range"],
-          `bytes 0-8/9`,
-        );
-        assert.deepEqual(Buffer.from(options?.body as Buffer), Buffer.from("test dump"));
-        return jsonResponse({
-          id: "drive-file-1",
-          name: "915motors-production-20260929T060000Z.dump",
-          size: "9",
-          webViewLink: "https://drive.google.com/file/d/drive-file-1/view",
-        }, 201);
-      }
+        if (
+          requestPath.startsWith("/upload/drive/v3/files?uploadType=resumable") &&
+          options?.method === "PUT"
+        ) {
+          assert.equal(options?.method, "PUT");
+          assert.equal(
+            options?.headers?.["Content-Range"],
+            `bytes 0-8/9`,
+          );
+          assert.deepEqual(Buffer.from(options?.body as Buffer), Buffer.from("test dump"));
+          return jsonResponse({
+            id: "drive-file-1",
+            name: "915motors-production-20260929T060000Z.dump",
+            size: "9",
+            webViewLink: "https://drive.google.com/file/d/drive-file-1/view",
+          }, 201);
+        }
 
-      throw new Error(`Unexpected Drive request: ${requestPath}`);
-    };
+        throw new Error(`Unexpected Drive request: ${requestPath}`);
+      };
 
-    const result = await uploadDatabaseBackupToDrive({
-      filePath,
-      fileName: "915motors-production-20260929T060000Z.dump",
-      sizeBytes: 9,
-      sha256,
-      proxy,
+      const result = await uploadDatabaseBackupToDrive({
+        filePath,
+        fileName: "915motors-production-20260929T060000Z.dump",
+        sizeBytes: 9,
+        sha256,
+        source,
+        proxy,
+      });
+
+      assert.equal(result.fileId, "drive-file-1");
+      assert.equal(result.sizeBytes, 9);
+      assert.equal(result.alreadyUploaded, false);
+      assert.equal(calls.length, 5);
     });
-
-    assert.equal(result.fileId, "drive-file-1");
-    assert.equal(result.sizeBytes, 9);
-    assert.equal(result.alreadyUploaded, false);
-    assert.equal(calls.length, 5);
   });
-});
+}
 
 test("treats an identical file already in the backup folder as an idempotent success", async () => {
   await withBackupFile(Buffer.from("saved dump"), async (filePath, sha256) => {
@@ -140,6 +149,7 @@ test("treats an identical file already in the backup folder as an idempotent suc
       fileName: "915motors-production-20260929T060000Z.dump",
       sizeBytes: Buffer.byteLength("saved dump"),
       sha256,
+      source: "github-actions",
       proxy,
     });
 
@@ -208,6 +218,7 @@ test("continues only after Drive acknowledges each complete resumable chunk", as
         fileName: "915motors-production-20260929T060000Z.dump",
         sizeBytes: chunkSize + 3,
         sha256,
+        source: "github-actions",
         proxy,
       });
 
@@ -252,6 +263,7 @@ test("rejects a same-name backup with different content", async () => {
         fileName: "915motors-production-20260929T060000Z.dump",
         sizeBytes: Buffer.byteLength("new dump"),
         sha256,
+        source: "github-actions",
         proxy,
       }),
       /different backup already exists/,

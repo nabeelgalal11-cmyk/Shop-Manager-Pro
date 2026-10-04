@@ -6,6 +6,13 @@ const FOLDER_NAME = "915 Motors Database Backups";
 const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const CHUNK_SIZE = 8 * 1024 * 1024;
 
+export type DriveBackupSource = "render" | "github-actions";
+
+const DRIVE_BACKUP_SOURCE_LABELS: Record<DriveBackupSource, string> = {
+  render: "915motors-render",
+  "github-actions": "915motors-github-actions",
+};
+
 export interface DriveProxyOptions {
   method?: string;
   headers?: Record<string, string>;
@@ -35,6 +42,7 @@ interface DriveUploadInput {
   fileName: string;
   sizeBytes: number;
   sha256: string;
+  source: DriveBackupSource;
   proxy: DriveProxy;
 }
 
@@ -171,7 +179,7 @@ async function uploadResumable(
         parents: [folderId],
         appProperties: {
           backupSha256: input.sha256,
-          backupSource: "915motors-github-actions",
+          backupSource: DRIVE_BACKUP_SOURCE_LABELS[input.source],
         },
       }),
     },

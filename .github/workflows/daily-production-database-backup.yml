@@ -35,13 +35,13 @@ jobs:
       - name: Create and upload the verified backup
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-          BACKUP_UPLOAD_TOKEN: ${{ secrets.BACKUP_UPLOAD_TOKEN }}
+          GITHUB_ACTIONS_BACKUP_UPLOAD_TOKEN: ${{ secrets.GITHUB_ACTIONS_BACKUP_UPLOAD_TOKEN }}
           BACKUP_UPLOAD_URL: https://shop-manager-pro.replit.app/api/backups/upload
         run: |
           docker run --rm \
             --volume "$GITHUB_WORKSPACE:/workspace:ro" \
             --env DATABASE_URL \
-            --env BACKUP_UPLOAD_TOKEN \
+            --env GITHUB_ACTIONS_BACKUP_UPLOAD_TOKEN \
             --env BACKUP_UPLOAD_URL \
             --entrypoint /bin/sh \
             postgres:16-alpine \

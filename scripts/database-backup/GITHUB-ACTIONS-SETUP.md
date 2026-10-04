@@ -28,11 +28,14 @@ and add these repository secrets:
    PostgreSQL database on Render. GitHub-hosted runners cannot use Render's
    private/internal database hostname. Do not use `NEON_DATABASE_URL` or the
    Replit database URL.
-2. `BACKUP_UPLOAD_TOKEN` — the same token configured on the Replit backup upload
-   receiver.
+2. `GITHUB_ACTIONS_BACKUP_UPLOAD_TOKEN` — a unique token configured on the Replit
+   backup upload receiver. It must be different from the Render
+   `BACKUP_UPLOAD_TOKEN`.
 
 Enter both values directly in GitHub's secret form. Do not commit them, put them
-in a workflow file, or paste them into chat.
+in a workflow file, or paste them into chat. Configure the new
+`GITHUB_ACTIONS_BACKUP_UPLOAD_TOKEN` value on the Replit receiver as well; the
+receiver uses the authenticated token to identify the archive's source.
 
 ## Run and check the first backup
 
@@ -44,7 +47,9 @@ the manual run is useful for confirming setup.
 The job logs the generated filename and byte count, but not the database URL or
 upload token. Confirm the run succeeds and the dated backup appears in the
 configured Google Drive folder. The Replit receiver must be published and
-configured with `BACKUP_UPLOAD_TOKEN` before the first run.
+configured with both `BACKUP_UPLOAD_TOKEN` for Render and
+`GITHUB_ACTIONS_BACKUP_UPLOAD_TOKEN` for GitHub Actions before the first run.
+These tokens must be different.
 
 GitHub Free currently includes 2,000 standard runner minutes per month for a
 private repository. If included minutes are exhausted and no payment method is
