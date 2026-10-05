@@ -617,6 +617,133 @@ test("the standalone SQL migration matches the opening-stock behavior", () => {
   );
 });
 
+test("a later startup resumes the effective-date backfill after a committed batch", async () => {
+  run("createdb", ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "postgres", "migration_retry"]);
+  const retryDatabaseUrl = `postgresql://postgres@127.0.0.1:${pgPort}/migration_retry`;
+  psql(`
+    CREATE TABLE estimate_items (id integer PRIMARY KEY);
+    CREATE TABLE repair_order_work_items (id integer PRIMARY KEY);
+    CREATE TABLE invoice_items (id integer PRIMARY KEY);
+    CREATE TABLE shop_settings (id integer PRIMARY KEY);
+    CREATE TABLE inventory (
+      id integer PRIMARY KEY,
+      quantity integer NOT NULL,
+      cost_price numeric(10, 2) NOT NULL,
+      created_at timestamptz NOT NULL
+    );
+    CREATE TABLE stock_movements (
+      id serial PRIMARY KEY,
+      inventory_id integer NOT NULL,
+      delta integer NOT NULL,
+      reason text NOT NULL,
+      reference_table text,
+      reference_id integer,
+      unit_cost numeric(10, 2),
+      notes text,
+      created_at timestamptz NOT NULL,
+      legacy_value text
+    );
+    INSERT INTO inventory VALUES
+      (1, 5, 12.50, '2026-09-01T10:00:00Z'),
+      (2, 1, 7.25, '2026-09-02T10:00:00Z');
+    INSERT INTO stock_movements
+      (id, inventory_id, delta, reason, reference_table, reference_id, unit_cost,
+       notes, created_at, legacy_value)
+    SELECT id, 2, CASE WHEN id % 2 = 0 THEN 1 ELSE -1 END, 'existing_history',
+           'purchase', 17, 7.25, 'preserve movement history',
+           '2026-08-01T00:00:00Z'::timestamptz + id * interval '1 second',
+           'legacy-' || id::text
+    FROM generate_series(1, 100001) AS id;
+    SELECT setval(pg_get_serial_sequence('stock_movements', 'id'), 100001);
+
+    CREATE FUNCTION fail_late_movement_backfill() RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NEW.id > 100000 THEN
+        RAISE EXCEPTION 'injected effective-date backfill failure';
+      END IF;
+      RETURN NEW;
+    END;
+    $$;
+    CREATE TRIGGER fail_late_movement_backfill
+      BEFORE UPDATE ON stock_movements
+      FOR EACH ROW EXECUTE FUNCTION fail_late_movement_backfill();
+  `, retryDatabaseUrl);
+
+  const historySnapshot = () => psql(`
+    SELECT md5(string_agg(to_jsonb(row_data)::text, E'\\n' ORDER BY id))
+    FROM (
+      SELECT id, inventory_id, delta, reason, reference_table, reference_id,
+             unit_cost, notes, created_at, legacy_value
+      FROM stock_movements
+      WHERE reason <> 'opening_balance'
+    ) row_data;
+  `, retryDatabaseUrl);
+  const originalHistory = historySnapshot();
+
+  const failedStartup = await startRenderStartup(retryDatabaseUrl, "render-migration-retry-failed");
+  assert.equal(failedStartup.ok, false, "startup must abort when a later backfill batch fails");
+  assert.match(String(failedStartup.error), /Server startup aborted/);
+  assert.match(String(failedStartup.error), /injected effective-date backfill failure/);
+  assert.doesNotMatch(String(failedStartup.error), /STARTUP_READY/);
+  assert.equal(
+    psql(`
+      SELECT count(*) FILTER (WHERE effective_date IS NOT NULL)::text || '|'
+        || count(*) FILTER (WHERE effective_date IS NULL)::text
+      FROM stock_movements;
+    `, retryDatabaseUrl),
+    "100000|1",
+    "the earlier batch remains committed while the failing batch is rolled back",
+  );
+  assert.equal(historySnapshot(), originalHistory, "the failed attempt preserves movement history");
+
+  psql(`
+    DROP TRIGGER fail_late_movement_backfill ON stock_movements;
+    DROP FUNCTION fail_late_movement_backfill();
+  `, retryDatabaseUrl);
+
+  const retriedStartup = await startRenderStartup(retryDatabaseUrl, "render-migration-retry-success");
+  assert.equal(retriedStartup.ok, true, `retry startup should succeed: ${String(retriedStartup.error)}`);
+  assert.match(retriedStartup.output, /STARTUP_READY/);
+  assert.equal(
+    psql(`
+      SELECT count(*) FILTER (WHERE effective_date IS NULL)::text || '|'
+        || count(*) FILTER (WHERE effective_date IS DISTINCT FROM created_at::date)::text
+      FROM stock_movements;
+    `, retryDatabaseUrl),
+    "0|0",
+    "the retry fills every effective date with its movement's original creation date",
+  );
+  assert.equal(historySnapshot(), originalHistory, "the successful retry preserves existing movements");
+  assert.equal(
+    psql(`
+      SELECT count(*) FROM stock_movements
+      WHERE reason = 'opening_balance' AND inventory_id = 1;
+    `, retryDatabaseUrl),
+    "1",
+    "the retry creates the missing inventory opening movement once",
+  );
+
+  const movementsAfterRetry = Number(psql("SELECT count(*) FROM stock_movements;", retryDatabaseUrl));
+  const secondSuccessfulStartup = await startRenderStartup(
+    retryDatabaseUrl,
+    "render-migration-retry-idempotent",
+  );
+  assert.equal(secondSuccessfulStartup.ok, true);
+  assert.equal(
+    Number(psql("SELECT count(*) FROM stock_movements;", retryDatabaseUrl)),
+    movementsAfterRetry,
+    "a subsequent startup does not duplicate the opening movement",
+  );
+  assert.equal(
+    psql(`
+      SELECT count(*) FROM stock_movements
+      WHERE reason = 'opening_balance' AND inventory_id = 1;
+    `, retryDatabaseUrl),
+    "1",
+  );
+});
+
 test("the Render backfill completes on 100k synthetic inventory and 1M movement rows", async (t) => {
   run("createdb", ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "postgres", "migration_scale"]);
   const scaleDatabaseUrl = `postgresql://postgres@127.0.0.1:${pgPort}/migration_scale`;
