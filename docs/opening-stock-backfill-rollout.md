@@ -19,10 +19,10 @@ On the local test environment, the large startup run took about 38 seconds. An i
 1. Take and verify a current production backup using the existing production backup process.
 2. Before deployment, compare production's inventory and stock-movement row counts with the tested 100,000 / 1,000,000 scale. If either is materially larger, repeat the test at that scale against a disposable copy before proceeding.
 3. Schedule the first deployment for a low-activity period. The service does not accept traffic until startup migrations finish; the backfill is write-heavy and can slow database queries even though it no longer holds an exclusive table lock for the full rewrite.
-4. Watch Render startup logs until `Render schema migrations verified` appears and the service health check succeeds. If startup aborts, do not repeatedly restart without reading the migration error.
+4. Watch Render startup logs for each migration phase's start and completion time, plus the date-backfill batch counts. Continue until `Render schema migrations verified` appears and the service health check succeeds. If startup aborts, do not repeatedly restart without reading the migration error.
 5. After startup, check that no stock movement has a null `effective_date`; verify a few opening rows against their inventory quantity, cost, and creation date; and verify items with prior history were not given another opening row.
 
-The movement-date rewrite commits in batches of 100,000 rows, with a brief yield between batches. A brief `SHARE` table lock is used only around the opening-row existence check and insert: history reads remain available, while concurrent movement writers wait for that short final step. The session advisory lock serializes startup migration runs across instances.
+The movement-date rewrite commits in batches of 100,000 rows, with a brief yield between batches. Startup logs report the phase name and elapsed milliseconds, and each backfill batch reports its ordinal, updated-row count, cumulative updated-row count, and elapsed milliseconds. These progress logs contain counts only; they do not include stock-movement, inventory, or customer details. The final zero-row batch indicates that no more rows need updating. A brief `SHARE` table lock is used only around the opening-row existence check and insert: history reads remain available, while concurrent movement writers wait for that short final step. The session advisory lock serializes startup migration runs across instances.
 
 ## Recovery
 

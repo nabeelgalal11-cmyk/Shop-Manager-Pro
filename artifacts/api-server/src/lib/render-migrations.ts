@@ -81,13 +81,45 @@ async function withTransaction(
   }
 }
 
+async function runTimedMigrationPhase(phase: string, run: () => Promise<void>) {
+  const startedAt = performance.now();
+  logger.info({ phase, elapsedMs: 0 }, "Render schema migration phase started");
+  try {
+    await run();
+  } catch (error) {
+    logger.error(
+      { err: error, phase, elapsedMs: Math.round(performance.now() - startedAt) },
+      "Render schema migration phase failed",
+    );
+    throw error;
+  }
+  logger.info(
+    { phase, elapsedMs: Math.round(performance.now() - startedAt) },
+    "Render schema migration phase completed",
+  );
+}
+
 async function backfillEffectiveDates(client: RenderMigrationClient) {
   // Keep this data rewrite outside the DDL transaction and commit in bounded
   // batches. UPDATE takes ROW EXCLUSIVE (compatible with normal reads and
   // writes), unlike the ACCESS EXCLUSIVE lock from ALTER TABLE.
   let lastUpdatedId = 0;
+  let totalRowsUpdated = 0;
+  let batch = 0;
   for (;;) {
+    batch += 1;
+    const batchStartedAt = performance.now();
+    logger.info(
+      {
+        batch,
+        batchSize: OPENING_STOCK_BACKFILL_BATCH_SIZE,
+        elapsedMs: 0,
+      },
+      "Render stock movement date backfill batch started",
+    );
+
     let nextLastUpdatedId: number | null = null;
+    let rowsUpdated = 0;
     await withTransaction(client, async () => {
       const result = await client.query(
         `WITH batch AS (
@@ -109,10 +141,21 @@ async function backfillEffectiveDates(client: RenderMigrationClient) {
          FROM updated`,
         [lastUpdatedId, OPENING_STOCK_BACKFILL_BATCH_SIZE],
       );
-      if (Number(result.rows[0]?.row_count ?? 0) > 0) {
+      rowsUpdated = Number(result.rows[0]?.row_count ?? 0);
+      if (rowsUpdated > 0) {
         nextLastUpdatedId = result.rows[0].last_id;
       }
     });
+    totalRowsUpdated += rowsUpdated;
+    logger.info(
+      {
+        batch,
+        rowsUpdated,
+        totalRowsUpdated,
+        elapsedMs: Math.round(performance.now() - batchStartedAt),
+      },
+      "Render stock movement date backfill batch completed",
+    );
     if (nextLastUpdatedId === null) break;
     lastUpdatedId = nextLastUpdatedId;
     // Leave brief windows for other database sessions between write batches.
@@ -194,20 +237,28 @@ export async function runRenderSchemaMigrations() {
     await client.query("SELECT pg_advisory_lock($1)", [RENDER_SCHEMA_LOCK]);
     advisoryLockAcquired = true;
 
-    await withTransaction(client, async () => {
-      for (const statement of [
-        ...ESTIMATE_TAX_COLUMN_SQL,
-        ...SHOP_PROFILE_COLUMN_SQL,
-        ...INVENTORY_FITMENT_COLUMN_SQL,
-        ...OPENING_STOCK_PREPARE_SQL,
-      ]) {
-        await client.query(statement);
-      }
+    await runTimedMigrationPhase("schema preparation", async () => {
+      await withTransaction(client, async () => {
+        for (const statement of [
+          ...ESTIMATE_TAX_COLUMN_SQL,
+          ...SHOP_PROFILE_COLUMN_SQL,
+          ...INVENTORY_FITMENT_COLUMN_SQL,
+          ...OPENING_STOCK_PREPARE_SQL,
+        ]) {
+          await client.query(statement);
+        }
+      });
     });
 
-    await backfillEffectiveDates(client);
-    await ensureEffectiveDateNotNull(client);
-    await insertOpeningStockMovements(client);
+    await runTimedMigrationPhase("effective-date backfill", () =>
+      backfillEffectiveDates(client),
+    );
+    await runTimedMigrationPhase("effective-date constraint", () =>
+      ensureEffectiveDateNotNull(client),
+    );
+    await runTimedMigrationPhase("opening-stock movements", () =>
+      insertOpeningStockMovements(client),
+    );
     logger.info("Render schema migrations verified");
   } catch (error) {
     logger.error({ err: error }, "Render schema migration failed");

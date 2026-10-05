@@ -122,6 +122,17 @@ function delay(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function parseJsonLogLines(output: string) {
+  return output.split("\n").flatMap((line) => {
+    try {
+      const parsed = JSON.parse(line);
+      return parsed && typeof parsed === "object" ? [parsed] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 function allocatePort() {
   return new Promise<number>((resolve, reject) => {
     const listener = net.createServer();
@@ -753,8 +764,52 @@ test("the Render backfill completes on 100k synthetic inventory and 1M movement 
     await delay(10);
   }
 
-  const [, blockedReadResult] = await Promise.all([migrationPromise, blockedReadPromise]);
+  const [migrationOutput, blockedReadResult] = await Promise.all([
+    migrationPromise,
+    blockedReadPromise,
+  ]);
   const migrationMs = Date.now() - migrationStart;
+  const migrationLogs = parseJsonLogLines(migrationOutput);
+  const phases = [
+    "schema preparation",
+    "effective-date backfill",
+    "effective-date constraint",
+    "opening-stock movements",
+  ];
+  for (const phase of phases) {
+    assert.ok(
+      migrationLogs.some(
+        (entry) =>
+          entry.msg === "Render schema migration phase started" &&
+          entry.phase === phase &&
+          Number.isFinite(entry.elapsedMs),
+      ),
+      `logged the start of the ${phase} phase`,
+    );
+    assert.ok(
+      migrationLogs.some(
+        (entry) =>
+          entry.msg === "Render schema migration phase completed" &&
+          entry.phase === phase &&
+          Number.isFinite(entry.elapsedMs),
+      ),
+      `logged the completion time of the ${phase} phase`,
+    );
+  }
+  const backfillBatchLogs = migrationLogs.filter(
+    (entry) => entry.msg === "Render stock movement date backfill batch completed",
+  );
+  assert.ok(backfillBatchLogs.length >= 10, "logged progress for each backfill batch");
+  assert.equal(backfillBatchLogs.at(-1).rowsUpdated, 0);
+  assert.equal(backfillBatchLogs.at(-1).totalRowsUpdated, 1_000_000);
+  for (const entry of backfillBatchLogs) {
+    assert.equal(typeof entry.batch, "number");
+    assert.equal(typeof entry.rowsUpdated, "number");
+    assert.equal(typeof entry.totalRowsUpdated, "number");
+    assert.equal(Number.isFinite(entry.elapsedMs), true);
+    assert.equal("inventoryId" in entry, false);
+    assert.equal("customerId" in entry, false);
+  }
   const movementCounts = psql(`
     SELECT (SELECT count(*) FROM stock_movements WHERE reason = 'opening_balance')
       || '|' || (SELECT count(*) FROM stock_movements WHERE effective_date IS NULL)
