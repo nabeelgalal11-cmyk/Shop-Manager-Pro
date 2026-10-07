@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { db, employeesTable } from "@workspace/db";
 import { eq, sql, desc, isNotNull } from "drizzle-orm";
 import { requireAuth, requirePermission, requireRole } from "../lib/auth.js";
+import { revokeUserSessions } from "../lib/auth-storage.js";
 
 const router: Router = Router();
 
@@ -47,10 +48,17 @@ router.post("/", requirePermission("users", "create"), requireRole("admin"), asy
   if (employeeId) {
     const [updated] = await db
       .update(employeesTable)
-      .set({ username: uname, passwordHash, roles: rolesArr, role: primaryRole })
+      .set({
+        username: uname,
+        passwordHash,
+        roles: rolesArr,
+        role: primaryRole,
+        authVersion: sql`${employeesTable.authVersion} + 1`,
+      })
       .where(eq(employeesTable.id, Number(employeeId)))
       .returning();
     if (!updated) return res.status(404).json({ error: "Employee not found" });
+    await revokeUserSessions(updated.id);
     return res.status(201).json({ id: updated.id });
   }
 
@@ -78,11 +86,13 @@ router.put("/:id", requirePermission("users", "edit"), requireRole("admin"), asy
   const id = Number(req.params.id);
   const { roles, active, password, firstName, lastName, email } = req.body || {};
   const updates: Record<string, any> = {};
+  const shouldRevokeSessions = Boolean(password) || active === false;
   if (Array.isArray(roles)) {
     updates.roles = roles;
     if (roles.length > 0) updates.role = roles[0];
   }
   if (typeof active === "boolean") updates.active = active;
+  if (shouldRevokeSessions) updates.authVersion = sql`${employeesTable.authVersion} + 1`;
   if (typeof firstName === "string") updates.firstName = firstName;
   if (typeof lastName === "string") updates.lastName = lastName;
   if (typeof email === "string") updates.email = email || null;
@@ -96,6 +106,7 @@ router.put("/:id", requirePermission("users", "edit"), requireRole("admin"), asy
   updates.updatedAt = sql`now()`;
   const [updated] = await db.update(employeesTable).set(updates).where(eq(employeesTable.id, id)).returning();
   if (!updated) return res.status(404).json({ error: "User not found" });
+  if (shouldRevokeSessions) await revokeUserSessions(id);
   res.json({ ok: true });
 });
 
@@ -104,8 +115,14 @@ router.delete("/:id", requirePermission("users", "delete"), requireRole("admin")
   const id = Number(req.params.id);
   await db
     .update(employeesTable)
-    .set({ username: null, passwordHash: null, active: false })
+    .set({
+      username: null,
+      passwordHash: null,
+      active: false,
+      authVersion: sql`${employeesTable.authVersion} + 1`,
+    })
     .where(eq(employeesTable.id, id));
+  await revokeUserSessions(id);
   res.json({ ok: true });
 });
 

@@ -39,3 +39,4 @@ export * from "./estimate_events";
 export * from "./activity_events";
 export * from "./square";
 export * from "./password_reset_tokens";
+export * from "./auth_storage";

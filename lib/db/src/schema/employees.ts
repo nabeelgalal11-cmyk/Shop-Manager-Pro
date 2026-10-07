@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, boolean, date, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, boolean, date, timestamp, integer } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -18,6 +18,7 @@ export const employeesTable = pgTable("employees", {
   clockedIn: boolean("clocked_in").notNull().default(false),
   username: text("username").unique(),
   passwordHash: text("password_hash"),
+  authVersion: integer("auth_version").notNull().default(0),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

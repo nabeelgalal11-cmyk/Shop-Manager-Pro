@@ -1,16 +1,15 @@
 import session from "express-session";
-import createMemoryStore from "memorystore";
 import type { RequestHandler, Request, Response, NextFunction } from "express";
 import { db, employeesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { getPermissionsForRoles, hasPermission, type Resource, type Action } from "./permissions.js";
-
-const MemoryStore = createMemoryStore(session);
+import { persistentSessionStore } from "./auth-storage.js";
 
 declare module "express-session" {
   interface SessionData {
     userId?: number;
+    authVersion?: number;
   }
 }
 
@@ -25,6 +24,10 @@ export interface AuthUser {
   active: boolean;
 }
 
+interface LoadedAuthUser extends AuthUser {
+  authVersion: number;
+}
+
 const isProd = process.env.NODE_ENV === "production";
 const sessionSecret = process.env.SESSION_SECRET;
 if (isProd && !sessionSecret) {
@@ -32,18 +35,19 @@ if (isProd && !sessionSecret) {
 }
 
 const MOBILE_TOKEN_LIFETIME_SECONDS = 60 * 60 * 24 * 7;
-type MobileTokenPayload = { sub: number; exp: number; typ: "mobile" };
+type MobileTokenPayload = { sub: number; exp: number; typ: "mobile"; authVersion: number };
 
 function authSecret(): string {
   return sessionSecret || "dev-only-insecure-secret";
 }
 
-export function issueMobileToken(userId: number): { token: string; expiresAt: Date } {
+export function issueMobileToken(userId: number, authVersion: number): { token: string; expiresAt: Date } {
   const expiresAt = new Date(Date.now() + MOBILE_TOKEN_LIFETIME_SECONDS * 1000);
   const payload: MobileTokenPayload = {
     sub: userId,
     exp: Math.floor(expiresAt.getTime() / 1000),
     typ: "mobile",
+    authVersion,
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = createHmac("sha256", authSecret()).update(encoded).digest("base64url");
@@ -60,6 +64,7 @@ function verifyMobileToken(token: string): MobileTokenPayload | null {
     const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")) as MobileTokenPayload;
     if (payload.typ !== "mobile" || !Number.isSafeInteger(payload.sub) || payload.sub <= 0) return null;
     if (!Number.isSafeInteger(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    if (!Number.isSafeInteger(payload.authVersion) || payload.authVersion < 0) return null;
     return payload;
   } catch {
     return null;
@@ -70,7 +75,7 @@ export const sessionMiddleware: RequestHandler = session({
   secret: sessionSecret || "dev-only-insecure-secret",
   resave: false,
   saveUninitialized: false,
-  store: new MemoryStore({ checkPeriod: 24 * 60 * 60 * 1000 }),
+  store: persistentSessionStore,
   proxy: isProd,
   cookie: {
     httpOnly: true,
@@ -80,7 +85,7 @@ export const sessionMiddleware: RequestHandler = session({
   },
 });
 
-async function loadUser(userId: number): Promise<AuthUser | null> {
+async function loadUser(userId: number): Promise<LoadedAuthUser | null> {
   const [row] = await db
     .select({
       id: employeesTable.id,
@@ -91,6 +96,7 @@ async function loadUser(userId: number): Promise<AuthUser | null> {
       role: employeesTable.role,
       roles: employeesTable.roles,
       active: employeesTable.active,
+      authVersion: employeesTable.authVersion,
     })
     .from(employeesTable)
     .where(eq(employeesTable.id, userId));
@@ -105,6 +111,7 @@ async function loadUser(userId: number): Promise<AuthUser | null> {
     role: row.role,
     roles: row.roles && row.roles.length > 0 ? row.roles : [row.role],
     active: row.active,
+    authVersion: row.authVersion,
   };
 }
 
@@ -115,10 +122,21 @@ export const attachUser: RequestHandler = async (req, _res, next) => {
   const userId = bearer ? tokenPayload?.sub : req.session?.userId;
   if (userId) {
     const user = await loadUser(userId);
-    if (user && user.active) {
-      (req as any).user = user;
+    const sessionAuthVersion = bearer ? tokenPayload?.authVersion : req.session?.authVersion;
+    if (user && user.active && sessionAuthVersion === user.authVersion) {
+      (req as any).user = {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        roles: user.roles,
+        active: user.active,
+      } satisfies AuthUser;
     } else if (!bearer) {
       req.session.userId = undefined;
+      req.session.authVersion = undefined;
     }
   }
   next();

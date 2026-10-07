@@ -2,8 +2,9 @@ import { Router, type Request } from "express";
 import bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "node:crypto";
 import { db, employeesTable, passwordResetTokensTable } from "@workspace/db";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { getUser, issueMobileToken, recordLogin, requireAuth } from "../lib/auth.js";
+import { loginAttemptLimiter, revokeUserSessions } from "../lib/auth-storage.js";
 import { getPermissionsForRoles, RESOURCES, ACTIONS } from "../lib/permissions.js";
 import { escapeHtml, sendTemplatedEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
@@ -16,9 +17,6 @@ const forgotPasswordRequests = new Map<string, number>();
 const forgotPasswordMessage =
   "If this is an eligible account, follow the secure link sent by email; otherwise an administrator will review the request.";
 const MIN_PASSWORD_LENGTH = 12;
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX_ATTEMPTS = 10;
-const loginAttempts = new Map<string, { count: number; expiresAt: number }>();
 
 function isPrivileged(emp: { role: string; roles: string[] }, role: string): boolean {
   const roles = emp.roles?.length ? emp.roles : [emp.role];
@@ -45,25 +43,6 @@ function getPublicOrigin(req: Request): string {
   const host = req.get("host");
   if (!host) throw new Error("Request host is unavailable");
   return `${req.protocol}://${host}`;
-}
-
-function reserveLoginAttempt(ip: string): { allowed: boolean; retryAfterSeconds?: number } {
-  const now = Date.now();
-  const previous = loginAttempts.get(ip);
-  if (!previous || previous.expiresAt <= now) {
-    loginAttempts.set(ip, { count: 1, expiresAt: now + LOGIN_WINDOW_MS });
-    if (loginAttempts.size > 10_000) {
-      for (const [key, value] of loginAttempts) {
-        if (value.expiresAt <= now) loginAttempts.delete(key);
-      }
-    }
-    return { allowed: true };
-  }
-  if (previous.count >= LOGIN_MAX_ATTEMPTS) {
-    return { allowed: false, retryAfterSeconds: Math.ceil((previous.expiresAt - now) / 1000) };
-  }
-  previous.count += 1;
-  return { allowed: true };
 }
 
 router.post("/forgot-password", async (req, res) => {
@@ -154,24 +133,31 @@ router.post("/reset-password", async (req, res) => {
   const tokenHash = createHash("sha256").update(rawToken).digest("hex");
   const now = new Date();
   try {
-    const result = await db.transaction(async (tx) => {
+    const changedUserId = await db.transaction(async (tx) => {
       const [token] = await tx.select().from(passwordResetTokensTable).where(and(
         eq(passwordResetTokensTable.tokenHash, tokenHash),
         isNull(passwordResetTokensTable.usedAt),
         gt(passwordResetTokensTable.expiresAt, now),
       )).limit(1);
-      if (!token) return false;
+      if (!token) return null;
       const [claimed] = await tx.update(passwordResetTokensTable)
         .set({ usedAt: now })
         .where(and(eq(passwordResetTokensTable.id, token.id), isNull(passwordResetTokensTable.usedAt)))
         .returning({ id: passwordResetTokensTable.id });
-      if (!claimed) return false;
+      if (!claimed) return null;
       const passwordHash = await bcrypt.hash(newPassword, 10);
-      await tx.update(employeesTable).set({ passwordHash, updatedAt: now })
-        .where(and(eq(employeesTable.id, token.employeeId), eq(employeesTable.active, true)));
-      return true;
+      const [updatedEmployee] = await tx.update(employeesTable).set({
+        passwordHash,
+        updatedAt: now,
+        authVersion: sql`${employeesTable.authVersion} + 1`,
+      })
+        .where(and(eq(employeesTable.id, token.employeeId), eq(employeesTable.active, true)))
+        .returning({ id: employeesTable.id });
+      if (!updatedEmployee) return null;
+      return token.employeeId;
     });
-    if (!result) return res.status(400).json({ error: "Invalid or expired reset request" });
+    if (!changedUserId) return res.status(400).json({ error: "Invalid or expired reset request" });
+    await revokeUserSessions(changedUserId);
     return res.json({ ok: true, message: "Password reset successfully" });
   } catch (error) {
     logger.warn({ err: error instanceof Error ? error.message : "unknown" }, "Password reset failed");
@@ -182,7 +168,7 @@ router.post("/reset-password", async (req, res) => {
 router.post("/login", async (req, res) => {
   const { username, password, mobile } = req.body || {};
   const ip = req.ip || req.socket.remoteAddress || "unknown";
-  const rateLimit = reserveLoginAttempt(ip);
+  const rateLimit = await loginAttemptLimiter.reserve(ip);
   if (!rateLimit.allowed) {
     res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
     return res.status(429).json({ error: "Too many sign-in attempts. Try again later." });
@@ -201,13 +187,14 @@ router.post("/login", async (req, res) => {
 
   const ok = await bcrypt.compare(String(password), emp.passwordHash);
   if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-  loginAttempts.delete(ip);
+  await loginAttemptLimiter.clear(ip);
 
   // Regenerate session ID to prevent session fixation
   await new Promise<void>((resolve, reject) =>
     req.session.regenerate((err) => (err ? reject(err) : resolve())),
   );
   req.session.userId = emp.id;
+  req.session.authVersion = emp.authVersion;
   await new Promise<void>((resolve, reject) =>
     req.session.save((err) => (err ? reject(err) : resolve())),
   );
@@ -216,7 +203,7 @@ router.post("/login", async (req, res) => {
 
   const roles = emp.roles && emp.roles.length > 0 ? emp.roles : [emp.role];
   const permsSet = await getPermissionsForRoles(roles);
-  const mobileAuth = mobile === true ? issueMobileToken(emp.id) : null;
+  const mobileAuth = mobile === true ? issueMobileToken(emp.id, emp.authVersion) : null;
   res.json({
     user: {
       id: emp.id,
@@ -265,7 +252,11 @@ router.post("/change-password", requireAuth, async (req, res) => {
   const ok = await bcrypt.compare(String(currentPassword), emp.passwordHash);
   if (!ok) return res.status(401).json({ error: "Current password incorrect" });
   const passwordHash = await bcrypt.hash(String(newPassword), 10);
-  await db.update(employeesTable).set({ passwordHash }).where(eq(employeesTable.id, u.id));
+  await db.update(employeesTable).set({
+    passwordHash,
+    authVersion: sql`${employeesTable.authVersion} + 1`,
+  }).where(eq(employeesTable.id, u.id));
+  await revokeUserSessions(u.id);
   res.json({ ok: true });
 });
 

@@ -11,6 +11,10 @@ import { startAfterSchemaMigrations } from "../src/lib/startup.js";
 
 const apiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceRoot = path.resolve(apiRoot, "../..");
+const openingStockMigration = path.join(
+  workspaceRoot,
+  "lib/db/migrations/2026-10-01_opening_stock_owner_funding.sql",
+);
 const migrations = [
   path.join(
     workspaceRoot,
@@ -24,10 +28,8 @@ const migrations = [
     workspaceRoot,
     "lib/db/migrations/2026-09-18_inventory_fitment.sql",
   ),
-  path.join(
-    workspaceRoot,
-    "lib/db/migrations/2026-10-01_opening_stock_owner_funding.sql",
-  ),
+  openingStockMigration,
+  path.join(workspaceRoot, "lib/db/migrations/2026-10-05_persistent_auth_storage.sql"),
 ];
 
 let dataDirectory: string;
@@ -193,6 +195,7 @@ before(async () => {
   postgresStarted = true;
 
   psql(`
+    CREATE TABLE employees (id serial PRIMARY KEY);
     CREATE TABLE estimate_items (id integer PRIMARY KEY, description text, amount numeric);
     CREATE TABLE repair_order_work_items (id integer PRIMARY KEY, description text, amount numeric);
     CREATE TABLE invoice_items (id integer PRIMARY KEY, description text, amount numeric);
@@ -283,7 +286,7 @@ function legacyDataSnapshot(database = databaseUrl) {
   `, database);
 }
 
-test("Render startup migrations apply the columns declared by both SQL migrations twice without changing existing rows", () => {
+test("Render startup migrations apply all declared SQL columns twice without changing existing rows", () => {
   const expectedColumns = migrations.flatMap((migrationPath) =>
     declaredColumnsFromSql(readFileSync(migrationPath, "utf8")),
   );
@@ -319,6 +322,16 @@ test("Render startup migrations apply the columns declared by both SQL migration
     `),
   );
   assert.equal(actualColumnCount, expectedColumns.length);
+  assert.equal(
+    psql(`
+      SELECT count(*)
+      FROM information_schema.tables
+      WHERE table_schema = current_schema()
+        AND table_name IN ('auth_sessions', 'auth_login_attempts');
+    `),
+    "2",
+    "Render startup creates the shared session and login-attempt stores",
+  );
 
   assert.equal(legacyDataSnapshot(), beforeMigration);
   const afterFirstRun = psql(`
@@ -394,6 +407,7 @@ test("simultaneous Render startups serialize on the advisory lock and preserve e
   const lockHolderApplication = "render-migration-concurrency-table-lock";
   run("createdb", ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "postgres", "migration_concurrency"]);
   psql(`
+    CREATE TABLE employees (id serial PRIMARY KEY);
     CREATE TABLE estimate_items (id integer PRIMARY KEY, description text, amount numeric);
     CREATE TABLE repair_order_work_items (id integer PRIMARY KEY, description text, amount numeric);
     CREATE TABLE invoice_items (id integer PRIMARY KEY, description text, amount numeric);
@@ -591,7 +605,7 @@ test("the standalone SQL migration matches the opening-stock behavior", () => {
     "-v",
     "ON_ERROR_STOP=1",
     "-f",
-    migrations[migrations.length - 1],
+    openingStockMigration,
   ]);
   run("psql", [
     sqlDatabaseUrl,
@@ -599,7 +613,7 @@ test("the standalone SQL migration matches the opening-stock behavior", () => {
     "-v",
     "ON_ERROR_STOP=1",
     "-f",
-    migrations[migrations.length - 1],
+    openingStockMigration,
   ]);
 
   assert.equal(
@@ -621,6 +635,7 @@ test("a later startup resumes the effective-date backfill after a committed batc
   run("createdb", ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "postgres", "migration_retry"]);
   const retryDatabaseUrl = `postgresql://postgres@127.0.0.1:${pgPort}/migration_retry`;
   psql(`
+    CREATE TABLE employees (id serial PRIMARY KEY);
     CREATE TABLE estimate_items (id integer PRIMARY KEY);
     CREATE TABLE repair_order_work_items (id integer PRIMARY KEY);
     CREATE TABLE invoice_items (id integer PRIMARY KEY);
@@ -748,6 +763,7 @@ test("the Render backfill completes on 100k synthetic inventory and 1M movement 
   run("createdb", ["-h", "127.0.0.1", "-p", String(pgPort), "-U", "postgres", "migration_scale"]);
   const scaleDatabaseUrl = `postgresql://postgres@127.0.0.1:${pgPort}/migration_scale`;
   psql(`
+    CREATE TABLE employees (id serial PRIMARY KEY);
     CREATE TABLE estimate_items (id integer PRIMARY KEY);
     CREATE TABLE repair_order_work_items (id integer PRIMARY KEY);
     CREATE TABLE invoice_items (id integer PRIMARY KEY);
@@ -968,6 +984,7 @@ test("a failed startup migration logs an abort and never starts the listener", (
   psql(
     `
       CREATE TABLE estimate_items (id integer PRIMARY KEY);
+      CREATE TABLE employees (id serial PRIMARY KEY);
       CREATE TABLE repair_order_work_items (id integer PRIMARY KEY);
       CREATE TABLE invoice_items (id integer PRIMARY KEY);
       CREATE TABLE shop_settings (id integer PRIMARY KEY);

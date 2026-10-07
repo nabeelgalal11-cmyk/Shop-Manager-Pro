@@ -4,6 +4,7 @@ import { employeesTable, timeEntriesTable } from "@workspace/db";
 import { eq, sql, desc, and, or } from "drizzle-orm";
 import { getUser, requirePermission } from "../lib/auth.js";
 import { getPermissionsForRoles, hasPermission } from "../lib/permissions.js";
+import { revokeUserSessions } from "../lib/auth-storage.js";
 
 const router: Router = Router();
 const employeeFields = {
@@ -129,6 +130,7 @@ router.put("/:id", requirePermission("employees", "edit"), async (req, res) => {
   if (phone !== undefined) updates.phone = phone;
   if (hourlyRate !== undefined) updates.hourlyRate = hourlyRate;
   if (active !== undefined) updates.active = active;
+  if (active === false) updates.authVersion = sql`${employeesTable.authVersion} + 1`;
   if (hireDate !== undefined) updates.hireDate = hireDate;
   if (notes !== undefined) updates.notes = notes;
   if (Array.isArray(roles)) {
@@ -138,11 +140,14 @@ router.put("/:id", requirePermission("employees", "edit"), async (req, res) => {
   if (role !== undefined) updates.role = role;
   const [employee] = await db.update(employeesTable).set(updates).where(eq(employeesTable.id, id)).returning(employeeFields);
   if (!employee) return res.status(404).json({ error: "Employee not found" });
+  if (active === false) await revokeUserSessions(id);
   res.json(employee);
 });
 
 router.delete("/:id", requirePermission("employees", "delete"), async (req, res) => {
-  await db.delete(employeesTable).where(eq(employeesTable.id, Number(req.params.id)));
+  const id = Number(req.params.id);
+  await revokeUserSessions(id);
+  await db.delete(employeesTable).where(eq(employeesTable.id, id));
   res.status(204).send();
 });
 

@@ -7,7 +7,7 @@
 - [React Query monorepo resolution](react-query-monorepo.md) — dedupe React Query in Vite when shared workspace clients import generated hooks
 - [Expo release API base URL](expo-api-base-url.md) — native bundles need a static production API fallback when build-time domain variables are absent
 - [Repair workflow aggregate](repair-workflow-aggregate.md) — Repair Orders own immutable estimate revisions, authorized work, one final invoice, and reversal-based payments
-- [Schema and API tooling quirks](schema-api-tooling-quirks.md) — local additive SQL migrations are safer when Drizzle push prompts on unrelated constraints, and Orval may fail to resolve the local YAML input
+- [Schema and API tooling quirks](schema-api-tooling-quirks.md) — prefer additive SQL for narrow schema changes and use the established CJS tsx runner for full API route tests
 - [Render schema migration](render-schema-migrations.md) — Render Free has no separate migration phase; additive production schema changes use the guarded Render-only startup migration path
 - [EAS standalone bundles](eas-standalone-bundles.md) — mobile APK source uploads must avoid parent-workspace-only dependency specifiers during remote dependency installation
 - [Production host split](production-host-split.md) — app.915motorsusa.com is Render-backed; Replit deployment logs and its replit.app URL do not diagnose that live host
